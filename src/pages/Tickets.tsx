@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTicketsData } from '@/hooks/useTicketsData';
 import { useTicketForm } from '@/hooks/useTicketForm';
-import { useSidebarTouch } from '@/hooks/useSidebarTouch';
 import { useBulkTicketActions } from '@/hooks/useBulkTicketActions';
 import { useToast } from '@/hooks/use-toast';
-import TicketsSidebar from '@/components/tickets/TicketsSidebar';
+import PageLayout from '@/components/layout/PageLayout';
+import AppHeader from '@/components/layout/AppHeader';
 import TicketsHeader from '@/components/tickets/TicketsHeader';
 import TicketsSearch from '@/components/tickets/TicketsSearch';
 import TicketForm from '@/components/tickets/TicketForm';
@@ -125,33 +125,11 @@ const Tickets = () => {
   });
 
   return (
-    <div className="flex min-h-screen">
-      <TicketsSidebar
-        menuOpen={menuOpen}
-        dictionariesOpen={dictionariesOpen}
-        setDictionariesOpen={setDictionariesOpen}
-        settingsOpen={settingsOpen}
-        setSettingsOpen={setSettingsOpen}
-        handleTouchStart={handleTouchStart}
-        handleTouchMove={handleTouchMove}
-        handleTouchEnd={handleTouchEnd}
-      />
-
-      {menuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setMenuOpen(false)}
-        />
-      )}
-
-      <main className="flex-1 lg:ml-[250px] p-4 md:p-6">
-        <div className="max-w-7xl mx-auto">
-          <TicketsHeader
-            menuOpen={menuOpen}
-            setMenuOpen={setMenuOpen}
-          />
-
-          <TicketsSearch searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+    <PageLayout>
+      <AppHeader menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
+      
+      <div className="max-w-7xl mx-auto">
+        <TicketsSearch searchQuery={searchQuery} onSearchChange={setSearchQuery} />
 
           <div className="flex items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
@@ -358,9 +336,8 @@ const Tickets = () => {
               }}
             />
           )}
-        </div>
-      </main>
-    </div>
+      </div>
+    </PageLayout>
   );
 };
 
