@@ -1,0 +1,29 @@
+{
+  "tests": [
+    {
+      "name": "Login Success", 
+      "method": "POST",
+      "path": "/?endpoint=login",
+      "body": {"username": "admin", "password": "admin"},
+      "expectedStatus": 200
+    },
+    {
+      "name": "Unauthorized Access",
+      "method": "GET",
+      "path": "/?endpoint=users",
+      "expectedStatus": 401
+    },
+    {
+      "name": "Check Health",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Ticket Dictionaries Unauthorized",
+      "method": "GET",
+      "path": "/?endpoint=ticket-dictionaries-api",
+      "expectedStatus": 401
+    }
+  ]
+}

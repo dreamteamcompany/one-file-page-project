@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Получение списка файлов логов",
+      "method": "GET",
+      "path": "/?action=list",
+      "expectedStatus": 200,
+      "expectedBody": [],
+      "bodyMatcher": "type"
+    },
+    {
+      "name": "Загрузка лог-файла",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "filename": "test.log",
+        "file_content": "MjAyNC0wMS0xNVQxMDozMDo0NVogW0VSUk9SXSBUZXN0IGVycm9yIG1lc3NhZ2UKMjAyNC0wMS0xNVQxMDozMDo0NlogW0lORk9dIFRlc3QgaW5mbyBtZXNzYWdl"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "file_id": "number",
+        "total_lines": "number",
+        "statistics": "object"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

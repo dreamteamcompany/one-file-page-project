@@ -1,0 +1,16 @@
+{
+  "tests": [
+    {
+      "name": "Очистка данных",
+      "method": "POST",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "tables_cleared": "number",
+        "message": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

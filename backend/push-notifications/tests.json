@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Subscribe push notification",
+      "method": "POST",
+      "path": "/?endpoint=subscribe-push",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-Auth-Token": "test-token"
+      },
+      "body": {
+        "user_id": 1,
+        "subscription": {
+          "endpoint": "https://test.push.service/test",
+          "keys": {
+            "p256dh": "test-p256dh-key",
+            "auth": "test-auth-key"
+          }
+        }
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "message": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

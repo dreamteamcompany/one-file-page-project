@@ -1,0 +1,20 @@
+{
+  "tests": [
+    {
+      "name": "Сбор логов фронтенда",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "sources": ["frontend"],
+        "limit": 100
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true,
+        "collected": "number",
+        "sources_processed": "number"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}

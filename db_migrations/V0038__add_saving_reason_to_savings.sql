@@ -1,0 +1,1 @@
+ALTER TABLE savings ADD COLUMN saving_reason_id INTEGER REFERENCES saving_reasons(id);

@@ -1,0 +1,9 @@
+{
+  "tests": [
+    {
+      "name": "Health check",
+      "method": "GET",
+      "expectedStatus": 200
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+UPDATE t_p61788166_html_to_frontend.payments SET service_id = 1 WHERE id = 1;
