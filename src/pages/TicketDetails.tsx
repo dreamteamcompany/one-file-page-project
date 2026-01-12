@@ -279,7 +279,7 @@ const TicketDetails = () => {
           'Content-Type': 'application/json',
           'X-Auth-Token': token,
         },
-        body: JSON.stringify({ ticket_id: id, is_ping: true }),
+        body: JSON.stringify({ ticket_id: id, comment: 'пинг' }),
       });
       loadComments();
     } catch (error) {
@@ -289,10 +289,10 @@ const TicketDetails = () => {
     }
   };
 
-  const handleReaction = async (commentId: number, emoji: string) => {
+  const handleAddReaction = async (commentId: number, emoji: string) => {
     try {
       const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      await fetch(`${mainUrl}?endpoint=comment-reactions`, {
+      await fetch(`${mainUrl}?endpoint=ticket-comments-reactions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -306,42 +306,37 @@ const TicketDetails = () => {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (file: File, commentId?: number) => {
     try {
       setUploadingFile(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      
       const reader = new FileReader();
-      reader.readAsDataURL(file);
       
-      await new Promise((resolve, reject) => {
-        reader.onload = async () => {
-          try {
-            const base64 = (reader.result as string).split(',')[1];
-            const response = await fetch(`${mainUrl}?endpoint=upload-file`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Auth-Token': token,
-              },
-              body: JSON.stringify({
-                file_data: base64,
-                filename: file.name,
-                content_type: file.type,
-              }),
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              setNewComment(prev => prev + `\n[Файл: ${file.name}](${data.url})`);
-            }
-            resolve(null);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        reader.onerror = reject;
-      });
+      reader.onload = async (e) => {
+        const base64 = e.target?.result as string;
+        const base64Data = base64.split(',')[1];
+        
+        const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
+        const response = await fetch(`${mainUrl}?endpoint=ticket-attachments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Auth-Token': token,
+          },
+          body: JSON.stringify({
+            ticket_id: id,
+            comment_id: commentId,
+            filename: file.name,
+            file_data: base64Data,
+            content_type: file.type,
+          }),
+        });
+        
+        if (response.ok) {
+          loadComments();
+        }
+      };
+      
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading file:', error);
     } finally {
@@ -349,141 +344,60 @@ const TicketDetails = () => {
     }
   };
 
-  const handleAssignUser = async (userId: string) => {
-    console.log('Assign user:', userId);
-    try {
-      setUpdating(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      const assignedUserId = userId === 'unassign' ? null : Number(userId);
-      
-      console.log('Sending assign request:', { ticket_id: id, assigned_to: assignedUserId });
-      
-      const response = await fetch(`${mainUrl}?endpoint=tickets-api`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, assigned_to: assignedUserId }),
-      });
-      
-      console.log('Assign response:', response.status, await response.text());
-      
-      if (response.ok) {
-        loadTicket();
-        loadHistory();
-      }
-    } catch (error) {
-      console.error('Error assigning user:', error);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleUpdateDueDate = async (dueDate: string | null) => {
-    try {
-      setUpdating(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      const response = await fetch(`${mainUrl}?endpoint=tickets-api`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, due_date: dueDate }),
-      });
-      
-      if (response.ok) {
-        loadTicket();
-        loadHistory();
-      }
-    } catch (error) {
-      console.error('Error updating due date:', error);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Icon name="Loader2" size={48} className="animate-spin text-primary" />
+        <Icon name="Loader2" className="w-8 h-8 animate-spin" />
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Icon name="FileQuestion" size={64} className="text-muted-foreground mb-4" />
-        <p className="text-xl text-muted-foreground mb-4">Тикет не найден</p>
-        <Button onClick={() => navigate('/tickets')}>Вернуться к списку</Button>
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <Icon name="AlertCircle" className="w-12 h-12 text-destructive" />
+        <p className="text-xl">Заявка не найдена</p>
+        <Button onClick={() => navigate('/tickets')}>
+          <Icon name="ArrowLeft" className="w-4 h-4 mr-2" />
+          Назад к заявкам
+        </Button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#2D3E50]">
       <TicketDetailsPageHeader 
-        ticketId={ticket.id}
+        ticket={ticket} 
         onBack={() => navigate('/tickets')}
       />
-
-      <div className="container max-w-[1600px] mx-auto px-4 lg:px-6">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-0">
-          <TicketDetailsContent
-            ticket={ticket}
-            comments={comments}
-            loadingComments={loadingComments}
-            newComment={newComment}
-            submittingComment={submittingComment}
-            sendingPing={sendingPing}
-            userId={user?.id}
-            onCommentChange={setNewComment}
-            onSubmitComment={handleSubmitComment}
-            onSendPing={handleSendPing}
-            onReaction={handleReaction}
-            availableUsers={users}
-            auditLogs={auditLogs}
-            loadingHistory={loadingHistory}
-            onFileUpload={handleFileUpload}
-            uploadingFile={uploadingFile}
-          />
-
-          <div className="lg:hidden">
-            <TicketDetailsSidebar 
-              ticket={ticket}
-              statuses={statuses}
-              users={users}
-              updating={updating}
-              sendingPing={sendingPing}
-              isCustomer={ticket.created_by === user?.id}
-              hasAssignee={!!ticket.assigned_to}
-              onUpdateStatus={(statusId) => handleUpdateStatus(Number(statusId))}
-              onAssignUser={handleAssignUser}
-              onSendPing={handleSendPing}
-              onApprovalChange={loadTicket}
-              onUpdateDueDate={handleUpdateDueDate}
-            />
-          </div>
-
-          <div className="hidden lg:block">
-            <TicketDetailsSidebar 
-              ticket={ticket}
-              statuses={statuses}
-              users={users}
-              updating={updating}
-              sendingPing={sendingPing}
-              isCustomer={ticket.created_by === user?.id}
-              hasAssignee={!!ticket.assigned_to}
-              onUpdateStatus={(statusId) => handleUpdateStatus(Number(statusId))}
-              onAssignUser={handleAssignUser}
-              onSendPing={handleSendPing}
-              onApprovalChange={loadTicket}
-              onUpdateDueDate={handleUpdateDueDate}
-            />
-          </div>
-        </div>
+      
+      <div className="flex gap-6 p-6">
+        <TicketDetailsSidebar
+          ticket={ticket}
+          statuses={statuses}
+          users={users}
+          onUpdateStatus={handleUpdateStatus}
+          updating={updating}
+        />
+        
+        <TicketDetailsContent
+          ticket={ticket}
+          comments={comments}
+          newComment={newComment}
+          setNewComment={setNewComment}
+          loadingComments={loadingComments}
+          submittingComment={submittingComment}
+          sendingPing={sendingPing}
+          uploadingFile={uploadingFile}
+          auditLogs={auditLogs}
+          loadingHistory={loadingHistory}
+          users={users}
+          onSubmitComment={handleSubmitComment}
+          onSendPing={handleSendPing}
+          onAddReaction={handleAddReaction}
+          onFileUpload={handleFileUpload}
+        />
       </div>
     </div>
   );
