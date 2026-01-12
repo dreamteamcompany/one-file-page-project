@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import Icon from '@/components/ui/icon';
+import TicketComments from '@/components/tickets/TicketComments';
+import TicketHistory from '@/components/tickets/TicketHistory';
 
 interface CustomField {
   id: number;
@@ -15,14 +14,27 @@ interface Ticket {
   id: number;
   title: string;
   description?: string;
+  category_id?: number;
   category_name?: string;
+  category_icon?: string;
+  priority_id?: number;
   priority_name?: string;
+  priority_color?: string;
   status_id?: number;
   status_name?: string;
   status_color?: string;
+  department_id?: number;
+  department_name?: string;
+  created_by: number;
   creator_name?: string;
   creator_email?: string;
+  assigned_to?: number;
+  assignee_name?: string;
+  assignee_email?: string;
+  due_date?: string;
   created_at?: string;
+  updated_at?: string;
+  closed_at?: string;
   custom_fields?: CustomField[];
 }
 
@@ -59,228 +71,138 @@ interface AuditLog {
   created_at: string;
 }
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface TicketDetailsContentProps {
   ticket: Ticket;
   comments: Comment[];
-  newComment: string;
-  setNewComment: (value: string) => void;
   loadingComments: boolean;
+  newComment: string;
   submittingComment: boolean;
   sendingPing: boolean;
-  uploadingFile: boolean;
-  auditLogs: AuditLog[];
-  loadingHistory: boolean;
-  users: User[];
+  userId?: number;
+  onCommentChange: (value: string) => void;
   onSubmitComment: (parentCommentId?: number, mentionedUserIds?: number[]) => void;
   onSendPing: () => void;
-  onAddReaction: (commentId: number, emoji: string) => void;
-  onFileUpload: (file: File, commentId?: number) => void;
+  onReaction: (commentId: number, emoji: string) => void;
+  availableUsers?: Array<{id: number; name: string; email: string}>;
+  onFileUpload?: (file: File) => Promise<void>;
+  uploadingFile?: boolean;
+  auditLogs?: AuditLog[];
+  loadingHistory?: boolean;
 }
 
 const TicketDetailsContent = ({
   ticket,
   comments,
-  newComment,
-  setNewComment,
   loadingComments,
+  newComment,
   submittingComment,
-  auditLogs,
-  users,
+  sendingPing,
+  userId,
+  onCommentChange,
   onSubmitComment,
-  onAddReaction,
+  onSendPing,
+  onReaction,
+  availableUsers,
+  onFileUpload,
+  uploadingFile,
+  auditLogs = [],
+  loadingHistory = false,
 }: TicketDetailsContentProps) => {
-  const [activeTab, setActiveTab] = useState<'description' | 'comments'>('description');
-
-  const formatDateTime = (date?: string) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleString('ru-RU', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
+  const [activeTab, setActiveTab] = useState<'comments' | 'files' | 'history'>('comments');
   return (
-    <div className="flex-1 bg-card rounded-lg shadow-sm border">
-      <div className="border-b">
-        <div className="flex gap-1 p-2">
-          <button
-            onClick={() => setActiveTab('description')}
-            className={`px-4 py-2 rounded flex items-center gap-2 ${
-              activeTab === 'description'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            <Icon name="List" className="w-4 h-4" />
-            Содержание
-          </button>
-          <button
+    <div className="flex-1 p-4 lg:p-6">
+      {/* Суть заявки */}
+      <div className="mb-4 lg:mb-6 border rounded-lg p-4 lg:p-5 bg-card">
+        <button className="flex items-center gap-2 text-sm font-semibold mb-4 w-full">
+          <Icon name="ChevronDown" size={16} />
+          Суть заявки
+        </button>
+        
+        <div className="space-y-3">
+          <div>
+            <span className="text-sm text-muted-foreground">Тема:</span>
+            <p className="text-sm font-medium">{ticket.title}</p>
+          </div>
+          
+          {ticket.description && (
+            <div>
+              <span className="text-sm text-muted-foreground">Описание:</span>
+              <p className="text-sm whitespace-pre-wrap leading-relaxed mt-1">{ticket.description}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Комментарии, Файлы и История (вкладки) */}
+      <div className="border-b mb-4">
+        <div className="flex gap-6">
+          <button 
             onClick={() => setActiveTab('comments')}
-            className={`px-4 py-2 rounded flex items-center gap-2 ${
-              activeTab === 'comments'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted'
+            className={`pb-2 border-b-2 text-sm font-medium transition-colors ${
+              activeTab === 'comments' 
+                ? 'border-primary text-foreground' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            <Icon name="MessageSquare" className="w-4 h-4" />
-            Комментарии
-            <Badge variant="secondary" className="ml-1">{comments.length}</Badge>
+            Комментарии ({comments.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('files')}
+            className={`pb-2 border-b-2 text-sm transition-colors ${
+              activeTab === 'files' 
+                ? 'border-primary text-foreground font-medium' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Файлы (0)
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`pb-2 border-b-2 text-sm transition-colors ${
+              activeTab === 'history' 
+                ? 'border-primary text-foreground font-medium' 
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            История ({auditLogs.length})
           </button>
         </div>
       </div>
 
-      <div className="p-6">
-        {activeTab === 'description' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2 uppercase">Содержание</h3>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <span className="text-muted-foreground">ФИО:</span>
-                  <p className="mt-1">{ticket.creator_name || '-'}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Логин:</span>
-                  <p className="mt-1">{ticket.creator_email || '-'}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Доступ к ИС:</span>
-                  <p className="mt-1">-</p>
-                </div>
-              </div>
-            </div>
-
-            {ticket.custom_fields && ticket.custom_fields.length > 0 && (
-              <div className="space-y-3">
-                {ticket.custom_fields.map((field) => (
-                  <div key={field.id}>
-                    <span className="text-sm text-muted-foreground">{field.name}:</span>
-                    <p className="text-sm mt-1">{field.value || '-'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+      {/* Контент вкладок */}
+      <div className="mb-6">
+        {activeTab === 'comments' && (
+          <TicketComments
+            comments={comments}
+            loadingComments={loadingComments}
+            newComment={newComment}
+            submittingComment={submittingComment}
+            onCommentChange={onCommentChange}
+            onSubmitComment={onSubmitComment}
+            isCustomer={ticket.created_by === userId}
+            hasAssignee={!!ticket.assigned_to}
+            sendingPing={sendingPing}
+            onSendPing={onSendPing}
+            currentUserId={userId}
+            onReaction={onReaction}
+            availableUsers={availableUsers}
+            onFileUpload={onFileUpload}
+            uploadingFile={uploadingFile}
+          />
+        )}
+        
+        {activeTab === 'files' && (
+          <div className="text-center py-8 text-muted-foreground">
+            <Icon name="FileText" size={48} className="mx-auto mb-2 opacity-30" />
+            <p>Файлы пока не загружены</p>
           </div>
         )}
-
-        {activeTab === 'comments' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase">
-                Комментарии
-              </h3>
-              <Button variant="link" size="sm" className="text-primary">
-                <Icon name="RefreshCw" className="w-4 h-4 mr-1" />
-                Пометить все прочтенными
-              </Button>
-            </div>
-
-            {loadingComments ? (
-              <div className="flex justify-center py-8">
-                <Icon name="Loader2" className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : comments.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Icon name="MessageSquare" className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Комментариев пока нет</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-3 pb-4 border-b last:border-0">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Icon name="User" className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-sm">
-                          {comment.user_name || 'Администратор'}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          добавил ответ: {formatDateTime(comment.created_at)}
-                        </span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
-                      
-                      {comment.attachments && comment.attachments.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {comment.attachments.map((file) => (
-                            <a
-                              key={file.id}
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-sm text-primary hover:underline"
-                            >
-                              <Icon name="Paperclip" className="w-4 h-4" />
-                              {file.filename}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-3 mt-2">
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="text-xs text-primary h-auto p-0"
-                          onClick={() => {}}
-                        >
-                          <Icon name="Reply" className="w-3 h-3 mr-1" />
-                          Пометить прочтённым
-                        </Button>
-                        <Button
-                          variant="link"
-                          size="sm"
-                          className="text-xs text-primary h-auto p-0"
-                        >
-                          <Icon name="Link" className="w-3 h-3 mr-1" />
-                          Цитировать
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-6 space-y-3">
-              <Textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Введите комментарий..."
-                className="min-h-[100px]"
-              />
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => onSubmitComment()}
-                  disabled={submittingComment || !newComment.trim()}
-                >
-                  {submittingComment ? (
-                    <>
-                      <Icon name="Loader2" className="w-4 h-4 mr-2 animate-spin" />
-                      Отправка...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="Send" className="w-4 h-4 mr-2" />
-                      Отправить
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
+        
+        {activeTab === 'history' && (
+          <TicketHistory 
+            logs={auditLogs} 
+            loading={loadingHistory}
+          />
         )}
       </div>
     </div>
