@@ -82,33 +82,29 @@ const TicketDetailsSidebar = ({
   };
 
   return (
-    <div className="w-[360px] flex-shrink-0 space-y-6">
-      <div className="bg-white rounded-lg p-6 shadow-sm">
+    <div className="w-[360px] flex-shrink-0 space-y-4">
+      <div className="bg-card rounded-lg p-6 border shadow-sm">
         <div className="flex flex-col items-center">
-          <div className="w-32 h-32 rounded-full border-4 border-blue-500 flex items-center justify-center mb-4">
-            <div className="text-center">
-              <Icon name="Clock" className="w-8 h-8 text-blue-500 mx-auto mb-1" />
-              <div className="text-xs text-muted-foreground">Время выполнения</div>
-            </div>
+          <div className="text-sm text-muted-foreground mb-2">Время выполнения</div>
+          <div className="w-32 h-32 rounded-full border-4 border-primary flex items-center justify-center mb-3">
+            <Icon name="Clock" className="w-10 h-10 text-primary" />
           </div>
           <div className="text-3xl font-bold">{getWorkTime()}</div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg p-4 shadow-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <Icon name="Star" className="w-4 h-4 text-yellow-400" />
-          <Icon name="Star" className="w-4 h-4 text-yellow-400" />
-          <Icon name="Star" className="w-4 h-4 text-yellow-400" />
-          <Icon name="Star" className="w-4 h-4 text-yellow-400" />
-          <Icon name="Star" className="w-4 h-4 text-yellow-400" />
+      <div className="bg-card rounded-lg p-4 border shadow-sm space-y-3">
+        <div className="flex items-center gap-1 mb-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Icon key={i} name="Star" className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+          ))}
         </div>
 
         <div className="space-y-3 text-sm">
           <div className="flex items-start justify-between py-2 border-b">
             <span className="text-muted-foreground">Канал</span>
             <span className="font-medium flex items-center gap-1">
-              <Icon name="Edit" className="w-3 h-3 text-blue-500" />
+              <Icon name="Edit" className="w-3 h-3 text-primary" />
               Вручную
             </span>
           </div>
@@ -135,34 +131,22 @@ const TicketDetailsSidebar = ({
 
           <div className="flex items-start justify-between py-2 border-b">
             <span className="text-muted-foreground">Категория</span>
-            <span className="font-medium text-blue-500 underline cursor-pointer">
-              {ticket.category_name || 'Заявка на обслуживание'}
-            </span>
+            <span className="font-medium text-primary">{ticket.category_name || '-'}</span>
           </div>
 
           <div className="flex items-start justify-between py-2 border-b">
             <span className="text-muted-foreground">Сервис</span>
-            <span className="font-medium">{ticket.category_name || 'Учетные записи / Создание нового сотрудника'}</span>
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b">
-            <span className="text-muted-foreground">Конфигурационные единицы</span>
-            <span className="font-medium text-red-500">Не задано</span>
-          </div>
-
-          <div className="flex items-start justify-between py-2 border-b">
-            <span className="text-muted-foreground">Наблюдатели</span>
-            <span className="font-medium text-red-500">Не задано</span>
+            <span className="font-medium">{ticket.category_name || 'Учетные записи'}</span>
           </div>
 
           <div className="flex items-start justify-between py-2 border-b">
             <span className="text-muted-foreground">Создатель</span>
-            <span className="font-medium">{ticket.creator_name || 'Неизвестно'}</span>
+            <span className="font-medium">{ticket.creator_name || '-'}</span>
           </div>
 
           <div className="flex items-start justify-between py-2">
             <span className="text-muted-foreground">Исполнитель</span>
-            <span className="font-medium">{ticket.assignee_name || 'Первая линия поддержки / Администраторы'}</span>
+            <span className="font-medium">{ticket.assignee_name || '-'}</span>
           </div>
         </div>
       </div>

@@ -110,15 +110,15 @@ const TicketDetailsContent = ({
   };
 
   return (
-    <div className="flex-1 bg-white rounded-lg shadow-sm">
+    <div className="flex-1 bg-card rounded-lg shadow-sm border">
       <div className="border-b">
         <div className="flex gap-1 p-2">
           <button
             onClick={() => setActiveTab('description')}
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               activeTab === 'description'
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-muted-foreground hover:bg-gray-50'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted'
             }`}
           >
             <Icon name="List" className="w-4 h-4" />
@@ -128,8 +128,8 @@ const TicketDetailsContent = ({
             onClick={() => setActiveTab('comments')}
             className={`px-4 py-2 rounded flex items-center gap-2 ${
               activeTab === 'comments'
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-muted-foreground hover:bg-gray-50'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted'
             }`}
           >
             <Icon name="MessageSquare" className="w-4 h-4" />
@@ -179,7 +179,7 @@ const TicketDetailsContent = ({
               <h3 className="text-sm font-semibold text-muted-foreground uppercase">
                 Комментарии
               </h3>
-              <Button variant="link" size="sm" className="text-blue-500">
+              <Button variant="link" size="sm" className="text-primary">
                 <Icon name="RefreshCw" className="w-4 h-4 mr-1" />
                 Пометить все прочтенными
               </Button>
@@ -198,8 +198,8 @@ const TicketDetailsContent = ({
               <div className="space-y-4">
                 {comments.map((comment) => (
                   <div key={comment.id} className="flex gap-3 pb-4 border-b last:border-0">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <Icon name="User" className="w-5 h-5 text-blue-600" />
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Icon name="User" className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
@@ -220,7 +220,7 @@ const TicketDetailsContent = ({
                               href={file.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="flex items-center gap-2 text-sm text-blue-500 hover:underline"
+                              className="flex items-center gap-2 text-sm text-primary hover:underline"
                             >
                               <Icon name="Paperclip" className="w-4 h-4" />
                               {file.filename}
@@ -233,7 +233,7 @@ const TicketDetailsContent = ({
                         <Button
                           variant="link"
                           size="sm"
-                          className="text-xs text-blue-500 h-auto p-0"
+                          className="text-xs text-primary h-auto p-0"
                           onClick={() => {}}
                         >
                           <Icon name="Reply" className="w-3 h-3 mr-1" />
@@ -242,7 +242,7 @@ const TicketDetailsContent = ({
                         <Button
                           variant="link"
                           size="sm"
-                          className="text-xs text-blue-500 h-auto p-0"
+                          className="text-xs text-primary h-auto p-0"
                         >
                           <Icon name="Link" className="w-3 h-3 mr-1" />
                           Цитировать

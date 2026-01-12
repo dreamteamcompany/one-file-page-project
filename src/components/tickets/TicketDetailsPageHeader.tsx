@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 
 interface Ticket {
@@ -7,6 +8,7 @@ interface Ticket {
   status_name?: string;
   status_color?: string;
   priority_name?: string;
+  priority_color?: string;
   creator_name?: string;
   created_at?: string;
   updated_at?: string;
@@ -18,66 +20,37 @@ interface TicketDetailsPageHeaderProps {
 }
 
 const TicketDetailsPageHeader = ({ ticket, onBack }: TicketDetailsPageHeaderProps) => {
-  const formatDateTime = (date?: string) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleString('ru-RU', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
-    <div className="bg-[#3C5468] border-b border-gray-600">
-      <div className="px-6 py-4">
-        <div className="flex items-center gap-3 mb-3">
-          <button
-            onClick={onBack}
-            className="text-white/80 hover:text-white"
-          >
-            <Icon name="Home" className="w-5 h-5" />
-          </button>
-          <Icon name="ChevronRight" className="w-4 h-4 text-white/60" />
-          <span className="text-white/80 text-sm">Заявки</span>
-          <Icon name="ChevronRight" className="w-4 h-4 text-white/60" />
-          <span className="text-white text-sm">#{ticket.id}</span>
-        </div>
-
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
-            <h1 className="text-xl text-white font-medium">
-              #{ticket.id} {ticket.title}
-            </h1>
-            <div className="flex gap-2">
+    <div className="border-b bg-background sticky top-0 z-10">
+      <div className="container max-w-[1600px] mx-auto px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <Icon name="ArrowLeft" size={16} className="mr-2" />
+              Назад к заявкам
+            </Button>
+            <div className="h-6 w-px bg-border" />
+            <h1 className="text-xl font-semibold">#{ticket.id} {ticket.title}</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge 
+              style={{
+                backgroundColor: ticket.status_color || '#6b7280',
+                color: 'white'
+              }}
+            >
+              {ticket.status_name || 'Новая'}
+            </Badge>
+            {ticket.priority_name && (
               <Badge 
-                className="rounded px-2 py-1"
                 style={{
-                  backgroundColor: ticket.status_color || '#6b7280',
+                  backgroundColor: ticket.priority_color || '#ef4444',
                   color: 'white'
                 }}
               >
-                {ticket.status_name || 'Завершено'}
+                {ticket.priority_name}
               </Badge>
-              <Badge variant="destructive" className="rounded px-2 py-1">
-                {ticket.priority_name || 'Низкий'}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-6 mt-3 text-sm text-white/70">
-          <div className="flex items-center gap-2">
-            <Icon name="User" className="w-4 h-4" />
-            <span>{ticket.creator_name || 'Кузнецов А. С.'}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>Создано: {formatDateTime(ticket.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>Дедлайн: {formatDateTime(ticket.updated_at)}</span>
+            )}
           </div>
         </div>
       </div>

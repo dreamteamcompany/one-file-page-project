@@ -366,38 +366,40 @@ const TicketDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#2D3E50]">
+    <div className="min-h-screen bg-background">
       <TicketDetailsPageHeader 
         ticket={ticket} 
         onBack={() => navigate('/tickets')}
       />
       
-      <div className="flex gap-6 p-6">
-        <TicketDetailsSidebar
-          ticket={ticket}
-          statuses={statuses}
-          users={users}
-          onUpdateStatus={handleUpdateStatus}
-          updating={updating}
-        />
-        
-        <TicketDetailsContent
-          ticket={ticket}
-          comments={comments}
-          newComment={newComment}
-          setNewComment={setNewComment}
-          loadingComments={loadingComments}
-          submittingComment={submittingComment}
-          sendingPing={sendingPing}
-          uploadingFile={uploadingFile}
-          auditLogs={auditLogs}
-          loadingHistory={loadingHistory}
-          users={users}
-          onSubmitComment={handleSubmitComment}
-          onSendPing={handleSendPing}
-          onAddReaction={handleAddReaction}
-          onFileUpload={handleFileUpload}
-        />
+      <div className="container max-w-[1600px] mx-auto p-6">
+        <div className="flex gap-6">
+          <TicketDetailsSidebar
+            ticket={ticket}
+            statuses={statuses}
+            users={users}
+            onUpdateStatus={handleUpdateStatus}
+            updating={updating}
+          />
+          
+          <TicketDetailsContent
+            ticket={ticket}
+            comments={comments}
+            newComment={newComment}
+            setNewComment={setNewComment}
+            loadingComments={loadingComments}
+            submittingComment={submittingComment}
+            sendingPing={sendingPing}
+            uploadingFile={uploadingFile}
+            auditLogs={auditLogs}
+            loadingHistory={loadingHistory}
+            users={users}
+            onSubmitComment={handleSubmitComment}
+            onSendPing={handleSendPing}
+            onAddReaction={handleAddReaction}
+            onFileUpload={handleFileUpload}
+          />
+        </div>
       </div>
     </div>
   );
