@@ -1,46 +1,8 @@
-import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
-import { useAuth } from '@/contexts/AuthContext';
-
-interface SavingsData {
-  total_amount: number;
-  count: number;
-  top_departments: Array<{
-    department_name: string;
-    total_saved: number;
-  }>;
-}
 
 const AnnualSavingsStatCard = () => {
-  const [savingsData, setSavingsData] = useState<SavingsData | null>(null);
-  const { token } = useAuth();
-
-  useEffect(() => {
-    if (token) {
-      loadSavingsData();
-    }
-  }, [token]);
-
-  const loadSavingsData = async () => {
-    try {
-      const response = await fetch('https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=savings-dashboard', {
-        headers: {
-          'X-Auth-Token': token || '',
-        },
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Savings data loaded:', data);
-        setSavingsData(data);
-      } else {
-        console.error('Failed to load savings, status:', response.status);
-      }
-    } catch (err) {
-      console.error('Failed to load savings data:', err);
-    }
-  };
+  const savingsData = { total_amount: 0, count: 0, top_departments: [] };
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('ru-RU', {
