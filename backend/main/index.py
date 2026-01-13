@@ -2818,7 +2818,20 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     
     if method == 'OPTIONS':
         log("[HANDLER] Handling OPTIONS request")
-        return response(200, {})
+        cors_response = {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, Authorization, X-Authorization',
+                'Access-Control-Max-Age': '86400',
+            },
+            'body': json.dumps({}, ensure_ascii=False),
+            'isBase64Encoded': False
+        }
+        log(f"[HANDLER] OPTIONS response: {cors_response}")
+        return cors_response
     
     try:
         conn = get_db_connection()
