@@ -79,7 +79,7 @@ const PaymentsSidebar = ({
         </button>
       </div>
       <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/5 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/10">
-        <ul className={`${collapsed ? 'px-2' : 'px-[15px]'} py-5 space-y-1 pb-4`}>
+        <ul className={`${collapsed ? 'px-1' : 'px-[15px]'} py-5 space-y-1 pb-4`}>
         <li>
           <Link to="/" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Дашборд">
             <Icon name="Home" size={22} />
