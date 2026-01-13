@@ -209,29 +209,40 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [user, token]);
 
   const login = async (username: string, password: string, rememberMe: boolean = false) => {
-    const response = await fetch(`${API_URL}?endpoint=login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка входа');
-    }
-
-    const data = await response.json();
-    setToken(data.token);
-    setUser(data.user);
+    console.log('[Login] Starting login request...', { username, url: `${API_URL}?endpoint=login` });
     
-    if (rememberMe) {
-      localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('remember_me', 'true');
-    } else {
-      sessionStorage.setItem('auth_token', data.token);
-      localStorage.removeItem('remember_me');
+    try {
+      const response = await fetch(`${API_URL}?endpoint=login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      console.log('[Login] Response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[Login] Error response:', error);
+        throw new Error(error.error || 'Ошибка входа');
+      }
+
+      const data = await response.json();
+      console.log('[Login] Success! Token received');
+      setToken(data.token);
+      setUser(data.user);
+      
+      if (rememberMe) {
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('remember_me', 'true');
+      } else {
+        sessionStorage.setItem('auth_token', data.token);
+        localStorage.removeItem('remember_me');
+      }
+    } catch (error) {
+      console.error('[Login] Network error:', error);
+      throw error;
     }
   };
 
