@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import TicketComments from '@/components/tickets/TicketComments';
 import TicketHistory from '@/components/tickets/TicketHistory';
 
@@ -109,28 +111,130 @@ const TicketDetailsContent = ({
   loadingHistory = false,
 }: TicketDetailsContentProps) => {
   const [activeTab, setActiveTab] = useState<'comments' | 'files' | 'history'>('comments');
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    return new Date(dateString).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getDeadlineInfo = (dueDate?: string) => {
+    if (!dueDate) return null;
+    
+    const now = new Date().getTime();
+    const due = new Date(dueDate).getTime();
+    const timeLeft = due - now;
+    
+    if (timeLeft < 0) {
+      return { color: '#ef4444', label: 'Просрочена' };
+    }
+    
+    const oneDay = 24 * 60 * 60 * 1000;
+    const daysLeft = Math.ceil(timeLeft / oneDay);
+    
+    if (daysLeft <= 1) {
+      return { color: '#ef4444', label: `Остался ${daysLeft} день` };
+    } else if (daysLeft <= 3) {
+      return { color: '#f97316', label: `Осталось ${daysLeft} дня` };
+    }
+    return { color: '#22c55e', label: `Осталось ${daysLeft} дней` };
+  };
+
+  const deadlineInfo = getDeadlineInfo(ticket.due_date);
+
   return (
     <div className="flex-1 p-4 lg:p-6">
       {/* Суть заявки */}
-      <div className="mb-6 border rounded-lg p-5 lg:p-6 bg-card">
-        <button className="flex items-center gap-2 text-sm font-semibold mb-5 w-full text-foreground">
-          <Icon name="ChevronDown" size={16} />
-          Суть заявки
-        </button>
+      <div className="mb-6 border rounded-lg p-6 bg-card">
+        {/* Тема */}
+        <h1 className="text-2xl font-bold text-foreground mb-6">{ticket.title}</h1>
         
-        <div className="space-y-4">
-          <div>
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Тема</span>
-            <p className="text-base font-semibold text-foreground">{ticket.title}</p>
-          </div>
+        {/* Заказчик, Дата создания, Дедлайн */}
+        <div className="flex flex-wrap items-center gap-6 mb-6 text-sm">
+          {ticket.creator_name && (
+            <div className="flex items-center gap-2">
+              <Icon name="User" size={16} className="text-muted-foreground" />
+              <span className="font-medium text-foreground">{ticket.creator_name}</span>
+            </div>
+          )}
           
-          {ticket.description && (
-            <div>
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 block">Описание</span>
-              <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">{ticket.description}</p>
+          {ticket.created_at && (
+            <div className="flex items-center gap-2">
+              <Icon name="Calendar" size={16} className="text-muted-foreground" />
+              <span className="text-muted-foreground">{formatDate(ticket.created_at)}</span>
+            </div>
+          )}
+          
+          {ticket.due_date && deadlineInfo && (
+            <div className="flex items-center gap-2">
+              <Icon name="Clock" size={16} style={{ color: deadlineInfo.color }} />
+              <span style={{ color: deadlineInfo.color }} className="font-medium">{deadlineInfo.label}</span>
             </div>
           )}
         </div>
+        
+        {/* Статус и Приоритет */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          {ticket.status_name && (
+            <Badge
+              style={{ 
+                backgroundColor: `${ticket.status_color}20`,
+                color: ticket.status_color,
+                borderColor: ticket.status_color
+              }}
+              className="border font-medium"
+            >
+              {ticket.status_name}
+            </Badge>
+          )}
+          
+          {ticket.priority_name && (
+            <Badge
+              style={{ 
+                backgroundColor: `${ticket.priority_color}20`,
+                color: ticket.priority_color,
+                borderColor: ticket.priority_color
+              }}
+              className="border font-medium"
+            >
+              {ticket.priority_name}
+            </Badge>
+          )}
+        </div>
+        
+        {/* Кнопки действий */}
+        <div className="flex flex-wrap items-center gap-2 mb-6 pb-6 border-b">
+          <Button variant="ghost" size="sm" title="Список заявок">
+            <Icon name="List" size={18} />
+          </Button>
+          <Button variant="ghost" size="sm" title="Редактировать заявку">
+            <Icon name="Edit" size={18} />
+          </Button>
+          <Button variant="ghost" size="sm" title="Добавить комментарий">
+            <Icon name="MessageSquare" size={18} />
+          </Button>
+          <Button variant="ghost" size="sm" title="Копировать заявку">
+            <Icon name="Copy" size={18} />
+          </Button>
+          <Button variant="ghost" size="sm" title="Наблюдатели">
+            <Icon name="Eye" size={18} />
+          </Button>
+          <Button variant="ghost" size="sm" title="Поиск по базе знаний">
+            <Icon name="Search" size={18} />
+          </Button>
+        </div>
+        
+        {/* Содержание заявки */}
+        {ticket.description && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">Содержание</h3>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">{ticket.description}</p>
+          </div>
+        )}
       </div>
 
       {/* Комментарии, Файлы и История (вкладки) */}
