@@ -108,31 +108,39 @@ const TicketDetailsSidebar = ({
 
   const deadlineInfo = getDeadlineInfo(ticket.due_date);
 
-  const getWorkTime = () => {
-    if (!ticket.created_at) return '00:00:00';
+  const getTimeLeft = () => {
+    if (!ticket.due_date) return null;
     
-    const created = new Date(ticket.created_at);
-    const now = ticket.closed_at ? new Date(ticket.closed_at) : new Date();
-    const diff = now.getTime() - created.getTime();
+    const now = new Date().getTime();
+    const due = new Date(ticket.due_date).getTime();
+    const diff = due - now;
+    
+    if (diff < 0) {
+      return { time: '00:00:00', expired: true };
+    }
     
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return { time: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`, expired: false };
   };
 
   return (
     <div className="w-full lg:w-[400px] space-y-3 flex-shrink-0">
-      <div className="p-6 rounded-lg bg-card border">
-        <div className="flex flex-col items-center">
-          <h3 className="text-sm font-semibold mb-4 text-foreground">Время выполнения</h3>
-          <div className="w-24 h-24 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center mb-4">
-            <Icon name="Clock" size={32} className="text-primary" />
+      {ticket.due_date && (
+        <div className="p-6 rounded-lg bg-card border">
+          <div className="flex flex-col items-center">
+            <h3 className="text-sm font-semibold mb-4 text-foreground">Времени осталось</h3>
+            <div className={`w-24 h-24 rounded-full ${getTimeLeft()?.expired ? 'bg-red-500/20 border-red-500' : 'bg-primary/20 border-primary'} border-2 flex items-center justify-center mb-4`}>
+              <Icon name="Clock" size={32} className={getTimeLeft()?.expired ? 'text-red-500' : 'text-primary'} />
+            </div>
+            <div className={`text-3xl font-bold ${getTimeLeft()?.expired ? 'text-red-500' : 'text-foreground'}`}>
+              {getTimeLeft()?.expired ? 'Просрочено' : getTimeLeft()?.time}
+            </div>
           </div>
-          <div className="text-3xl font-bold text-foreground">{getWorkTime()}</div>
         </div>
-      </div>
+      )}
 
       {onSendPing && (
         <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
