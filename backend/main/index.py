@@ -2814,8 +2814,10 @@ def handle_audit_logs(method: str, event: Dict[str, Any], conn, payload: Dict[st
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''Главная функция-роутер для обработки всех запросов'''
     method = event.get('httpMethod', 'GET')
+    log(f"[HANDLER] Received {method} request, headers: {event.get('headers', {})}")
     
     if method == 'OPTIONS':
+        log("[HANDLER] Handling OPTIONS request")
         return {
             'statusCode': 200,
             'headers': {
