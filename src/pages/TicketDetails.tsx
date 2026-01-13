@@ -430,7 +430,24 @@ const TicketDetails = () => {
       />
 
       <div className="container max-w-[1600px] mx-auto px-4 lg:px-6">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-0">
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="hidden lg:block">
+            <TicketDetailsSidebar 
+              ticket={ticket}
+              statuses={statuses}
+              users={users}
+              updating={updating}
+              sendingPing={sendingPing}
+              isCustomer={ticket.created_by === user?.id}
+              hasAssignee={!!ticket.assigned_to}
+              onUpdateStatus={(statusId) => handleUpdateStatus(Number(statusId))}
+              onAssignUser={handleAssignUser}
+              onSendPing={handleSendPing}
+              onApprovalChange={loadTicket}
+              onUpdateDueDate={handleUpdateDueDate}
+            />
+          </div>
+
           <TicketDetailsContent
             ticket={ticket}
             comments={comments}
@@ -451,23 +468,6 @@ const TicketDetails = () => {
           />
 
           <div className="lg:hidden">
-            <TicketDetailsSidebar 
-              ticket={ticket}
-              statuses={statuses}
-              users={users}
-              updating={updating}
-              sendingPing={sendingPing}
-              isCustomer={ticket.created_by === user?.id}
-              hasAssignee={!!ticket.assigned_to}
-              onUpdateStatus={(statusId) => handleUpdateStatus(Number(statusId))}
-              onAssignUser={handleAssignUser}
-              onSendPing={handleSendPing}
-              onApprovalChange={loadTicket}
-              onUpdateDueDate={handleUpdateDueDate}
-            />
-          </div>
-
-          <div className="hidden lg:block">
             <TicketDetailsSidebar 
               ticket={ticket}
               statuses={statuses}
