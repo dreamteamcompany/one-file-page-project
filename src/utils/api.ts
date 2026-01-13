@@ -1,3 +1,5 @@
+export const API_URL = 'https://functions.poehali.dev/3eae2c24-6b31-423b-ab37-dcd66c461749';
+
 const getAuthToken = (): string | null => {
   const rememberMe = localStorage.getItem('remember_me') === 'true';
   return rememberMe 

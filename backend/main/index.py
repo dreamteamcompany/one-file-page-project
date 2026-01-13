@@ -109,7 +109,8 @@ def response(status_code: int, body: Any) -> Dict[str, Any]:
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
+            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, Authorization',
+            'Access-Control-Max-Age': '86400',
         },
         'body': json.dumps(body, ensure_ascii=False, default=str),
         'isBase64Encoded': False

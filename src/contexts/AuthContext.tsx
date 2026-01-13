@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { API_URL } from '@/utils/api';
 
 interface Permission {
   name: string;
@@ -122,7 +123,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     try {
       console.log('[checkAuth] Verifying token with backend...');
-      const response = await fetch('https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=me', {
+      const response = await fetch(`${API_URL}?endpoint=me`, {
         headers: {
           'X-Auth-Token': savedToken,
         },
@@ -208,7 +209,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [user, token]);
 
   const login = async (username: string, password: string, rememberMe: boolean = false) => {
-    const response = await fetch('https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=login', {
+    const response = await fetch(`${API_URL}?endpoint=login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
