@@ -124,13 +124,13 @@ const TicketDetailsSidebar = ({
 
   return (
     <div className="w-full lg:w-[400px] space-y-3 flex-shrink-0">
-      <div className="p-6 rounded-lg bg-background border">
+      <div className="p-6 rounded-lg bg-muted/30 border border-muted">
         <div className="flex flex-col items-center">
-          <h3 className="text-sm font-medium mb-4 text-foreground">Время выполнения</h3>
-          <div className="w-24 h-24 rounded-full border-4 border-primary flex items-center justify-center mb-4">
-            <Icon name="Clock" size={32} className="text-primary" />
+          <h3 className="text-sm font-medium mb-4 text-muted-foreground">Время выполнения</h3>
+          <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center mb-4">
+            <Icon name="Clock" size={32} className="text-primary/70" />
           </div>
-          <div className="text-3xl font-bold text-foreground">{getWorkTime()}</div>
+          <div className="text-3xl font-bold text-foreground/90">{getWorkTime()}</div>
         </div>
       </div>
 
