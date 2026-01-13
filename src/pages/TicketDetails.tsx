@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
+import PageLayout from '@/components/layout/PageLayout';
+import AppHeader from '@/components/layout/AppHeader';
 import TicketDetailsPageHeader from '@/components/tickets/TicketDetailsPageHeader';
 import TicketDetailsContent from '@/components/tickets/TicketDetailsContent';
 import TicketDetailsSidebar from '@/components/tickets/TicketDetailsSidebar';
@@ -423,13 +425,16 @@ const TicketDetails = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <TicketDetailsPageHeader 
-        ticketId={ticket.id}
-        onBack={() => navigate('/tickets')}
-      />
+    <div className="min-h-screen bg-background flex">
+      <PageLayout>
+        <AppHeader />
+        
+        <TicketDetailsPageHeader 
+          ticketId={ticket.id}
+          onBack={() => navigate('/tickets')}
+        />
 
-      <div className="container max-w-[1600px] mx-auto px-4 lg:px-6">
+        <div className="container max-w-[1600px] mx-auto px-4 lg:px-6">
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="hidden lg:block">
             <TicketDetailsSidebar 
@@ -484,7 +489,8 @@ const TicketDetails = () => {
             />
           </div>
         </div>
-      </div>
+        </div>
+      </PageLayout>
     </div>
   );
 };
