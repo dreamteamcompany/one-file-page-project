@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     const rememberMe = localStorage.getItem('remember_me') === 'true';
     const savedToken = rememberMe 
       ? localStorage.getItem('auth_token')
@@ -152,11 +152,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   useEffect(() => {
     if (user && token) {

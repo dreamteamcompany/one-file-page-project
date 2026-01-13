@@ -315,13 +315,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Главный обработчик всех API эндпоинтов"""
     log(f"[HANDLER START] Event keys: {list(event.keys())}")
     method = event.get('httpMethod', 'GET')
+    
+    # Handle OPTIONS immediately
+    if method == 'OPTIONS':
+        log("[CORS] Handling OPTIONS preflight request")
+        return response(200, {'message': 'CORS OK'})
+    
     params = event.get('queryStringParameters') or {}
     endpoint = params.get('endpoint', '')
     
     log(f"[DEBUG v2.4] Method={method} Endpoint={endpoint} Params={params}")
-    
-    if method == 'OPTIONS':
-        return response(200, {})
     
     conn = get_db_connection()
     
