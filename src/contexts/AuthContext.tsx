@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { API_URL } from '@/utils/api';
 
 interface Permission {
@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   
   // Cache-busting fix for production deployment
   
-  const logout = useCallback(() => {
+  const logout = () => {
     if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
@@ -74,9 +74,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     localStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_token');
     localStorage.removeItem('remember_me');
-  }, []);
+  };
   
-  const refreshToken = useCallback(async () => {
+  const refreshToken = async () => {
     const rememberMe = localStorage.getItem('remember_me') === 'true';
     const currentToken = rememberMe 
       ? localStorage.getItem('auth_token')
@@ -105,9 +105,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.error('Token refresh failed:', error);
     }
-  }, []);
+  };
 
-  const checkAuth = useCallback(async () => {
+  const checkAuth = async () => {
     const rememberMe = localStorage.getItem('remember_me') === 'true';
     const savedToken = rememberMe 
       ? localStorage.getItem('auth_token')
@@ -152,11 +152,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+  }, []);
 
   useEffect(() => {
     if (user && token) {
