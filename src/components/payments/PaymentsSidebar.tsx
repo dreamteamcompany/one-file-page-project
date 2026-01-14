@@ -87,10 +87,39 @@ const PaymentsSidebar = ({
           </Link>
         </li>
         <li>
-          <Link to="/tickets" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/tickets') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Заявки">
-            <Icon name="Ticket" size={22} />
-            {!collapsed && <span>Заявки</span>}
-          </Link>
+          <button
+            onClick={() => setTicketsOpen(!ticketsOpen)}
+            className={`w-full flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'justify-between px-[15px] py-3'} rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors`}
+            title="Заявки"
+          >
+            <div className="flex items-center gap-3">
+              <Icon name="Ticket" size={22} />
+              {!collapsed && <span>Заявки</span>}
+            </div>
+            {!collapsed && <Icon name={ticketsOpen ? 'ChevronDown' : 'ChevronRight'} size={16} />}
+          </button>
+          {ticketsOpen && (
+            <ul className={`${collapsed ? 'hidden' : 'ml-3 mt-1 space-y-1'}`}>
+              <li>
+                <Link to="/tickets" className={`flex items-center gap-3 px-[15px] py-2 rounded-lg text-sm ${isActive('/tickets') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`}>
+                  <Icon name="List" size={18} />
+                  <span>Все заявки</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/ticket-services" className={`flex items-center gap-3 px-[15px] py-2 rounded-lg text-sm ${isActive('/ticket-services') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`}>
+                  <Icon name="Wrench" size={18} />
+                  <span>Услуги заявок</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/ticket-service-categories" className={`flex items-center gap-3 px-[15px] py-2 rounded-lg text-sm ${isActive('/ticket-service-categories') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`}>
+                  <Icon name="FolderTree" size={18} />
+                  <span>Категории услуг</span>
+                </Link>
+              </li>
+            </ul>
+          )}
         </li>
         {hasPermission('users', 'read') && (
           <li>

@@ -17,6 +17,8 @@ import LogAnalyzer from "./pages/LogAnalyzer";
 import Settings from "./pages/Settings";
 import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
+import TicketServices from "./pages/TicketServices";
+import TicketServiceCategories from "./pages/TicketServiceCategories";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
@@ -40,6 +42,8 @@ const App = () => {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
             <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetails /></ProtectedRoute>} />
+            <Route path="/ticket-services" element={<ProtectedRoute><TicketServices /></ProtectedRoute>} />
+            <Route path="/ticket-service-categories" element={<ProtectedRoute><TicketServiceCategories /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
