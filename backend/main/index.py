@@ -2865,6 +2865,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             result = handle_savings(method, event, conn)
         elif endpoint == 'saving-reasons':
             result = handle_saving_reasons(method, event, conn)
+        elif endpoint == 'ticket-service-categories':
+            result = handle_ticket_service_categories(method, event, conn)
         elif endpoint == 'users':
             result = handle_users(method, event, conn)
         elif endpoint == 'roles':

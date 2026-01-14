@@ -32,8 +32,6 @@ import Icon from '@/components/ui/icon';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
 import { useToast } from '@/hooks/use-toast';
 
-const BACKEND_URL = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-
 interface User {
   id: number;
   full_name: string;
@@ -114,7 +112,7 @@ const Services = () => {
 
   const loadServices = async () => {
     try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=services`);
+      const response = await apiFetch(`${API_URL}?endpoint=services`);
       const data = await response.json();
       setServices(data.services || []);
     } catch (error) {
@@ -132,7 +130,7 @@ const Services = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=users`);
+      const response = await apiFetch(`${API_URL}?endpoint=users`);
       const data = await response.json();
       setUsers(Array.isArray(data) ? data : data.users || []);
     } catch (error) {
@@ -143,7 +141,7 @@ const Services = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=customer-departments`);
+      const response = await apiFetch(`${API_URL}?endpoint=customer-departments`);
       const data = await response.json();
       setDepartments(Array.isArray(data) ? data : data.departments || []);
     } catch (error) {
@@ -154,7 +152,7 @@ const Services = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=categories`);
+      const response = await apiFetch(`${API_URL}?endpoint=ticket-service-categories`);
       const data = await response.json();
       setCategories(Array.isArray(data) ? data : []);
     } catch (error) {
@@ -177,8 +175,8 @@ const Services = () => {
 
     try {
       const url = editingService
-        ? `${BACKEND_URL}?endpoint=services&id=${editingService.id}`
-        : `${BACKEND_URL}?endpoint=services`;
+        ? `${API_URL}?endpoint=services&id=${editingService.id}`
+        : `${API_URL}?endpoint=services`;
 
       const response = await apiFetch(url, {
         method: editingService ? 'PUT' : 'POST',
@@ -230,7 +228,7 @@ const Services = () => {
     if (!confirm('Удалить этот сервис?')) return;
 
     try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=services&id=${id}`, {
+      const response = await apiFetch(`${API_URL}?endpoint=services&id=${id}`, {
         method: 'DELETE',
       });
 
