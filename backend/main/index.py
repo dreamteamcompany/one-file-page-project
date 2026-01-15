@@ -958,13 +958,9 @@ def handle_ticket_service_categories(method: str, event: Dict[str, Any], conn) -
             cur.execute(f'SELECT COUNT(*) FROM {SCHEMA}.ticket_services WHERE category_id = %s', (category_id,))
             ticket_services_count = cur.fetchone()[0]
             
-            # Проверяем, есть ли сервисы с этой категорией
-            cur.execute(f'SELECT COUNT(*) FROM {SCHEMA}.services WHERE category_id = %s', (category_id,))
-            services_count = cur.fetchone()[0]
-            
-            if ticket_services_count > 0 or services_count > 0:
+            if ticket_services_count > 0:
                 return response(400, {
-                    'error': f'Невозможно удалить категорию. К ней привязано: услуг заявок - {ticket_services_count}, сервисов - {services_count}. Сначала удалите или переместите связанные записи.'
+                    'error': f'Невозможно удалить категорию. К ней привязано услуг заявок: {ticket_services_count}. Сначала удалите или переместите связанные записи.'
                 })
             
             cur.execute(f'DELETE FROM {SCHEMA}.ticket_service_categories WHERE id = %s', (category_id,))
