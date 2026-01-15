@@ -1,9 +1,3 @@
 {
-  "collect-logs": "https://functions.poehali.dev/60a7436d-dbcd-4b54-8cb2-2d82ed303be1",
-  "main": "https://functions.poehali.dev/3eae2c24-6b31-423b-ab37-dcd66c461749",
-  "test-deploy": "https://functions.poehali.dev/49c98cdf-bb04-4325-a00e-93eb31bf0b7e",
-  "process-scheduled-payments": "https://functions.poehali.dev/19298037-63e3-44e1-aaea-22b1886b1e9c",
-  "clear-all-data": "https://functions.poehali.dev/75e9c7ac-1e8c-4040-80e3-3406ff55b1e1",
-  "push-notifications": "https://functions.poehali.dev/f211ab98-3a71-49e7-bc49-c9249eb33976",
-  "log-analyzer": "https://functions.poehali.dev/9c5b68aa-7966-4288-a272-517107bd168c"
+  "main": "https://functions.poehali.dev/3eae2c24-6b31-423b-ab37-dcd66c461749"
 }

@@ -86,7 +86,6 @@ class ServiceRequest(BaseModel):
     intermediate_approver_id: int = Field(..., gt=0)
     final_approver_id: int = Field(..., gt=0)
     customer_department_id: Optional[int] = None
-    category_id: Optional[int] = None
 
 class SavingRequest(BaseModel):
     service_id: int = Field(..., gt=0)
@@ -2451,18 +2450,15 @@ def handle_services(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 SELECT 
                     s.id, s.name, s.description, 
                     s.intermediate_approver_id, s.final_approver_id,
-                    s.customer_department_id, s.category_id,
+                    s.customer_department_id,
                     s.created_at, s.updated_at,
                     u1.full_name as intermediate_approver_name,
                     u2.full_name as final_approver_name,
-                    cd.name as customer_department_name,
-                    c.name as category_name,
-                    c.icon as category_icon
+                    cd.name as customer_department_name
                 FROM {SCHEMA}.services s
                 LEFT JOIN {SCHEMA}.users u1 ON s.intermediate_approver_id = u1.id
                 LEFT JOIN {SCHEMA}.users u2 ON s.final_approver_id = u2.id
                 LEFT JOIN {SCHEMA}.customer_departments cd ON s.customer_department_id = cd.id
-                LEFT JOIN {SCHEMA}.ticket_service_categories c ON s.category_id = c.id
                 ORDER BY s.created_at DESC
             """)
             rows = cur.fetchall()
@@ -2479,12 +2475,12 @@ def handle_services(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             
             cur.execute(
                 f"""INSERT INTO {SCHEMA}.services 
-                   (name, description, intermediate_approver_id, final_approver_id, customer_department_id, category_id, created_at, updated_at) 
-                   VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW()) 
-                   RETURNING id, name, description, intermediate_approver_id, final_approver_id, customer_department_id, category_id, created_at""",
+                   (name, description, intermediate_approver_id, final_approver_id, customer_department_id, created_at, updated_at) 
+                   VALUES (%s, %s, %s, %s, %s, NOW(), NOW()) 
+                   RETURNING id, name, description, intermediate_approver_id, final_approver_id, customer_department_id, created_at""",
                 (service_req.name, service_req.description, 
                  service_req.intermediate_approver_id, service_req.final_approver_id,
-                 service_req.customer_department_id, service_req.category_id)
+                 service_req.customer_department_id)
             )
             row = cur.fetchone()
             conn.commit()
@@ -2496,7 +2492,6 @@ def handle_services(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 'intermediate_approver_id': row['intermediate_approver_id'],
                 'final_approver_id': row['final_approver_id'],
                 'customer_department_id': row['customer_department_id'],
-                'category_id': row['category_id'],
                 'created_at': row['created_at'].isoformat() if row['created_at'] else None
             })
         
@@ -2518,13 +2513,13 @@ def handle_services(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 f"""UPDATE {SCHEMA}.services 
                    SET name = %s, description = %s, 
                        intermediate_approver_id = %s, final_approver_id = %s,
-                       customer_department_id = %s, category_id = %s,
+                       customer_department_id = %s,
                        updated_at = NOW()
                    WHERE id = %s 
-                   RETURNING id, name, description, intermediate_approver_id, final_approver_id, customer_department_id, category_id, updated_at""",
+                   RETURNING id, name, description, intermediate_approver_id, final_approver_id, customer_department_id, updated_at""",
                 (service_req.name, service_req.description,
                  service_req.intermediate_approver_id, service_req.final_approver_id,
-                 service_req.customer_department_id, service_req.category_id, service_id)
+                 service_req.customer_department_id, service_id)
             )
             row = cur.fetchone()
             
@@ -2540,7 +2535,6 @@ def handle_services(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 'intermediate_approver_id': row['intermediate_approver_id'],
                 'final_approver_id': row['final_approver_id'],
                 'customer_department_id': row['customer_department_id'],
-                'category_id': row['category_id'],
                 'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None
             })
         

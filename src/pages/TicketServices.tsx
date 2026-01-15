@@ -12,13 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
 import {
   Table,
   TableBody,
@@ -39,20 +33,11 @@ interface Service {
   description: string;
   intermediate_approver_id: number;
   final_approver_id: number;
-  category_id?: number;
-  category_name?: string;
   created_at: string;
-}
-
-interface Category {
-  id: number;
-  name: string;
-  icon: string;
 }
 
 const TicketServices = () => {
   const [services, setServices] = useState<Service[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
@@ -66,7 +51,6 @@ const TicketServices = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    category_id: '',
   });
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -85,7 +69,6 @@ const TicketServices = () => {
 
   useEffect(() => {
     loadServices();
-    loadCategories();
   }, []);
 
   const loadServices = async () => {
@@ -106,16 +89,7 @@ const TicketServices = () => {
     }
   };
 
-  const loadCategories = async () => {
-    try {
-      const response = await apiFetch(`${BACKEND_URL}?endpoint=ticket-service-categories`);
-      const data = await response.json();
-      setCategories(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-      setCategories([]);
-    }
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +117,6 @@ const TicketServices = () => {
           intermediate_approver_id: 1,
           final_approver_id: 1,
           customer_department_id: null,
-          category_id: formData.category_id ? parseInt(formData.category_id) : null,
         }),
       });
 
@@ -173,7 +146,6 @@ const TicketServices = () => {
     setFormData({
       name: service.name,
       description: service.description || '',
-      category_id: service.category_id ? service.category_id.toString() : '',
     });
     setDialogOpen(true);
   };
@@ -214,7 +186,6 @@ const TicketServices = () => {
     setFormData({
       name: '',
       description: '',
-      category_id: '',
     });
     setEditingService(null);
   };
@@ -292,27 +263,6 @@ const TicketServices = () => {
                       placeholder="Описание услуги"
                       rows={3}
                     />
-                  </div>
-                  <div>
-                    <Label htmlFor="category_id">Категория</Label>
-                    <Select
-                      value={formData.category_id}
-                      onValueChange={(value) => setFormData({ ...formData, category_id: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите категорию" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            <div className="flex items-center gap-2">
-                              <Icon name={category.icon} size={16} />
-                              {category.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button type="button" variant="outline" onClick={() => handleDialogClose(false)}>

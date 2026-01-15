@@ -49,6 +49,7 @@ interface Service {
   description: string;
   category_id?: number;
   category_name?: string;
+  service_ids?: number[];
 }
 
 interface TicketFormProps {
@@ -155,9 +156,15 @@ const TicketForm = ({
     );
   };
 
-  const filteredServices = services.filter(
-    service => service.category_id?.toString() === formData.service_id
+  // Находим выбранную услугу заявки
+  const selectedTicketService = ticketServices.find(
+    ts => ts.id.toString() === formData.service_id
   );
+  
+  // Фильтруем сервисы по service_ids из выбранной услуги
+  const filteredServices = selectedTicketService?.service_ids
+    ? services.filter(service => selectedTicketService.service_ids?.includes(service.id))
+    : [];
   
   const availableTicketServices = ticketServices.length > 0 ? ticketServices : services;
 

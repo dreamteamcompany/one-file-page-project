@@ -44,6 +44,7 @@ interface Service {
   description: string;
   category_id?: number;
   category_name?: string;
+  service_ids?: number[];
 }
 
 interface Ticket {
