@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -11,16 +9,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import TicketFormStep1 from './TicketFormStep1';
+import TicketFormStep2 from './TicketFormStep2';
+import TicketFormStep3 from './TicketFormStep3';
 
 interface Category {
   id: number;
@@ -148,14 +140,11 @@ const TicketForm = ({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Обновляем formData с выбранными сервисами перед отправкой
     const updatedFormData = { ...formData, service_ids: selectedServices };
     setFormData(updatedFormData);
     
-    // Небольшая задержка для применения setState
     await new Promise(resolve => setTimeout(resolve, 10));
     await handleSubmit(e);
-    // Форма закроется в handleSubmit, шаг сбросится в handleDialogChange
   };
 
   const toggleService = (serviceId: number) => {
@@ -166,12 +155,10 @@ const TicketForm = ({
     );
   };
 
-  // Фильтруем сервисы по выбранной услуге (используем ticketServices на шаге 2, services на шаге 3)
   const filteredServices = services.filter(
     service => service.category_id?.toString() === formData.service_id
   );
   
-  // Используем ticketServices для шага 2
   const availableTicketServices = ticketServices.length > 0 ? ticketServices : services;
 
   return (
@@ -201,305 +188,31 @@ const TicketForm = ({
 
 
         {step === 1 ? (
-          <div className="space-y-4 mt-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Название заявки *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
-                placeholder="Краткое описание проблемы"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Описание</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-                placeholder="Подробное описание проблемы или запроса"
-                rows={4}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="category_id">Категория</Label>
-                <Select
-                  value={formData.category_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, category_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите категорию" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id.toString()}>
-                        <div className="flex items-center gap-2">
-                          <Icon name={category.icon} size={16} />
-                          {category.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="priority_id">Приоритет</Label>
-                <Select
-                  value={formData.priority_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, priority_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите приоритет" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {priorities.map((priority) => (
-                      <SelectItem key={priority.id} value={priority.id.toString()}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: priority.color }}
-                          />
-                          {priority.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="due_date">Желаемый срок</Label>
-              <Input
-                id="due_date"
-                type="date"
-                value={formData.due_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, due_date: e.target.value })
-                }
-              />
-            </div>
-
-            {customFields.length > 0 && (
-              <div className="space-y-3 pt-4 border-t">
-                <h3 className="font-medium text-sm">Дополнительные поля</h3>
-                {customFields.map((field) => (
-                  <div key={field.id} className="space-y-2">
-                    <Label>
-                      {field.name}
-                      {field.is_required && <span className="text-destructive ml-1">*</span>}
-                    </Label>
-                    <Input
-                      value={formData.custom_fields[field.id] || ''}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          custom_fields: {
-                            ...formData.custom_fields,
-                            [field.id]: e.target.value,
-                          },
-                        })
-                      }
-                      required={field.is_required}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                type="button"
-                onClick={handleNext}
-                className="flex-1 gap-2"
-                disabled={!formData.title.trim()}
-              >
-                Далее
-                <Icon name="ArrowRight" size={18} />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleDialogChange(false)}
-              >
-                Отмена
-              </Button>
-            </div>
-          </div>
+          <TicketFormStep1
+            formData={formData}
+            setFormData={setFormData}
+            categories={categories}
+            priorities={priorities}
+            customFields={customFields}
+            onNext={handleNext}
+            onCancel={() => handleDialogChange(false)}
+          />
         ) : step === 2 ? (
-          <div className="space-y-4 mt-4">
-            <div className="space-y-3">
-              <Label>Выберите услугу *</Label>
-              {availableTicketServices.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Icon name="Package" size={48} className="mx-auto mb-2 opacity-50" />
-                  <p>Нет доступных услуг</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2">
-                  {availableTicketServices.map((service) => (
-                    <Card
-                      key={service.id}
-                      className={`cursor-pointer transition-all hover:shadow-md ${
-                        formData.service_id === service.id.toString()
-                          ? 'ring-2 ring-primary bg-accent/50'
-                          : 'hover:bg-accent/30'
-                      }`}
-                      onClick={() => handleServiceSelect(service.id)}
-                    >
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base flex items-start justify-between gap-2">
-                          {service.name}
-                          {formData.service_id === service.id.toString() && (
-                            <Icon name="CheckCircle2" size={20} className="text-primary flex-shrink-0" />
-                          )}
-                        </CardTitle>
-                        {service.category_name && (
-                          <Badge variant="secondary" className="w-fit text-xs">
-                            {service.category_name}
-                          </Badge>
-                        )}
-                      </CardHeader>
-                      {service.description && (
-                        <CardContent className="pt-0">
-                          <CardDescription className="text-sm line-clamp-2">
-                            {service.description}
-                          </CardDescription>
-                        </CardContent>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-4 border-t">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleBack}
-                className="gap-2"
-              >
-                <Icon name="ArrowLeft" size={18} />
-                Назад
-              </Button>
-              <Button
-                type="button"
-                onClick={handleNextToServices}
-                className="flex-1 gap-2"
-                disabled={!formData.service_id}
-              >
-                Далее
-                <Icon name="ArrowRight" size={18} />
-              </Button>
-            </div>
-          </div>
+          <TicketFormStep2
+            formData={formData}
+            availableTicketServices={availableTicketServices}
+            onServiceSelect={handleServiceSelect}
+            onNext={handleNextToServices}
+            onBack={handleBack}
+          />
         ) : (
-          <form onSubmit={onSubmit}>
-            <div className="space-y-4 mt-4">
-              <div className="space-y-3">
-                <Label>Выберите сервисы (минимум 1) *</Label>
-                <p className="text-sm text-muted-foreground">
-                  Выберите один или несколько сервисов для выбранной услуги
-                </p>
-                {filteredServices.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Icon name="AlertCircle" size={48} className="mx-auto mb-2 opacity-50" />
-                    <p>Нет доступных сервисов для этой услуги</p>
-                    <Button
-                      type="button"
-                      variant="link"
-                      onClick={handleBack}
-                      className="mt-2"
-                    >
-                      Выбрать другую услугу
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2">
-                    {filteredServices.map((service) => (
-                      <Card
-                        key={service.id}
-                        className={`cursor-pointer transition-all hover:shadow-md ${
-                          selectedServices.includes(service.id)
-                            ? 'ring-2 ring-primary bg-accent/50'
-                            : 'hover:bg-accent/30'
-                        }`}
-                        onClick={() => toggleService(service.id)}
-                      >
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-base flex items-start justify-between gap-2">
-                            {service.name}
-                            {selectedServices.includes(service.id) && (
-                              <Icon name="CheckCircle2" size={20} className="text-primary flex-shrink-0" />
-                            )}
-                          </CardTitle>
-                        </CardHeader>
-                        {service.description && (
-                          <CardContent className="pt-0">
-                            <CardDescription className="text-sm line-clamp-2">
-                              {service.description}
-                            </CardDescription>
-                          </CardContent>
-                        )}
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {selectedServices.length > 0 && (
-                <div className="p-3 bg-accent/30 rounded-lg">
-                  <p className="text-sm font-medium mb-2">
-                    Выбрано сервисов: {selectedServices.length}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedServices.map(id => {
-                      const service = filteredServices.find(s => s.id === id);
-                      return service ? (
-                        <Badge key={id} variant="secondary">
-                          {service.name}
-                        </Badge>
-                      ) : null;
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-4 border-t">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleBack}
-                  className="gap-2"
-                >
-                  <Icon name="ArrowLeft" size={18} />
-                  Назад
-                </Button>
-                <Button
-                  type="submit"
-                  className="flex-1 gap-2"
-                  disabled={selectedServices.length === 0}
-                >
-                  <Icon name="Send" size={18} />
-                  Создать заявку
-                </Button>
-              </div>
-            </div>
-          </form>
+          <TicketFormStep3
+            filteredServices={filteredServices}
+            selectedServices={selectedServices}
+            onToggleService={toggleService}
+            onSubmit={onSubmit}
+            onBack={handleBack}
+          />
         )}
       </DialogContent>
     </Dialog>
