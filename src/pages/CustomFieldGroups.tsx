@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -155,24 +155,25 @@ const CustomFieldGroups = () => {
     setFieldGroups(fieldGroups.filter(g => g.id !== id));
   };
 
-  const handleDialogClose = useCallback((open: boolean) => {
-    if (open === dialogOpen) return; // Prevent unnecessary updates
+  const handleDialogClose = (open: boolean) => {
     setDialogOpen(open);
     if (!open) {
-      setEditingGroup(null);
-      setFormData({ name: '', description: '', field_ids: [] });
-      setFieldSearchQuery('');
+      setTimeout(() => {
+        setEditingGroup(null);
+        setFormData({ name: '', description: '', field_ids: [] });
+        setFieldSearchQuery('');
+      }, 0);
     }
-  }, [dialogOpen]);
+  };
 
-  const toggleField = useCallback((fieldId: number) => {
+  const toggleField = (fieldId: number) => {
     setFormData(prev => ({
       ...prev,
       field_ids: prev.field_ids.includes(fieldId)
         ? prev.field_ids.filter(id => id !== fieldId)
         : [...prev.field_ids, fieldId]
     }));
-  }, []);
+  };
 
   const getFieldTypeLabel = (type: string) => {
     return fieldTypes.find(ft => ft.value === type)?.label || type;
