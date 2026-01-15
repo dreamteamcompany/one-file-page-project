@@ -127,6 +127,12 @@ const PaymentsSidebar = ({
             </ul>
           )}
         </li>
+        <li>
+          <Link to="/field-registry" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/field-registry') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Реестр полей">
+            <Icon name="Database" size={22} />
+            {!collapsed && <span>Реестр полей</span>}
+          </Link>
+        </li>
         {hasPermission('users', 'read') && (
           <li>
             <Link to="/users" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/users') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Пользователи">

@@ -21,6 +21,7 @@ import TicketServices from "./pages/TicketServices";
 import TicketServicesManagement from "./pages/TicketServicesManagement";
 import TicketServiceCategories from "./pages/TicketServiceCategories";
 import ServiceProviders from "./pages/ServiceProviders";
+import FieldRegistry from "./pages/FieldRegistry";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
@@ -48,6 +49,7 @@ const App = () => {
             <Route path="/ticket-services-management" element={<ProtectedRoute><TicketServicesManagement /></ProtectedRoute>} />
             <Route path="/ticket-service-categories" element={<ProtectedRoute><TicketServiceCategories /></ProtectedRoute>} />
             <Route path="/service-providers" element={<ProtectedRoute><ServiceProviders /></ProtectedRoute>} />
+            <Route path="/field-registry" element={<ProtectedRoute><FieldRegistry /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
