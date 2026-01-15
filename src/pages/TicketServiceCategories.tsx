@@ -63,7 +63,7 @@ const TicketServiceCategories = () => {
   };
 
   const loadCategories = () => {
-    apiFetch(`${API_URL}?endpoint=ticket_service_categories`)
+    apiFetch(`${API_URL}?endpoint=ticket-service-categories`)
       .then(res => res.json())
       .then((data) => {
         setCategories(Array.isArray(data) ? data : []);
@@ -84,7 +84,7 @@ const TicketServiceCategories = () => {
     e.preventDefault();
     
     try {
-      const url = `${API_URL}?endpoint=ticket_service_categories`;
+      const url = `${API_URL}?endpoint=ticket-service-categories`;
       const method = editingCategory ? 'PUT' : 'POST';
       const body = editingCategory 
         ? { id: editingCategory.id, ...formData }
@@ -120,7 +120,7 @@ const TicketServiceCategories = () => {
 
     try {
       const response = await apiFetch(
-        `https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=ticket_service_categories&id=${id}`,
+        `${API_URL}?endpoint=ticket-service-categories&id=${id}`,
         { method: 'DELETE' }
       );
 
