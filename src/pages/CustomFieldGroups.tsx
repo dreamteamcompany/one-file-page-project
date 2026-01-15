@@ -29,6 +29,11 @@ interface Field {
   id: number;
   name: string;
   field_type: string;
+  options?: string[];
+  placeholder?: string;
+  label?: string;
+  description?: string;
+  required?: boolean;
   created_at?: string;
 }
 

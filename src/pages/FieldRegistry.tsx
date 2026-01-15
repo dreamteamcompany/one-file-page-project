@@ -29,11 +29,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Field {
   id: number;
   name: string;
   field_type: string;
+  options?: string[]; // Для select - список опций
+  placeholder?: string; // Для text, textarea, email, phone
+  label?: string; // Для checkbox - текст флажка
+  description?: string; // Описание поля
+  required?: boolean; // Обязательное поле
   created_at?: string;
 }
 
@@ -56,7 +62,13 @@ const FieldRegistry = () => {
   const [formData, setFormData] = useState({
     name: '',
     field_type: 'text',
+    options: [] as string[],
+    placeholder: '',
+    label: '',
+    description: '',
+    required: false,
   });
+  const [newOption, setNewOption] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -100,7 +112,16 @@ const FieldRegistry = () => {
     if (editingField) {
       updatedFields = fields.map(f => 
         f.id === editingField.id 
-          ? { ...f, name: formData.name, field_type: formData.field_type }
+          ? { 
+              ...f, 
+              name: formData.name, 
+              field_type: formData.field_type,
+              options: formData.options,
+              placeholder: formData.placeholder,
+              label: formData.label,
+              description: formData.description,
+              required: formData.required,
+            }
           : f
       );
     } else {
@@ -108,6 +129,11 @@ const FieldRegistry = () => {
         id: Math.max(0, ...fields.map(f => f.id)) + 1,
         name: formData.name,
         field_type: formData.field_type,
+        options: formData.options,
+        placeholder: formData.placeholder,
+        label: formData.label,
+        description: formData.description,
+        required: formData.required,
         created_at: new Date().toISOString(),
       };
       updatedFields = [...fields, newField];
@@ -135,6 +161,11 @@ const FieldRegistry = () => {
       setFormData({ 
         name: field.name, 
         field_type: field.field_type,
+        options: field.options || [],
+        placeholder: field.placeholder || '',
+        label: field.label || '',
+        description: field.description || '',
+        required: field.required || false,
       });
     }
     setDialogOpen(true);
@@ -144,7 +175,16 @@ const FieldRegistry = () => {
     setDialogOpen(false);
     setTimeout(() => {
       setEditingField(null);
-      setFormData({ name: '', field_type: 'text' });
+      setFormData({ 
+        name: '', 
+        field_type: 'text', 
+        options: [], 
+        placeholder: '', 
+        label: '', 
+        description: '', 
+        required: false 
+      });
+      setNewOption('');
     }, 150);
   };
 
@@ -269,11 +309,113 @@ const FieldRegistry = () => {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="description">Описание</Label>
+                  <Input
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    placeholder="Краткое описание поля"
+                  />
+                </div>
+
+                {(formData.field_type === 'text' || formData.field_type === 'email' || formData.field_type === 'phone' || formData.field_type === 'textarea') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="placeholder">Placeholder</Label>
+                    <Input
+                      id="placeholder"
+                      value={formData.placeholder}
+                      onChange={(e) => setFormData({...formData, placeholder: e.target.value})}
+                      placeholder="Текст-подсказка в поле"
+                    />
+                  </div>
+                )}
+
+                {formData.field_type === 'checkbox' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="label">Текст флажка *</Label>
+                    <Input
+                      id="label"
+                      value={formData.label}
+                      onChange={(e) => setFormData({...formData, label: e.target.value})}
+                      placeholder="Например: Согласие на обработку данных"
+                      required
+                    />
+                  </div>
+                )}
+
+                {formData.field_type === 'select' && (
+                  <div className="space-y-2">
+                    <Label>Варианты выбора *</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newOption}
+                        onChange={(e) => setNewOption(e.target.value)}
+                        placeholder="Введите вариант"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (newOption.trim()) {
+                              setFormData({...formData, options: [...formData.options, newOption.trim()]});
+                              setNewOption('');
+                            }
+                          }
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          if (newOption.trim()) {
+                            setFormData({...formData, options: [...formData.options, newOption.trim()]});
+                            setNewOption('');
+                          }
+                        }}
+                      >
+                        <Icon name="Plus" size={16} />
+                      </Button>
+                    </div>
+                    {formData.options.length > 0 && (
+                      <div className="space-y-1 mt-2">
+                        {formData.options.map((option, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-accent rounded-md">
+                            <span className="text-sm">{option}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setFormData({
+                                  ...formData,
+                                  options: formData.options.filter((_, i) => i !== index)
+                                });
+                              }}
+                            >
+                              <Icon name="X" size={16} />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="required"
+                    checked={formData.required}
+                    onCheckedChange={(checked) => setFormData({...formData, required: checked as boolean})}
+                  />
+                  <Label htmlFor="required" className="cursor-pointer">
+                    Обязательное поле
+                  </Label>
+                </div>
+
                 <div className="flex gap-2 pt-4">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => handleDialogClose(false)}
+                    onClick={closeDialog}
                     className="flex-1"
                   >
                     Отмена
@@ -311,20 +453,47 @@ const FieldRegistry = () => {
                     <TableRow>
                       <TableHead>Название</TableHead>
                       <TableHead>Тип поля</TableHead>
+                      <TableHead>Настройки</TableHead>
                       <TableHead className="text-right">Действия</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredFields.map((field) => (
                       <TableRow key={field.id}>
-                        <TableCell className="font-medium">
-                          {field.name}
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{field.name}</div>
+                            {field.description && (
+                              <div className="text-xs text-muted-foreground mt-0.5">{field.description}</div>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="gap-1">
-                            <Icon name={getFieldTypeIcon(field.field_type) as any} size={14} />
-                            {getFieldTypeLabel(field.field_type)}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="gap-1 w-fit">
+                              <Icon name={getFieldTypeIcon(field.field_type) as any} size={14} />
+                              {getFieldTypeLabel(field.field_type)}
+                            </Badge>
+                            {field.required && (
+                              <Badge variant="secondary" className="w-fit text-xs">Обязательное</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            {field.field_type === 'select' && field.options && field.options.length > 0 && (
+                              <div>Опций: {field.options.length}</div>
+                            )}
+                            {field.field_type === 'checkbox' && field.label && (
+                              <div className="max-w-[200px] truncate">{field.label}</div>
+                            )}
+                            {(field.field_type === 'text' || field.field_type === 'email' || field.field_type === 'phone' || field.field_type === 'textarea') && field.placeholder && (
+                              <div className="max-w-[200px] truncate">Placeholder: {field.placeholder}</div>
+                            )}
+                            {!field.options && !field.label && !field.placeholder && (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
