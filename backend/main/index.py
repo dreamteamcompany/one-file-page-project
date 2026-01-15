@@ -954,8 +954,8 @@ def handle_ticket_service_categories(method: str, event: Dict[str, Any], conn) -
             if not category_id:
                 return response(400, {'error': 'ID is required'})
             
-            # Проверяем, есть ли услуги заявок с этой категорией
-            cur.execute(f'SELECT COUNT(*) FROM {SCHEMA}.ticket_services WHERE category_id = %s', (category_id,))
+            # Проверяем, есть ли активные услуги заявок с этой категорией
+            cur.execute(f'SELECT COUNT(*) FROM {SCHEMA}.ticket_services WHERE category_id = %s AND is_active = true', (category_id,))
             ticket_services_count = cur.fetchone()[0]
             
             if ticket_services_count > 0:
