@@ -85,34 +85,41 @@ const CustomFieldGroups = () => {
   };
 
   useEffect(() => {
-    const mockFields: Field[] = [
-      { id: 1, name: 'ИНН организации', field_type: 'text', created_at: new Date().toISOString() },
-      { id: 2, name: 'Дата регистрации', field_type: 'date', created_at: new Date().toISOString() },
-      { id: 3, name: 'Сумма договора', field_type: 'number', created_at: new Date().toISOString() },
-      { id: 4, name: 'Email контакта', field_type: 'email', created_at: new Date().toISOString() },
-      { id: 5, name: 'Телефон', field_type: 'phone', created_at: new Date().toISOString() },
-      { id: 6, name: 'Согласие на обработку данных', field_type: 'checkbox', created_at: new Date().toISOString() },
-    ];
-    setAvailableFields(mockFields);
+    const savedFields = localStorage.getItem('fieldRegistry');
+    if (savedFields) {
+      setAvailableFields(JSON.parse(savedFields));
+    }
 
-    const mockGroups: FieldGroup[] = [
-      {
-        id: 1,
-        name: 'Данные организации',
-        description: 'Основные данные об организации',
-        field_ids: [1, 2],
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 2,
-        name: 'Контактная информация',
-        description: 'Контакты для связи',
-        field_ids: [4, 5],
-        created_at: new Date().toISOString(),
-      },
-    ];
-    setFieldGroups(mockGroups);
+    const savedGroups = localStorage.getItem('customFieldGroups');
+    if (savedGroups) {
+      setFieldGroups(JSON.parse(savedGroups));
+    } else {
+      const mockGroups: FieldGroup[] = [
+        {
+          id: 1,
+          name: 'Данные организации',
+          description: 'Основные данные об организации',
+          field_ids: [1, 2],
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          name: 'Контактная информация',
+          description: 'Контакты для связи',
+          field_ids: [1, 2],
+          created_at: new Date().toISOString(),
+        },
+      ];
+      setFieldGroups(mockGroups);
+      localStorage.setItem('customFieldGroups', JSON.stringify(mockGroups));
+    }
   }, []);
+
+  useEffect(() => {
+    if (fieldGroups.length > 0) {
+      localStorage.setItem('customFieldGroups', JSON.stringify(fieldGroups));
+    }
+  }, [fieldGroups]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +150,9 @@ const CustomFieldGroups = () => {
 
   const handleDelete = (id: number) => {
     if (!confirm('Вы уверены, что хотите удалить эту сущность?')) return;
-    setFieldGroups(fieldGroups.filter(g => g.id !== id));
+    const updatedGroups = fieldGroups.filter(g => g.id !== id);
+    setFieldGroups(updatedGroups);
+    localStorage.setItem('customFieldGroups', JSON.stringify(updatedGroups));
   };
 
   const openDialog = (group?: FieldGroup) => {

@@ -79,13 +79,25 @@ const FieldRegistry = () => {
   };
 
   useEffect(() => {
-    const mockFields: Field[] = [
-      { id: 1, name: 'ИНН организации', field_type: 'text', created_at: new Date().toISOString() },
-      { id: 2, name: 'Дата регистрации', field_type: 'date', created_at: new Date().toISOString() },
-      { id: 3, name: 'Сумма договора', field_type: 'number', created_at: new Date().toISOString() },
-    ];
-    setFields(mockFields);
+    const savedFields = localStorage.getItem('fieldRegistry');
+    if (savedFields) {
+      setFields(JSON.parse(savedFields));
+    } else {
+      const mockFields: Field[] = [
+        { id: 1, name: 'ИНН организации', field_type: 'text', created_at: new Date().toISOString() },
+        { id: 2, name: 'Дата регистрации', field_type: 'date', created_at: new Date().toISOString() },
+        { id: 3, name: 'Сумма договора', field_type: 'number', created_at: new Date().toISOString() },
+      ];
+      setFields(mockFields);
+      localStorage.setItem('fieldRegistry', JSON.stringify(mockFields));
+    }
   }, []);
+
+  useEffect(() => {
+    if (fields.length > 0) {
+      localStorage.setItem('fieldRegistry', JSON.stringify(fields));
+    }
+  }, [fields]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +127,9 @@ const FieldRegistry = () => {
 
   const handleDelete = (id: number) => {
     if (!confirm('Вы уверены, что хотите удалить это поле?')) return;
-    setFields(fields.filter(f => f.id !== id));
+    const updatedFields = fields.filter(f => f.id !== id);
+    setFields(updatedFields);
+    localStorage.setItem('fieldRegistry', JSON.stringify(updatedFields));
   };
 
   const openDialog = (field?: Field) => {
