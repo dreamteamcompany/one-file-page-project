@@ -238,7 +238,7 @@ const FieldRegistry = () => {
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[300px] overflow-y-auto">
                       {fieldTypes.map(type => (
                         <SelectItem key={type.value} value={type.value}>
                           <div className="flex items-center gap-2">
