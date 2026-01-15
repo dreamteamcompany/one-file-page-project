@@ -156,22 +156,23 @@ const CustomFieldGroups = () => {
   };
 
   const handleDialogClose = useCallback((open: boolean) => {
+    if (open === dialogOpen) return; // Prevent unnecessary updates
     setDialogOpen(open);
     if (!open) {
       setEditingGroup(null);
       setFormData({ name: '', description: '', field_ids: [] });
       setFieldSearchQuery('');
     }
-  }, []);
+  }, [dialogOpen]);
 
-  const toggleField = (fieldId: number) => {
+  const toggleField = useCallback((fieldId: number) => {
     setFormData(prev => ({
       ...prev,
       field_ids: prev.field_ids.includes(fieldId)
         ? prev.field_ids.filter(id => id !== fieldId)
         : [...prev.field_ids, fieldId]
     }));
-  };
+  }, []);
 
   const getFieldTypeLabel = (type: string) => {
     return fieldTypes.find(ft => ft.value === type)?.label || type;
@@ -320,12 +321,16 @@ const CustomFieldGroups = () => {
                                   ? 'border-primary border-2 bg-primary/5'
                                   : 'hover:border-primary/50 hover:bg-accent'
                               }`}
-                              onClick={() => toggleField(field.id)}
+                              onClick={(e) => {
+                                if ((e.target as HTMLElement).closest('button')) return;
+                                toggleField(field.id);
+                              }}
                             >
                               <Checkbox
                                 checked={formData.field_ids.includes(field.id)}
                                 onCheckedChange={() => toggleField(field.id)}
                                 className="mt-0.5"
+                                onClick={(e) => e.stopPropagation()}
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm">{field.name}</div>

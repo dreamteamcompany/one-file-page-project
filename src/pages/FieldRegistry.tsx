@@ -126,12 +126,13 @@ const FieldRegistry = () => {
   };
 
   const handleDialogClose = useCallback((open: boolean) => {
+    if (open === dialogOpen) return; // Prevent unnecessary updates
     setDialogOpen(open);
     if (!open) {
       setEditingField(null);
       setFormData({ name: '', field_type: 'text' });
     }
-  }, []);
+  }, [dialogOpen]);
 
   const getFieldTypeLabel = (type: string) => {
     return fieldTypes.find(ft => ft.value === type)?.label || type;
