@@ -1095,8 +1095,8 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
             if not ticket_service_id:
                 return response(400, {'error': 'ID is required'})
             
-            # Мягкое удаление
-            cur.execute(f'UPDATE {SCHEMA}.ticket_services SET is_active = false WHERE id = %s', (ticket_service_id,))
+            # Физическое удаление
+            cur.execute(f'DELETE FROM {SCHEMA}.ticket_services WHERE id = %s', (ticket_service_id,))
             conn.commit()
             
             return response(200, {'success': True})
