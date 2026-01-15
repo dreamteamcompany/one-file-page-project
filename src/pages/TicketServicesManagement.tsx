@@ -256,10 +256,8 @@ const TicketServicesManagement = () => {
     );
   };
 
-  // Фильтруем сервисы по выбранной категории
-  const filteredServices = formData.category_id
-    ? services.filter(s => s.category_id?.toString() === formData.category_id)
-    : services;
+  // Показываем все сервисы (не фильтруем по категории)
+  const filteredServices = services;
 
   return (
     <div className="flex min-h-screen">
@@ -355,57 +353,55 @@ const TicketServicesManagement = () => {
                     </Select>
                   </div>
 
-                  {formData.category_id && (
-                    <div className="space-y-3">
-                      <Label>Привязанные сервисы</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Выберите сервисы, которые относятся к этой услуге
-                      </p>
-                      {filteredServices.length === 0 ? (
-                        <div className="text-center py-4 text-muted-foreground">
-                          <p>Нет доступных сервисов для выбранной категории</p>
-                        </div>
-                      ) : (
-                        <div className="border rounded-lg p-4 space-y-3 max-h-[300px] overflow-y-auto">
-                          {filteredServices.map((service) => (
-                            <div key={service.id} className="flex items-start space-x-3">
-                              <Checkbox
-                                id={`service-${service.id}`}
-                                checked={selectedServiceIds.includes(service.id)}
-                                onCheckedChange={() => toggleService(service.id)}
-                              />
-                              <div className="flex-1">
-                                <label
-                                  htmlFor={`service-${service.id}`}
-                                  className="text-sm font-medium cursor-pointer"
-                                >
-                                  {service.name}
-                                </label>
-                                {service.description && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {service.description}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {selectedServiceIds.length > 0 && (
-                        <div className="flex flex-wrap gap-2 p-3 bg-accent/30 rounded-lg">
-                          <span className="text-sm font-medium">Выбрано: {selectedServiceIds.length}</span>
-                          {selectedServiceIds.map(id => {
-                            const service = services.find(s => s.id === id);
-                            return service ? (
-                              <Badge key={id} variant="secondary">
+                  <div className="space-y-3">
+                    <Label>Привязанные сервисы</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Выберите сервисы, которые относятся к этой услуге
+                    </p>
+                    {filteredServices.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <p>Нет доступных сервисов. Создайте сервисы на странице "Сервисы услуг"</p>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg p-4 space-y-3 max-h-[300px] overflow-y-auto">
+                        {filteredServices.map((service) => (
+                          <div key={service.id} className="flex items-start space-x-3">
+                            <Checkbox
+                              id={`service-${service.id}`}
+                              checked={selectedServiceIds.includes(service.id)}
+                              onCheckedChange={() => toggleService(service.id)}
+                            />
+                            <div className="flex-1">
+                              <label
+                                htmlFor={`service-${service.id}`}
+                                className="text-sm font-medium cursor-pointer"
+                              >
                                 {service.name}
-                              </Badge>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                              </label>
+                              {service.description && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {service.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedServiceIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2 p-3 bg-accent/30 rounded-lg">
+                        <span className="text-sm font-medium">Выбрано: {selectedServiceIds.length}</span>
+                        {selectedServiceIds.map(id => {
+                          const service = services.find(s => s.id === id);
+                          return service ? (
+                            <Badge key={id} variant="secondary">
+                              {service.name}
+                            </Badge>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex gap-3 pt-4">
                     <Button type="submit" className="flex-1">

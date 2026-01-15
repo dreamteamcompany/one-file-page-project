@@ -98,7 +98,7 @@ const TicketServices = () => {
       setServices([]);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось загрузить услуги',
+        description: 'Не удалось загрузить сервисы',
         variant: 'destructive',
       });
     } finally {
@@ -123,7 +123,7 @@ const TicketServices = () => {
     if (!formData.name) {
       toast({
         title: 'Ошибка',
-        description: 'Заполните название услуги',
+        description: 'Заполните название сервиса',
         variant: 'destructive',
       });
       return;
@@ -150,7 +150,7 @@ const TicketServices = () => {
       if (response.ok) {
         toast({
           title: 'Успешно',
-          description: editingService ? 'Услуга обновлена' : 'Услуга создана',
+          description: editingService ? 'Сервис обновлен' : 'Сервис создан',
         });
         setDialogOpen(false);
         resetForm();
@@ -162,7 +162,7 @@ const TicketServices = () => {
       console.error('Failed to save service:', error);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось сохранить услугу',
+        description: 'Не удалось сохранить сервис',
         variant: 'destructive',
       });
     }
@@ -179,7 +179,7 @@ const TicketServices = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Удалить эту услугу?')) return;
+    if (!confirm('Удалить этот сервис?')) return;
 
     try {
       const response = await apiFetch(`${BACKEND_URL}?endpoint=services&id=${id}`, {
@@ -189,14 +189,14 @@ const TicketServices = () => {
       if (response.ok) {
         toast({
           title: 'Успешно',
-          description: 'Услуга удалена',
+          description: 'Сервис удален',
         });
         loadServices();
       } else {
         const errorData = await response.json();
         toast({
           title: 'Ошибка',
-          description: errorData.error || 'Не удалось удалить услугу',
+          description: errorData.error || 'Не удалось удалить сервис',
           variant: 'destructive',
         });
       }
@@ -204,7 +204,7 @@ const TicketServices = () => {
       console.error('Failed to delete service:', error);
       toast({
         title: 'Ошибка',
-        description: 'Не удалось удалить услугу',
+        description: 'Не удалось удалить сервис',
         variant: 'destructive',
       });
     }
@@ -256,20 +256,20 @@ const TicketServices = () => {
               >
                 <Icon name="Menu" size={20} />
               </button>
-              <h1 className="text-2xl font-bold">Услуги заявок</h1>
+              <h1 className="text-2xl font-bold">Сервисы услуг</h1>
             </div>
             <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
               <DialogTrigger asChild>
                 <Button>
                   <Icon name="Plus" size={20} className="mr-2" />
-                  Добавить услугу
+                  Добавить сервис
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingService ? 'Редактировать услугу' : 'Новая услуга'}</DialogTitle>
+                  <DialogTitle>{editingService ? 'Редактировать сервис' : 'Новый сервис'}</DialogTitle>
                   <DialogDescription>
-                    Заполните информацию об услуге заявки
+                    Заполните информацию о сервисе услуг
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -331,14 +331,14 @@ const TicketServices = () => {
         <main className="p-6">
           <Card>
             <CardHeader>
-              <CardTitle>Список услуг</CardTitle>
+              <CardTitle>Список сервисов</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="text-center py-8">Загрузка...</div>
               ) : services.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  Нет услуг. Добавьте первую услугу.
+                  Нет сервисов. Добавьте первый сервис.
                 </div>
               ) : (
                 <Table>

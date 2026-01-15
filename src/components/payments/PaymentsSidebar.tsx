@@ -119,7 +119,7 @@ const PaymentsSidebar = ({
                 </Link>
               </li>
               <li>
-                <Link to="/service-providers" className={`flex items-center gap-3 px-[15px] py-2 rounded-lg text-sm ${isActive('/service-providers') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`}>
+                <Link to="/ticket-services" className={`flex items-center gap-3 px-[15px] py-2 rounded-lg text-sm ${isActive('/ticket-services') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`}>
                   <Icon name="Building2" size={18} />
                   <span>Сервисы услуг</span>
                 </Link>
