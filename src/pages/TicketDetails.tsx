@@ -1,401 +1,48 @@
-import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_URL } from '@/utils/api';
 import Icon from '@/components/ui/icon';
 import { Button } from '@/components/ui/button';
 import PageLayout from '@/components/layout/PageLayout';
 import TicketDetailsContent from '@/components/tickets/TicketDetailsContent';
 import TicketDetailsSidebar from '@/components/tickets/TicketDetailsSidebar';
-
-interface CustomField {
-  id: number;
-  name: string;
-  field_type: string;
-  value: string;
-}
-
-interface Ticket {
-  id: number;
-  title: string;
-  description?: string;
-  category_id?: number;
-  category_name?: string;
-  category_icon?: string;
-  priority_id?: number;
-  priority_name?: string;
-  priority_color?: string;
-  status_id?: number;
-  status_name?: string;
-  status_color?: string;
-  department_id?: number;
-  department_name?: string;
-  created_by: number;
-  creator_name?: string;
-  creator_email?: string;
-  assigned_to?: number;
-  assignee_name?: string;
-  assignee_email?: string;
-  due_date?: string;
-  created_at?: string;
-  updated_at?: string;
-  closed_at?: string;
-  custom_fields?: CustomField[];
-}
-
-interface Comment {
-  id: number;
-  ticket_id: number;
-  user_id: number;
-  user_name?: string;
-  user_email?: string;
-  comment: string;
-  is_internal: boolean;
-  created_at?: string;
-  attachments?: {
-    id: number;
-    filename: string;
-    url: string;
-    size: number;
-  }[];
-  reactions?: {
-    emoji: string;
-    count: number;
-    users: number[];
-  }[];
-}
-
-interface AuditLog {
-  id: number;
-  action: string;
-  username: string;
-  changed_fields?: any;
-  old_values?: any;
-  new_values?: any;
-  metadata?: any;
-  created_at: string;
-}
-
-interface Status {
-  id: number;
-  name: string;
-  color: string;
-  order: number;
-}
+import { useTicketData } from '@/hooks/useTicketData';
+import { useTicketActions } from '@/hooks/useTicketActions';
 
 const TicketDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, user } = useAuth();
-  const [ticket, setTicket] = useState<Ticket | null>(location.state?.ticket || null);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState('');
-  const [loading, setLoading] = useState(!location.state?.ticket);
-  const [loadingComments, setLoadingComments] = useState(false);
-  const [submittingComment, setSubmittingComment] = useState(false);
-  const [updating, setUpdating] = useState(false);
-  const [sendingPing, setSendingPing] = useState(false);
-  const [users, setUsers] = useState<Array<{id: number; name: string; email: string}>>([]);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (id) {
-      loadTicket();
-      loadStatuses();
-      loadComments();
-      loadUsers();
-      loadHistory();
-    }
-  }, [id]);
+  const {
+    ticket,
+    statuses,
+    comments,
+    users,
+    auditLogs,
+    loading,
+    loadingComments,
+    loadingHistory,
+    loadTicket,
+    loadComments,
+    loadHistory,
+  } = useTicketData(id, location.state?.ticket || null);
 
-  const loadTicket = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`${API_URL}?endpoint=tickets-api`, {
-        headers: {
-          'X-Auth-Token': token,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const foundTicket = data.tickets?.find((t: Ticket) => t.id === Number(id));
-        if (foundTicket) {
-          setTicket(foundTicket);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading ticket:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStatuses = async () => {
-    try {
-      const response = await fetch(`${API_URL}?endpoint=ticket-dictionaries-api`, {
-        headers: {
-          'X-Auth-Token': token,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setStatuses(data.statuses || []);
-      }
-    } catch (error) {
-      console.error('Error loading statuses:', error);
-    }
-  };
-
-  const loadUsers = async () => {
-    try {
-      const response = await fetch(`${API_URL}?endpoint=users`, {
-        headers: {
-          'X-Auth-Token': token,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const adaptedUsers = Array.isArray(data) ? data.map((u: any) => ({
-          id: u.id,
-          name: u.full_name || u.username,
-          email: u.username,
-          role: ''
-        })) : [];
-        setUsers(adaptedUsers);
-      }
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  };
-
-  const loadHistory = async () => {
-    try {
-      setLoadingHistory(true);
-      const response = await fetch(`${API_URL}?endpoint=ticket-history&ticket_id=${id}`, {
-        headers: {
-          'X-Auth-Token': token,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAuditLogs(data.logs || []);
-      }
-    } catch (error) {
-      console.error('Error loading history:', error);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const loadComments = async () => {
-    try {
-      setLoadingComments(true);
-      const response = await fetch(`${API_URL}?endpoint=ticket-comments-api&ticket_id=${id}`, {
-        headers: {
-          'X-Auth-Token': token,
-        },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setComments(data.comments || []);
-      }
-    } catch (error) {
-      console.error('Error loading comments:', error);
-    } finally {
-      setLoadingComments(false);
-    }
-  };
-
-  const handleSubmitComment = async (parentCommentId?: number, mentionedUserIds?: number[]) => {
-    if (!newComment.trim()) return;
-    
-    try {
-      setSubmittingComment(true);
-      const response = await fetch(`${API_URL}?endpoint=ticket-comments-api`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ 
-          ticket_id: id, 
-          comment: newComment, 
-          is_internal: false,
-          parent_comment_id: parentCommentId,
-          mentioned_user_ids: mentionedUserIds || []
-        }),
-      });
-      
-      if (response.ok) {
-        setNewComment('');
-        loadComments();
-      }
-    } catch (error) {
-      console.error('Error submitting comment:', error);
-    } finally {
-      setSubmittingComment(false);
-    }
-  };
-
-  const handleUpdateStatus = async (statusId: number) => {
-    try {
-      setUpdating(true);
-      const response = await fetch(`${API_URL}?endpoint=tickets-api`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, status_id: statusId }),
-      });
-      
-      if (response.ok) {
-        loadTicket();
-      }
-    } catch (error) {
-      console.error('Error updating status:', error);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleSendPing = async () => {
-    try {
-      setSendingPing(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      await fetch(`${mainUrl}?endpoint=ticket-comments-api`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, is_ping: true }),
-      });
-      loadComments();
-    } catch (error) {
-      console.error('Error sending ping:', error);
-    } finally {
-      setSendingPing(false);
-    }
-  };
-
-  const handleReaction = async (commentId: number, emoji: string) => {
-    try {
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      await fetch(`${mainUrl}?endpoint=comment-reactions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ comment_id: commentId, emoji }),
-      });
-      loadComments();
-    } catch (error) {
-      console.error('Error adding reaction:', error);
-    }
-  };
-
-  const handleFileUpload = async (file: File) => {
-    try {
-      setUploadingFile(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      
-      await new Promise((resolve, reject) => {
-        reader.onload = async () => {
-          try {
-            const base64 = (reader.result as string).split(',')[1];
-            const response = await fetch(`${mainUrl}?endpoint=upload-file`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Auth-Token': token,
-              },
-              body: JSON.stringify({
-                file_data: base64,
-                filename: file.name,
-                content_type: file.type,
-              }),
-            });
-            
-            if (response.ok) {
-              const data = await response.json();
-              setNewComment(prev => prev + `\n[Файл: ${file.name}](${data.url})`);
-            }
-            resolve(null);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        reader.onerror = reject;
-      });
-    } catch (error) {
-      console.error('Error uploading file:', error);
-    } finally {
-      setUploadingFile(false);
-    }
-  };
-
-  const handleAssignUser = async (userId: string) => {
-    console.log('Assign user:', userId);
-    try {
-      setUpdating(true);
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
-      const assignedUserId = userId === 'unassign' ? null : Number(userId);
-      
-      console.log('Sending assign request:', { ticket_id: id, assigned_to: assignedUserId });
-      
-      const response = await fetch(`${mainUrl}?endpoint=tickets-api`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, assigned_to: assignedUserId }),
-      });
-      
-      console.log('Assign response:', response.status, await response.text());
-      
-      if (response.ok) {
-        loadTicket();
-        loadHistory();
-      }
-    } catch (error) {
-      console.error('Error assigning user:', error);
-    } finally {
-      setUpdating(false);
-    }
-  };
-
-  const handleUpdateDueDate = async (dueDate: string | null) => {
-    try {
-      setUpdating(true);
-      const response = await fetch(`${API_URL}?endpoint=tickets-api`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Auth-Token': token,
-        },
-        body: JSON.stringify({ ticket_id: id, due_date: dueDate }),
-      });
-      
-      if (response.ok) {
-        loadTicket();
-        loadHistory();
-      }
-    } catch (error) {
-      console.error('Error updating due date:', error);
-    } finally {
-      setUpdating(false);
-    }
-  };
+  const {
+    newComment,
+    setNewComment,
+    submittingComment,
+    updating,
+    sendingPing,
+    uploadingFile,
+    handleSubmitComment,
+    handleUpdateStatus,
+    handleSendPing,
+    handleReaction,
+    handleFileUpload,
+    handleAssignUser,
+    handleUpdateDueDate,
+  } = useTicketActions(id, loadTicket, loadComments, loadHistory);
 
   if (loading) {
     return (
