@@ -106,18 +106,11 @@ const FieldRegistry = () => {
       setFields([...fields, newField]);
     }
     
-    setDialogOpen(false);
-    setEditingField(null);
-    setFormData({ name: '', field_type: 'text' });
+    closeDialog();
   };
 
   const handleEdit = (field: Field) => {
-    setEditingField(field);
-    setFormData({ 
-      name: field.name, 
-      field_type: field.field_type,
-    });
-    setDialogOpen(true);
+    openDialog(field);
   };
 
   const handleDelete = (id: number) => {
@@ -125,14 +118,23 @@ const FieldRegistry = () => {
     setFields(fields.filter(f => f.id !== id));
   };
 
-  const handleDialogClose = (open: boolean) => {
-    setDialogOpen(open);
-    if (!open) {
-      setTimeout(() => {
-        setEditingField(null);
-        setFormData({ name: '', field_type: 'text' });
-      }, 0);
+  const openDialog = (field?: Field) => {
+    if (field) {
+      setEditingField(field);
+      setFormData({ 
+        name: field.name, 
+        field_type: field.field_type,
+      });
     }
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setTimeout(() => {
+      setEditingField(null);
+      setFormData({ name: '', field_type: 'text' });
+    }, 150);
   };
 
   const getFieldTypeLabel = (type: string) => {
@@ -204,7 +206,7 @@ const FieldRegistry = () => {
             <h1 className="text-2xl md:text-3xl font-bold mb-2">Реестр полей</h1>
             <p className="text-sm md:text-base text-muted-foreground">Управление полями для форм системы</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto">
                 <Icon name="Plus" size={18} />
