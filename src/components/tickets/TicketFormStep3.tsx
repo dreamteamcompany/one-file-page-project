@@ -16,7 +16,7 @@ interface TicketFormStep3Props {
   filteredServices: Service[];
   selectedServices: number[];
   onToggleService: (serviceId: number) => void;
-  onSubmit: (e: React.FormEvent) => Promise<void>;
+  onNext: () => void;
   onBack: () => void;
 }
 
@@ -24,12 +24,11 @@ const TicketFormStep3 = ({
   filteredServices,
   selectedServices,
   onToggleService,
-  onSubmit,
+  onNext,
   onBack,
 }: TicketFormStep3Props) => {
   return (
-    <form onSubmit={onSubmit}>
-      <div className="space-y-4 mt-4">
+    <div className="space-y-4 mt-4">
         <div className="space-y-3">
           <Label>Выберите сервисы (минимум 1) *</Label>
           <p className="text-sm text-muted-foreground">
@@ -110,16 +109,17 @@ const TicketFormStep3 = ({
             Назад
           </Button>
           <Button
-            type="submit"
+            type="button"
             className="flex-1 gap-2"
             disabled={selectedServices.length === 0}
+            onClick={onNext}
           >
-            <Icon name="Send" size={18} />
-            Создать заявку
+            Далее
+            <Icon name="ArrowRight" size={18} />
           </Button>
         </div>
       </div>
-    </form>
+    </div>
   );
 };
 

@@ -101,16 +101,13 @@ const TicketForm = ({
   console.log('[TicketForm] Current step:', step, 'Dialog open:', dialogOpen);
 
   const handleNext = () => {
-    if (!formData.title.trim()) {
+    if (!formData.service_id) {
       return;
     }
     setStep(2);
   };
 
   const handleNextToServices = () => {
-    if (!formData.service_id) {
-      return;
-    }
     setStep(3);
   };
 
@@ -186,37 +183,37 @@ const TicketForm = ({
             </Badge>
           </DialogTitle>
           <DialogDescription className="text-sm">
-            {step === 1 && '📝 Заполните основную информацию о заявке'}
-            {step === 2 && '🎯 Выберите услугу для вашей заявки'}
-            {step === 3 && '🔧 Выберите сервисы для услуги'}
+            {step === 1 && '🎯 Выберите услугу для вашей заявки'}
+            {step === 2 && '🔧 Выберите сервисы для услуги'}
+            {step === 3 && '📝 Заполните основную информацию о заявке'}
           </DialogDescription>
         </DialogHeader>
 
 
 
         {step === 1 ? (
+          <TicketFormStep2
+            formData={formData}
+            availableTicketServices={availableTicketServices}
+            onServiceSelect={handleServiceSelect}
+            onNext={handleNext}
+            onBack={() => handleDialogChange(false)}
+          />
+        ) : step === 2 ? (
+          <TicketFormStep3
+            filteredServices={filteredServices}
+            selectedServices={selectedServices}
+            onToggleService={toggleService}
+            onNext={handleNextToServices}
+            onBack={handleBack}
+          />
+        ) : (
           <TicketFormStep1
             formData={formData}
             setFormData={setFormData}
             categories={categories}
             priorities={priorities}
             customFields={customFields}
-            onNext={handleNext}
-            onCancel={() => handleDialogChange(false)}
-          />
-        ) : step === 2 ? (
-          <TicketFormStep2
-            formData={formData}
-            availableTicketServices={availableTicketServices}
-            onServiceSelect={handleServiceSelect}
-            onNext={handleNextToServices}
-            onBack={handleBack}
-          />
-        ) : (
-          <TicketFormStep3
-            filteredServices={filteredServices}
-            selectedServices={selectedServices}
-            onToggleService={toggleService}
             onSubmit={onSubmit}
             onBack={handleBack}
           />

@@ -43,8 +43,8 @@ interface TicketFormStep1Props {
   categories: Category[];
   priorities: Priority[];
   customFields: CustomField[];
-  onNext: () => void;
-  onCancel: () => void;
+  onSubmit: (e: React.FormEvent) => Promise<void>;
+  onBack: () => void;
 }
 
 const TicketFormStep1 = ({
@@ -53,11 +53,12 @@ const TicketFormStep1 = ({
   categories,
   priorities,
   customFields,
-  onNext,
-  onCancel,
+  onSubmit,
+  onBack,
 }: TicketFormStep1Props) => {
   return (
-    <div className="space-y-4 mt-4">
+    <form onSubmit={onSubmit}>
+      <div className="space-y-4 mt-4">
       <div className="space-y-2">
         <Label htmlFor="title">Название заявки *</Label>
         <Input
@@ -179,22 +180,24 @@ const TicketFormStep1 = ({
       <div className="flex gap-3 pt-4">
         <Button
           type="button"
-          onClick={onNext}
+          variant="outline"
+          onClick={onBack}
+          className="gap-2"
+        >
+          <Icon name="ArrowLeft" size={18} />
+          Назад
+        </Button>
+        <Button
+          type="submit"
           className="flex-1 gap-2"
           disabled={!formData.title.trim()}
         >
-          Далее
-          <Icon name="ArrowRight" size={18} />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-        >
-          Отмена
+          <Icon name="Send" size={18} />
+          Создать заявку
         </Button>
       </div>
-    </div>
+      </div>
+    </form>
   );
 };
 
