@@ -3987,10 +3987,10 @@ def handler(event, context):
             return handle_categories(method, event, conn)
         
         elif endpoint == 'legal_entities':
-            return handle_legal_entities(method, event, conn)
+            return handle_legal_entities(method, event, conn, payload)
         
         elif endpoint == 'contractors':
-            return handle_contractors(method, event, conn)
+            return handle_contractors(method, event, conn, payload)
         
         elif endpoint == 'approvals':
             if not payload:
@@ -3998,22 +3998,22 @@ def handler(event, context):
             return handle_approvals(method, event, conn, payload)
         
         elif endpoint == 'services':
-            return handle_services(method, event, conn)
+            return handle_services(event, conn)
         
         elif endpoint == 'savings':
-            return handle_savings(method, event, conn)
+            return handle_savings(method, event, conn, payload)
         
         elif endpoint == 'saving_reasons':
-            return handle_saving_reasons(method, event, conn)
+            return handle_saving_reasons(method, event, conn, payload)
         
         elif endpoint == 'roles':
-            return handle_roles(method, event, conn)
+            return handle_roles(method, event, conn, payload)
         
         elif endpoint == 'permissions':
-            return handle_permissions(method, event, conn)
+            return handle_permissions(method, event, conn, payload)
         
         elif endpoint == 'customer_departments':
-            return handle_customer_departments(method, event, conn)
+            return handle_customer_departments(method, event, conn, payload)
         
         elif endpoint == 'departments':
             if not payload:
@@ -4026,7 +4026,7 @@ def handler(event, context):
             return handle_tickets(method, event, conn, payload)
         
         elif endpoint == 'ticket_services':
-            return handle_ticket_services(method, event, conn)
+            return handle_ticket_services(method, event, conn, payload)
         
         elif endpoint == 'ticket_priorities':
             if not payload:
