@@ -134,7 +134,7 @@ export const useTicketsData = () => {
 
       if (servicesResponse.ok) {
         const data = await servicesResponse.json();
-        setServices(data.services || []);
+        setServices(Array.isArray(data) ? data : []);
       }
     } catch (err) {
       console.error('Failed to load services:', err);
