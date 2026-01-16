@@ -149,7 +149,7 @@ const TicketDetailsContent = ({
   return (
     <div className="flex-1 p-4 lg:p-6">
       {/* Суть заявки */}
-      <div className="mb-6 border rounded-lg p-6 bg-card">
+      <div className="mb-6 border rounded-lg p-6 bg-card h-fit">
         {/* Тема */}
         <h1 className="text-2xl font-bold text-foreground mb-6">{ticket.title}</h1>
         

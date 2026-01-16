@@ -144,7 +144,7 @@ const TicketDetailsSidebar = ({
   return (
     <div className="w-full lg:w-[400px] space-y-3 flex-shrink-0">
       {ticket.due_date && (
-        <div className="p-6 rounded-lg bg-card border">
+        <div className="p-6 rounded-lg bg-card border h-fit">
           <div className="flex flex-col items-center">
             <h3 className="text-sm font-semibold mb-4 text-foreground">Времени осталось</h3>
             <div className={`w-24 h-24 rounded-full ${getTimeLeft()?.expired ? 'bg-red-500/10 border-red-500' : 'bg-muted'} border-2 flex items-center justify-center mb-4`}>
@@ -197,7 +197,7 @@ const TicketDetailsSidebar = ({
         </div>
       )}
       
-      <div className="rounded-lg bg-card border divide-y">
+      <div className="rounded-lg bg-card border divide-y h-fit">
         {/* Статус */}
         <div className="p-4">
           <h3 className="text-xs font-semibold mb-3 text-foreground uppercase tracking-wide flex items-center gap-2">
