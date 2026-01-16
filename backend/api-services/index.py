@@ -132,6 +132,28 @@ def handler(event, context):
                 return response(400, {'error': 'ID сервиса обязателен'})
             
             cur = conn.cursor()
+            
+            # Проверяем связи с другими таблицами
+            cur.execute(f"""
+                SELECT 
+                  (SELECT COUNT(*) FROM {SCHEMA}.payments WHERE service_id = %s) as payments_count,
+                  (SELECT COUNT(*) FROM {SCHEMA}.savings WHERE service_id = %s) as savings_count,
+                  (SELECT COUNT(*) FROM {SCHEMA}.ticket_service_mappings WHERE service_id = %s) as mappings_count
+            """, (service_id, service_id, service_id))
+            
+            counts = cur.fetchone()
+            errors = []
+            if counts[0] > 0:
+                errors.append(f'{counts[0]} платежей')
+            if counts[1] > 0:
+                errors.append(f'{counts[1]} сохранений')
+            if counts[2] > 0:
+                errors.append(f'{counts[2]} связей с заявками')
+            
+            if errors:
+                cur.close()
+                return response(400, {'error': f'Невозможно удалить: есть {", ".join(errors)}'})
+            
             cur.execute(f"DELETE FROM {SCHEMA}.services WHERE id = %s", (service_id,))
             conn.commit()
             cur.close()
