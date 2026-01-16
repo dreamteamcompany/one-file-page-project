@@ -112,11 +112,16 @@ const Services = () => {
 
   const loadServices = async () => {
     try {
+      console.log('[Services] Loading services...');
       const response = await apiFetch(`${API_URL}?endpoint=services`);
+      console.log('[Services] Response status:', response.status);
       const data = await response.json();
-      setServices(Array.isArray(data) ? data : []);
+      console.log('[Services] Data received:', data);
+      const services = Array.isArray(data) ? data : [];
+      console.log('[Services] Setting services:', services.length, 'items');
+      setServices(services);
     } catch (error) {
-      console.error('Failed to load services:', error);
+      console.error('[Services] Failed to load services:', error);
       setServices([]);
       toast({
         title: 'Ошибка',
