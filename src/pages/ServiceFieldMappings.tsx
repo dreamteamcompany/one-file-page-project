@@ -1,66 +1,17 @@
 import { useEffect, useState } from 'react';
 import { apiFetch, API_URL } from '@/utils/api';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
+import MappingFormDialog from '@/components/service-field-mappings/MappingFormDialog';
+import MappingsTable from '@/components/service-field-mappings/MappingsTable';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
-interface ServiceCategory {
-  id: number;
-  name: string;
-  icon?: string;
-}
-
-interface Service {
-  id: number;
-  name: string;
-  description?: string;
-  category_id: number;
-}
-
-interface FieldGroup {
-  id: number;
-  name: string;
-  description?: string;
-  field_ids: number[];
-}
-
-interface ServiceFieldMapping {
-  id: number;
-  service_category_id: number;
-  service_id: number;
-  field_group_ids: number[];
-  created_at?: string;
-  updated_at?: string;
-}
+  ServiceCategory,
+  Service,
+  FieldGroup,
+  ServiceFieldMapping,
+} from '@/components/service-field-mappings/types';
 
 const ServiceFieldMappings = () => {
   const [mappings, setMappings] = useState<ServiceFieldMapping[]>([]);
@@ -191,6 +142,14 @@ const ServiceFieldMappings = () => {
     setDialogOpen(false);
   };
 
+  const handleFormDataChange = (field: string, value: any) => {
+    if (field === 'service_category_id') {
+      setFormData((prev) => ({ ...prev, ...value }));
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    }
+  };
+
   const toggleFieldGroup = (groupId: number) => {
     setFormData((prev) => ({
       ...prev,
@@ -277,241 +236,30 @@ const ServiceFieldMappings = () => {
               />
             </div>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => resetForm()} className="gap-2">
-                  <Icon name="Plus" size={18} />
-                  Добавить связь
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingMapping ? 'Редактировать связь' : 'Создать связь'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    Выберите услугу, сервис и группы полей для этой комбинации
-                  </DialogDescription>
-                </DialogHeader>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Услуга *</Label>
-                    <Select
-                      value={formData.service_category_id > 0 ? formData.service_category_id.toString() : ''}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          service_category_id: parseInt(value),
-                          service_id: 0,
-                        }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите услугу" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {serviceCategories.length === 0 ? (
-                          <div className="px-2 py-4 text-sm text-muted-foreground text-center">
-                            Нет доступных услуг
-                          </div>
-                        ) : (
-                          serviceCategories.map((category) => (
-                            <SelectItem key={category.id} value={category.id.toString()}>
-                              {category.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Сервис *</Label>
-                    <Select
-                      value={formData.service_id > 0 ? formData.service_id.toString() : ''}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, service_id: parseInt(value) }))
-                      }
-                      disabled={!formData.service_category_id}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите сервис" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredServices.length === 0 ? (
-                          <div className="px-2 py-4 text-sm text-muted-foreground text-center">
-                            Нет сервисов для выбранной услуги
-                          </div>
-                        ) : (
-                          filteredServices.map((service) => (
-                            <SelectItem key={service.id} value={service.id.toString()}>
-                              {service.name}
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {!formData.service_category_id && (
-                      <p className="text-xs text-muted-foreground">
-                        Сначала выберите услугу
-                      </p>
-                    )}
-                    {formData.service_category_id > 0 && filteredServices.length === 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Для этой услуги нет доступных сервисов
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Группы полей</Label>
-                    <ScrollArea className="h-64 border rounded-md p-3">
-                      {fieldGroups.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-8">
-                          Нет доступных групп полей.
-                          <br />
-                          Создайте их на странице "Дополнительные поля".
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {fieldGroups.map((group) => (
-                            <div
-                              key={group.id}
-                              className="flex items-start space-x-2 p-2 hover:bg-accent rounded-md"
-                            >
-                              <Checkbox
-                                id={`group-${group.id}`}
-                                checked={formData.field_group_ids.includes(group.id)}
-                                onCheckedChange={() => toggleFieldGroup(group.id)}
-                              />
-                              <div className="flex-1">
-                                <label
-                                  htmlFor={`group-${group.id}`}
-                                  className="text-sm font-medium cursor-pointer"
-                                >
-                                  {group.name}
-                                </label>
-                                {group.description && (
-                                  <p className="text-xs text-muted-foreground mt-0.5">
-                                    {group.description}
-                                  </p>
-                                )}
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Полей: {group.field_ids.length}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </ScrollArea>
-                    <p className="text-xs text-muted-foreground">
-                      Выбрано групп: {formData.field_group_ids.length}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 justify-end pt-4">
-                    <Button type="button" variant="outline" onClick={resetForm}>
-                      Отмена
-                    </Button>
-                    <Button type="submit">
-                      {editingMapping ? 'Сохранить' : 'Создать'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+            <MappingFormDialog
+              open={dialogOpen}
+              onOpenChange={setDialogOpen}
+              editingMapping={editingMapping}
+              formData={formData}
+              onFormDataChange={handleFormDataChange}
+              onSubmit={handleSubmit}
+              onReset={resetForm}
+              serviceCategories={serviceCategories}
+              services={services}
+              fieldGroups={fieldGroups}
+              filteredServices={filteredServices}
+              toggleFieldGroup={toggleFieldGroup}
+            />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Icon name="Link" size={20} />
-                Список связей
-                <Badge variant="secondary" className="ml-auto">
-                  {filteredMappings.length}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {filteredMappings.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Icon name="Link" size={48} className="mx-auto mb-4 opacity-50" />
-                  <p className="text-lg mb-2">Нет связей</p>
-                  <p className="text-sm">
-                    Создайте первую связь между услугой, сервисом и полями
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Услуга</TableHead>
-                        <TableHead>Сервис</TableHead>
-                        <TableHead>Группы полей</TableHead>
-                        <TableHead className="text-right">Действия</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMappings.map((mapping) => (
-                        <TableRow key={mapping.id}>
-                          <TableCell className="font-medium">
-                            {getCategoryName(mapping.service_category_id)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {getServiceName(mapping.service_id)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {mapping.field_group_ids.length === 0 ? (
-                              <span className="text-xs text-muted-foreground">
-                                Нет групп
-                              </span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1">
-                                {getFieldGroupNames(mapping.field_group_ids).map(
-                                  (name, idx) => (
-                                    <Badge key={idx} variant="secondary" className="text-xs">
-                                      {name}
-                                    </Badge>
-                                  )
-                                )}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEdit(mapping)}
-                                className="gap-1"
-                              >
-                                <Icon name="Pencil" size={16} />
-                                Изменить
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDelete(mapping.id)}
-                                className="gap-1 text-destructive hover:text-destructive"
-                              >
-                                <Icon name="Trash2" size={16} />
-                                Удалить
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <MappingsTable
+            mappings={filteredMappings}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            getCategoryName={getCategoryName}
+            getServiceName={getServiceName}
+            getFieldGroupNames={getFieldGroupNames}
+          />
         </div>
       </div>
     </div>
