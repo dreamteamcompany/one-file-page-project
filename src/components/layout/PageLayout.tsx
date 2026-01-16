@@ -54,7 +54,7 @@ const PageLayout = ({ children, menuOpen: externalMenuOpen, setMenuOpen: externa
         />
       )}
 
-      <main className={`${sidebarCollapsed ? 'lg:ml-[70px]' : 'lg:ml-[250px]'} p-4 md:p-6 lg:p-[30px] min-h-screen flex-1 overflow-x-hidden max-w-full transition-all duration-300`}>
+      <main className={`${sidebarCollapsed ? 'lg:ml-[70px]' : 'lg:ml-[250px]'} p-4 md:p-6 lg:p-[30px] min-h-screen flex-1 overflow-x-hidden max-w-full transition-all duration-300 light:bg-[#f3f3f9]`}>
         {children}
       </main>
     </div>
