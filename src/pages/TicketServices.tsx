@@ -74,7 +74,7 @@ const TicketServices = () => {
     try {
       const response = await apiFetch(`${BACKEND_URL}?endpoint=services`);
       const data = await response.json();
-      setServices(data.services || []);
+      setServices(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load services:', error);
       setServices([]);
