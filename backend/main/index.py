@@ -3942,3 +3942,189 @@ def handle_savings_dashboard(method: str, event: Dict[str, Any], conn, payload: 
         return response(500, {'error': str(e)})
     finally:
         cur.close()
+
+def handler(event, context):
+    """Main Lambda handler that routes requests to appropriate endpoint handlers"""
+    
+    if event.get('httpMethod') == 'OPTIONS':
+        return response(200, {'message': 'OK'})
+    
+    params = event.get('queryStringParameters') or {}
+    endpoint = params.get('endpoint', '')
+    method = event.get('httpMethod', 'GET')
+    
+    log(f"Handler invoked - endpoint: {endpoint}, method: {method}")
+    
+    try:
+        conn = get_db_connection()
+    except Exception as e:
+        log(f"Database connection error: {str(e)}")
+        return response(500, {'error': 'Database connection failed'})
+    
+    try:
+        payload = verify_token(event)
+        
+        if endpoint == 'login':
+            return handle_login(event, conn)
+        
+        elif endpoint == 'register':
+            return handle_register(event, conn)
+        
+        elif endpoint == 'me':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_me(event, conn, payload)
+        
+        elif endpoint == 'users':
+            return handle_users(method, event, conn)
+        
+        elif endpoint == 'payments':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_payments(method, event, conn, payload)
+        
+        elif endpoint == 'categories':
+            return handle_categories(method, event, conn)
+        
+        elif endpoint == 'legal_entities':
+            return handle_legal_entities(method, event, conn)
+        
+        elif endpoint == 'contractors':
+            return handle_contractors(method, event, conn)
+        
+        elif endpoint == 'approvals':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_approvals(method, event, conn, payload)
+        
+        elif endpoint == 'services':
+            return handle_services(method, event, conn)
+        
+        elif endpoint == 'savings':
+            return handle_savings(method, event, conn)
+        
+        elif endpoint == 'saving_reasons':
+            return handle_saving_reasons(method, event, conn)
+        
+        elif endpoint == 'roles':
+            return handle_roles(method, event, conn)
+        
+        elif endpoint == 'permissions':
+            return handle_permissions(method, event, conn)
+        
+        elif endpoint == 'customer_departments':
+            return handle_customer_departments(method, event, conn)
+        
+        elif endpoint == 'departments':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_departments(method, event, conn, payload)
+        
+        elif endpoint == 'tickets' or endpoint == 'tickets-api':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_tickets(method, event, conn, payload)
+        
+        elif endpoint == 'ticket_services':
+            return handle_ticket_services(method, event, conn)
+        
+        elif endpoint == 'ticket_priorities':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_ticket_priorities(method, event, conn, payload)
+        
+        elif endpoint == 'ticket_statuses':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_ticket_statuses(method, event, conn, payload)
+        
+        elif endpoint == 'ticket_categories':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_ticket_categories(method, event, conn, payload)
+        
+        elif endpoint == 'ticket_comments':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            user = get_user_with_permissions(conn, payload['user_id'])
+            if not user:
+                return response(401, {'error': 'Пользователь не найден'})
+            return handle_ticket_comments(method, event, conn, user)
+        
+        elif endpoint == 'ticket_history':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_ticket_history(method, event, conn, payload)
+        
+        elif endpoint == 'tickets_bulk_actions':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_tickets_bulk_actions(method, event, conn, payload)
+        
+        elif endpoint == 'comments':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            user = get_user_with_permissions(conn, payload['user_id'])
+            if not user:
+                return response(401, {'error': 'Пользователь не найден'})
+            return handle_comments(method, event, conn, user)
+        
+        elif endpoint == 'comment_likes':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            user = get_user_with_permissions(conn, payload['user_id'])
+            if not user:
+                return response(401, {'error': 'Пользователь не найден'})
+            return handle_comment_likes(method, event, conn, user)
+        
+        elif endpoint == 'upload_file':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_upload_file(event, conn, payload)
+        
+        elif endpoint == 'custom_fields':
+            return handle_custom_fields(method, event, conn)
+        
+        elif endpoint == 'notifications':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_notifications(method, event, conn, payload)
+        
+        elif endpoint == 'stats':
+            return handle_stats(event, conn)
+        
+        elif endpoint == 'dashboard_layout':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_dashboard_layout(method, event, conn, payload)
+        
+        elif endpoint == 'dashboard_stats':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_dashboard_stats(method, event, conn, payload)
+        
+        elif endpoint == 'budget_breakdown':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_budget_breakdown(method, event, conn, payload)
+        
+        elif endpoint == 'savings_dashboard':
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_savings_dashboard(method, event, conn, payload)
+        
+        else:
+            log(f"Unknown endpoint: {endpoint}")
+            return response(404, {'error': f'Unknown endpoint: {endpoint}'})
+    
+    except Exception as e:
+        log(f"Handler error: {str(e)}")
+        import traceback
+        log(traceback.format_exc())
+        return response(500, {'error': str(e)})
+    
+    finally:
+        try:
+            conn.close()
+        except:
+            pass
