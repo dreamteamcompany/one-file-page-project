@@ -15,7 +15,7 @@ import {
 
 const ServiceFieldMappings = () => {
   const [mappings, setMappings] = useState<ServiceFieldMapping[]>([]);
-  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
+  const [ticketServices, setTicketServices] = useState<ServiceCategory[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [fieldGroups, setFieldGroups] = useState<FieldGroup[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -36,26 +36,25 @@ const ServiceFieldMappings = () => {
   }, []);
 
   const loadData = async () => {
-    // Load service categories from "Услуги заявок" page
-    try {
-      const response = await apiFetch(`${API_URL}?endpoint=ticket-service-categories`);
-      const data = await response.json();
-      console.log('Loaded service categories:', data);
-      setServiceCategories(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Failed to load service categories:', error);
-      setServiceCategories([]);
-    }
-
-    // Load ticket services from "Сервисы услуг" page (NOT services!)
+    // Load ticket-services (Услуга: Заблокировать доступ, Предоставить доступ)
     try {
       const response = await apiFetch(`${API_URL}?endpoint=ticket-services`);
       const data = await response.json();
-      console.log('Loaded ticket services:', data);
-      // ticket-services endpoint returns objects with category_id field
-      setServices(Array.isArray(data) ? data : []);
+      console.log('Loaded ticket-services (услуги):', data);
+      setTicketServices(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Failed to load ticket services:', error);
+      console.error('Failed to load ticket-services:', error);
+      setTicketServices([]);
+    }
+
+    // Load services (Сервис: процессы согласования)
+    try {
+      const response = await apiFetch(`${API_URL}?endpoint=services`);
+      const data = await response.json();
+      console.log('Loaded services (сервисы):', data);
+      setServices(Array.isArray(data.services) ? data.services : []);
+    } catch (error) {
+      console.error('Failed to load services:', error);
       setServices([]);
     }
 
@@ -160,8 +159,8 @@ const ServiceFieldMappings = () => {
     }));
   };
 
-  const getCategoryName = (id: number) => {
-    return serviceCategories.find((c) => c.id === id)?.name || 'Неизвестно';
+  const getTicketServiceName = (id: number) => {
+    return ticketServices.find((c) => c.id === id)?.name || 'Неизвестно';
   };
 
   const getServiceName = (id: number) => {
@@ -172,22 +171,14 @@ const ServiceFieldMappings = () => {
     return ids.map((id) => fieldGroups.find((g) => g.id === id)?.name || 'Неизвестно');
   };
 
-  const filteredServices = services.filter(
-    (s) => s.category_id === formData.service_category_id
-  );
-
-  // Debug logging
-  if (formData.service_category_id > 0) {
-    console.log('Selected category_id:', formData.service_category_id);
-    console.log('All services:', services);
-    console.log('Filtered services:', filteredServices);
-  }
+  // Показываем все сервисы (services table), без фильтрации по ticket_service_id
+  const filteredServices = services;
 
   const filteredMappings = mappings.filter((mapping) => {
-    const categoryName = getCategoryName(mapping.service_category_id).toLowerCase();
+    const ticketServiceName = getTicketServiceName(mapping.service_category_id).toLowerCase();
     const serviceName = getServiceName(mapping.service_id).toLowerCase();
     const query = searchQuery.toLowerCase();
-    return categoryName.includes(query) || serviceName.includes(query);
+    return ticketServiceName.includes(query) || serviceName.includes(query);
   });
 
   return (
@@ -252,7 +243,7 @@ const ServiceFieldMappings = () => {
               onFormDataChange={handleFormDataChange}
               onSubmit={handleSubmit}
               onReset={resetForm}
-              serviceCategories={serviceCategories}
+              serviceCategories={ticketServices}
               services={services}
               fieldGroups={fieldGroups}
               filteredServices={filteredServices}
@@ -264,7 +255,7 @@ const ServiceFieldMappings = () => {
             mappings={filteredMappings}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            getCategoryName={getCategoryName}
+            getCategoryName={getTicketServiceName}
             getServiceName={getServiceName}
             getFieldGroupNames={getFieldGroupNames}
           />
