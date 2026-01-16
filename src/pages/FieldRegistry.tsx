@@ -1,45 +1,19 @@
 import { useEffect, useState } from 'react';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import Icon from '@/components/ui/icon';
 import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
+import Icon from '@/components/ui/icon';
+import FieldFormDialog from '@/components/field-registry/FieldFormDialog';
+import FieldsTable from '@/components/field-registry/FieldsTable';
 
 interface Field {
   id: number;
   name: string;
   field_type: string;
-  options?: string[]; // Для select - список опций
-  placeholder?: string; // Для text, textarea, email, phone
-  label?: string; // Для checkbox - текст флажка
-  description?: string; // Описание поля
-  required?: boolean; // Обязательное поле
+  options?: string[];
+  placeholder?: string;
+  label?: string;
+  description?: string;
+  required?: boolean;
   created_at?: string;
 }
 
@@ -68,7 +42,6 @@ const FieldRegistry = () => {
     description: '',
     required: false,
   });
-  const [newOption, setNewOption] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [dictionariesOpen, setDictionariesOpen] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -184,8 +157,24 @@ const FieldRegistry = () => {
         description: '', 
         required: false 
       });
-      setNewOption('');
     }, 150);
+  };
+
+  const resetForm = () => {
+    setEditingField(null);
+    setFormData({ 
+      name: '', 
+      field_type: 'text', 
+      options: [], 
+      placeholder: '', 
+      label: '', 
+      description: '', 
+      required: false 
+    });
+  };
+
+  const handleFormDataChange = (field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const getFieldTypeLabel = (type: string) => {
@@ -242,289 +231,39 @@ const FieldRegistry = () => {
             />
           </div>
           <div className="flex items-center gap-2 md:gap-3 px-3 md:px-[15px] py-2 md:py-[10px] rounded-[12px] bg-white/5 border border-white/10">
-            <div className="w-8 h-8 md:w-9 md:h-9 rounded-[10px] bg-gradient-to-br from-primary to-secondary flex items-center justify-center font-bold text-white text-sm md:text-base">
-              А
+            <div className="w-8 h-8 md:w-9 md:h-9 rounded-[10px] bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-semibold text-xs md:text-sm">
+              ДБ
             </div>
-            <div className="hidden sm:block">
-              <div className="text-sm font-medium">Администратор</div>
-              <div className="text-xs text-muted-foreground">Администратор</div>
-            </div>
+            <span className="text-xs md:text-sm text-foreground font-medium hidden sm:inline">Дмитрий Белозерский</span>
           </div>
         </header>
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold mb-2">Реестр полей</h1>
-            <p className="text-sm md:text-base text-muted-foreground">Управление полями для форм системы</p>
+            <h1 className="text-2xl md:text-3xl font-bold">Реестр полей</h1>
+            <p className="text-muted-foreground mt-1">
+              Создавайте и управляйте полями для заявок
+            </p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => open ? setDialogOpen(true) : closeDialog()}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 gap-2 w-full sm:w-auto">
-                <Icon name="Plus" size={18} />
-                <span>Добавить поле</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingField ? 'Редактировать поле' : 'Новое поле'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingField 
-                    ? 'Измените параметры поля' 
-                    : 'Добавьте новое поле в реестр'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Название поля *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Например: ИНН организации"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="field_type">Тип поля *</Label>
-                  <Select
-                    value={formData.field_type}
-                    onValueChange={(value) => setFormData({...formData, field_type: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] overflow-y-auto">
-                      {fieldTypes.map(type => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <div className="flex items-center gap-2">
-                            <Icon name={type.icon as any} size={16} />
-                            {type.label}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Описание</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    placeholder="Краткое описание поля"
-                  />
-                </div>
-
-                {(formData.field_type === 'text' || formData.field_type === 'email' || formData.field_type === 'phone' || formData.field_type === 'textarea') && (
-                  <div className="space-y-2">
-                    <Label htmlFor="placeholder">Placeholder</Label>
-                    <Input
-                      id="placeholder"
-                      value={formData.placeholder}
-                      onChange={(e) => setFormData({...formData, placeholder: e.target.value})}
-                      placeholder="Текст-подсказка в поле"
-                    />
-                  </div>
-                )}
-
-                {formData.field_type === 'checkbox' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="label">Текст флажка *</Label>
-                    <Input
-                      id="label"
-                      value={formData.label}
-                      onChange={(e) => setFormData({...formData, label: e.target.value})}
-                      placeholder="Например: Согласие на обработку данных"
-                      required
-                    />
-                  </div>
-                )}
-
-                {formData.field_type === 'select' && (
-                  <div className="space-y-2">
-                    <Label>Варианты выбора *</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={newOption}
-                        onChange={(e) => setNewOption(e.target.value)}
-                        placeholder="Введите вариант"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (newOption.trim()) {
-                              setFormData({...formData, options: [...formData.options, newOption.trim()]});
-                              setNewOption('');
-                            }
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          if (newOption.trim()) {
-                            setFormData({...formData, options: [...formData.options, newOption.trim()]});
-                            setNewOption('');
-                          }
-                        }}
-                      >
-                        <Icon name="Plus" size={16} />
-                      </Button>
-                    </div>
-                    {formData.options.length > 0 && (
-                      <div className="space-y-1 mt-2">
-                        {formData.options.map((option, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 bg-accent rounded-md">
-                            <span className="text-sm">{option}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setFormData({
-                                  ...formData,
-                                  options: formData.options.filter((_, i) => i !== index)
-                                });
-                              }}
-                            >
-                              <Icon name="X" size={16} />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="required"
-                    checked={formData.required}
-                    onCheckedChange={(checked) => setFormData({...formData, required: checked as boolean})}
-                  />
-                  <Label htmlFor="required" className="cursor-pointer">
-                    Обязательное поле
-                  </Label>
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={closeDialog}
-                    className="flex-1"
-                  >
-                    Отмена
-                  </Button>
-                  <Button type="submit" className="flex-1">
-                    {editingField ? 'Сохранить' : 'Добавить'}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <FieldFormDialog
+            open={dialogOpen}
+            onOpenChange={setDialogOpen}
+            editingField={editingField}
+            formData={formData}
+            onFormDataChange={handleFormDataChange}
+            onSubmit={handleSubmit}
+            onReset={resetForm}
+            fieldTypes={fieldTypes}
+          />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Icon name="Database" size={20} />
-              Список полей
-              <Badge variant="secondary" className="ml-auto">
-                {filteredFields.length}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredFields.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <Icon name="Database" size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg mb-2">Нет полей в реестре</p>
-                <p className="text-sm">Добавьте первое поле, чтобы начать работу</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Название</TableHead>
-                      <TableHead>Тип поля</TableHead>
-                      <TableHead>Настройки</TableHead>
-                      <TableHead className="text-right">Действия</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredFields.map((field) => (
-                      <TableRow key={field.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{field.name}</div>
-                            {field.description && (
-                              <div className="text-xs text-muted-foreground mt-0.5">{field.description}</div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className="gap-1 w-fit">
-                              <Icon name={getFieldTypeIcon(field.field_type) as any} size={14} />
-                              {getFieldTypeLabel(field.field_type)}
-                            </Badge>
-                            {field.required && (
-                              <Badge variant="secondary" className="w-fit text-xs">Обязательное</Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            {field.field_type === 'select' && field.options && field.options.length > 0 && (
-                              <div>Опций: {field.options.length}</div>
-                            )}
-                            {field.field_type === 'checkbox' && field.label && (
-                              <div className="max-w-[200px] truncate">{field.label}</div>
-                            )}
-                            {(field.field_type === 'text' || field.field_type === 'email' || field.field_type === 'phone' || field.field_type === 'textarea') && field.placeholder && (
-                              <div className="max-w-[200px] truncate">Placeholder: {field.placeholder}</div>
-                            )}
-                            {!field.options && !field.label && !field.placeholder && (
-                              <span className="text-muted-foreground/50">—</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(field)}
-                              className="gap-1"
-                            >
-                              <Icon name="Pencil" size={16} />
-                              <span className="hidden sm:inline">Изменить</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(field.id)}
-                              className="gap-1 text-destructive hover:text-destructive"
-                            >
-                              <Icon name="Trash2" size={16} />
-                              <span className="hidden sm:inline">Удалить</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <FieldsTable
+          fields={filteredFields}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          getFieldTypeLabel={getFieldTypeLabel}
+          getFieldTypeIcon={getFieldTypeIcon}
+        />
       </main>
     </div>
   );
