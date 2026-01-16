@@ -33,7 +33,7 @@ const PageLayout = ({ children, menuOpen: externalMenuOpen, setMenuOpen: externa
   };
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(135deg, #0f1535 0%, #1b254b 100%)' }}>
+    <div className="flex min-h-screen overflow-x-hidden bg-[#0f1535] [.light_&]:bg-[#f3f3f9]">
       <PaymentsSidebar
         menuOpen={menuOpen}
         collapsed={sidebarCollapsed}
@@ -54,7 +54,7 @@ const PageLayout = ({ children, menuOpen: externalMenuOpen, setMenuOpen: externa
         />
       )}
 
-      <main className={`${sidebarCollapsed ? 'lg:ml-[70px]' : 'lg:ml-[250px]'} p-4 md:p-6 lg:p-[30px] min-h-screen flex-1 overflow-x-hidden max-w-full transition-all duration-300`}>
+      <main className={`${sidebarCollapsed ? 'lg:ml-[70px]' : 'lg:ml-[250px]'} p-4 md:p-6 lg:p-[30px] min-h-screen flex-1 overflow-x-hidden max-w-full transition-all duration-300 flex flex-col`}>
         {children}
       </main>
     </div>
