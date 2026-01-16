@@ -2937,11 +2937,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 # Tickets handlers
 def handle_tickets_api(method: str, event: Dict[str, Any], conn, payload: Dict[str, Any]) -> Dict[str, Any]:
     """Обработчик для управления заявками"""
+    log(f"[TICKETS-API] Method: {method}, User ID: {payload.get('user_id')}")
     cur = conn.cursor(cursor_factory=RealDictCursor)
     user_id = payload['user_id']
     
     try:
         if method == 'GET':
+            log(f"[TICKETS-API] GET request")
             query_params = event.get('queryStringParameters') or {}
             search = query_params.get('search', '')
             
