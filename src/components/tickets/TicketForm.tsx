@@ -75,7 +75,7 @@ interface TicketFormProps {
   customFields: CustomField[];
   services: Service[];
   ticketServices?: Service[];
-  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  handleSubmit: (e: React.FormEvent, overrideData?: any) => Promise<void>;
   onDialogOpen?: () => void;
 }
 
@@ -148,32 +148,11 @@ const TicketForm = ({
       category_id: selectedTicketService?.category_id?.toString() || formData.category_id,
     };
     
-    // Обновляем formData перед отправкой
+    // Обновляем formData синхронно
     setFormData(updatedFormData);
     
-    // Создаем синтетическое событие с обновленными данными
-    const syntheticEvent = {
-      ...e,
-      preventDefault: () => {},
-      target: {
-        ...e.target,
-        elements: {
-          title: { value: updatedFormData.title },
-          category_id: { value: updatedFormData.category_id },
-        }
-      }
-    } as React.FormEvent;
-    
-    // Временно обновляем formData напрямую для handleSubmit
-    const originalFormData = { ...formData };
-    Object.assign(formData, updatedFormData);
-    
-    try {
-      await handleSubmit(syntheticEvent);
-    } finally {
-      // Восстанавливаем оригинальные данные, если нужно
-      Object.assign(formData, originalFormData);
-    }
+    // Отправляем обновленные данные
+    await handleSubmit(e, updatedFormData);
   };
 
   const toggleService = (serviceId: number) => {

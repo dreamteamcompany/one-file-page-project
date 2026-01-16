@@ -33,7 +33,7 @@ export const useTicketForm = (customFields: CustomField[], loadTickets: () => vo
     setFormData(initialFormData);
   };
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = async (e: React.FormEvent, overrideData?: typeof formData): Promise<void> => {
     e.preventDefault();
 
     if (!token) {
@@ -45,6 +45,8 @@ export const useTicketForm = (customFields: CustomField[], loadTickets: () => vo
       return;
     }
 
+    const dataToSubmit = overrideData || formData;
+
     try {
       const response = await fetch(`${API_URL}?endpoint=tickets-api`, {
         method: 'POST',
@@ -53,14 +55,14 @@ export const useTicketForm = (customFields: CustomField[], loadTickets: () => vo
           'X-Auth-Token': token,
         },
         body: JSON.stringify({
-          title: formData.title,
-          description: formData.description,
-          category_id: formData.category_id ? parseInt(formData.category_id) : null,
-          priority_id: formData.priority_id ? parseInt(formData.priority_id) : null,
+          title: dataToSubmit.title,
+          description: dataToSubmit.description,
+          category_id: dataToSubmit.category_id ? parseInt(dataToSubmit.category_id) : null,
+          priority_id: dataToSubmit.priority_id ? parseInt(dataToSubmit.priority_id) : null,
           status_id: 1,
-          service_id: formData.service_id ? parseInt(formData.service_id) : null,
-          service_ids: formData.service_ids || [],
-          due_date: formData.due_date || null,
+          service_id: dataToSubmit.service_id ? parseInt(dataToSubmit.service_id) : null,
+          service_ids: dataToSubmit.service_ids || [],
+          due_date: dataToSubmit.due_date || null,
         }),
       });
 
