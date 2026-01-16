@@ -132,6 +132,15 @@ def handler(event, context):
                 return response(400, {'error': 'ID сервиса обязателен'})
             
             cur = conn.cursor()
+            
+            # Проверяем, есть ли связанные заявки
+            cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.tickets WHERE service_id = %s", (service_id,))
+            count = cur.fetchone()[0]
+            
+            if count > 0:
+                cur.close()
+                return response(400, {'error': f'Невозможно удалить сервис: есть {count} связанных заявок'})
+            
             cur.execute(f"DELETE FROM {SCHEMA}.services WHERE id = %s", (service_id,))
             conn.commit()
             cur.close()
