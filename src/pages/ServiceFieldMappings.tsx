@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { apiFetch, API_URL } from '@/utils/api';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,26 +82,34 @@ const ServiceFieldMappings = () => {
     loadData();
   }, []);
 
-  const loadData = () => {
-    // Load service categories (from tickets system)
-    const savedCategories = localStorage.getItem('serviceCategories');
-    if (savedCategories) {
-      setServiceCategories(JSON.parse(savedCategories));
+  const loadData = async () => {
+    // Load service categories from API
+    try {
+      const response = await apiFetch(`${API_URL}?endpoint=ticket-service-categories`);
+      const data = await response.json();
+      setServiceCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load service categories:', error);
+      setServiceCategories([]);
     }
 
-    // Load services
-    const savedServices = localStorage.getItem('services');
-    if (savedServices) {
-      setServices(JSON.parse(savedServices));
+    // Load services from API
+    try {
+      const response = await apiFetch(`${API_URL}?endpoint=ticket-services`);
+      const data = await response.json();
+      setServices(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load services:', error);
+      setServices([]);
     }
 
-    // Load field groups
+    // Load field groups from localStorage
     const savedFieldGroups = localStorage.getItem('customFieldGroups');
     if (savedFieldGroups) {
       setFieldGroups(JSON.parse(savedFieldGroups));
     }
 
-    // Load mappings
+    // Load mappings from localStorage
     const savedMappings = localStorage.getItem('serviceFieldMappings');
     if (savedMappings) {
       setMappings(JSON.parse(savedMappings));
