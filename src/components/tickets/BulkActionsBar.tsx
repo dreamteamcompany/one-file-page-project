@@ -86,9 +86,9 @@ const BulkActionsBar = ({
 
   return (
     <>
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4">
-        <div className="bg-card border rounded-lg shadow-2xl p-4 min-w-[600px] max-w-[90vw]">
-          <div className="flex items-center gap-4">
+      <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 w-[calc(100%-2rem)] sm:w-auto">
+        <div className="bg-card border rounded-lg shadow-2xl p-3 sm:p-4 sm:min-w-[600px] max-w-[90vw]">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-base px-3 py-1">
                 {selectedCount}
@@ -99,12 +99,12 @@ const BulkActionsBar = ({
               </span>
             </div>
 
-            <div className="h-6 w-px bg-border" />
+            <div className="hidden sm:block h-6 w-px bg-border" />
 
-            <div className="flex items-center gap-2 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1 w-full">
               <Select onValueChange={handleStatusChange} disabled={loading}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <SelectValue placeholder="Изменить статус" />
+                <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
+                  <SelectValue placeholder="Статус" />
                 </SelectTrigger>
                 <SelectContent>
                   {statuses.map((status) => (
@@ -122,8 +122,8 @@ const BulkActionsBar = ({
               </Select>
 
               <Select onValueChange={handlePriorityChange} disabled={loading}>
-                <SelectTrigger className="w-[180px] h-9">
-                  <SelectValue placeholder="Изменить приоритет" />
+                <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
+                  <SelectValue placeholder="Приоритет" />
                 </SelectTrigger>
                 <SelectContent>
                   {priorities.map((priority) => (
@@ -140,25 +140,27 @@ const BulkActionsBar = ({
                 </SelectContent>
               </Select>
 
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setShowDeleteDialog(true)}
-                disabled={loading}
-                className="ml-auto"
-              >
-                <Icon name="Trash2" size={16} className="mr-2" />
-                Удалить
-              </Button>
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={loading}
+                  className="flex-1 sm:flex-none"
+                >
+                  <Icon name="Trash2" size={16} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Удалить</span>
+                </Button>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onCancel}
-                disabled={loading}
-              >
-                <Icon name="X" size={16} />
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onCancel}
+                  disabled={loading}
+                >
+                  <Icon name="X" size={16} />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

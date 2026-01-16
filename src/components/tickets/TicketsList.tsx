@@ -164,8 +164,8 @@ const TicketsList = ({
           }}
         >
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+              <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
                 {bulkMode && onToggleTicket && (
                   <Checkbox
                     checked={selectedTicketIds.includes(ticket.id)}
@@ -185,8 +185,8 @@ const TicketsList = ({
                     } animate-pulse`} />
                   )}
                   {ticket.category_icon && (
-                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Icon name={ticket.category_icon} size={20} className="text-primary" />
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Icon name={ticket.category_icon} size={16} className="text-primary sm:w-5 sm:h-5" />
                     </div>
                   )}
                 </div>
@@ -214,7 +214,7 @@ const TicketsList = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg line-clamp-1 mb-1 flex-1">
+                    <h3 className="font-semibold text-base sm:text-lg line-clamp-2 sm:line-clamp-1 mb-1 flex-1">
                       {ticket.status_name === 'На согласовании' && '🔔 '}
                       {ticket.status_name === 'Отклонена' && '❌ '}
                       {ticket.status_name === 'Одобрена' && '✅ '}
@@ -243,33 +243,33 @@ const TicketsList = ({
             </div>
 
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 sm:gap-3 text-sm">
                 {ticket.customer_name && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
                     <Icon name="User" size={14} />
                     <span className="font-medium">Заказчик:</span>
-                    <span>{ticket.customer_name}</span>
+                    <span className="truncate">{ticket.customer_name}</span>
                   </div>
                 )}
 
                 {ticket.assigned_to_name && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
                     <Icon name="UserCheck" size={14} />
                     <span className="font-medium">Исполнитель:</span>
-                    <span>{ticket.assigned_to_name}</span>
+                    <span className="truncate">{ticket.assigned_to_name}</span>
                   </div>
                 )}
 
                 {ticket.service_name && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
                     <Icon name="Wrench" size={14} />
                     <span className="font-medium">Услуга:</span>
-                    <span>{ticket.service_name}</span>
+                    <span className="truncate">{ticket.service_name}</span>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 sm:gap-3 text-sm">
                 {ticket.category_name && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Icon name="Tag" size={14} />
@@ -302,7 +302,7 @@ const TicketsList = ({
                 )}
 
                 {ticket.created_at && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground ml-auto">
+                  <div className="flex items-center gap-1.5 text-muted-foreground sm:ml-auto">
                     <Icon name="Clock" size={14} />
                     <span>
                       {new Date(ticket.created_at).toLocaleDateString('ru-RU', {

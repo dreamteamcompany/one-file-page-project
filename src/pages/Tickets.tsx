@@ -123,16 +123,17 @@ const Tickets = () => {
       <div className="max-w-7xl mx-auto">
         <TicketsSearch searchQuery={searchQuery} onSearchChange={setSearchQuery} />
 
-          <div className="flex items-center justify-between gap-2 mb-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2 flex-wrap">
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setViewMode('list')}
                 className="flex items-center gap-2"
               >
-                <Icon name="List" size={16} />
-                Список
+                <Icon name="List" size={16} className="hidden sm:inline" />
+                <span className="hidden sm:inline">Список</span>
+                <Icon name="List" size={16} className="sm:hidden" />
               </Button>
               <Button
                 variant={viewMode === 'kanban' ? 'default' : 'outline'}
@@ -140,8 +141,9 @@ const Tickets = () => {
                 onClick={() => setViewMode('kanban')}
                 className="flex items-center gap-2"
               >
-                <Icon name="LayoutGrid" size={16} />
-                Канбан
+                <Icon name="LayoutGrid" size={16} className="hidden sm:inline" />
+                <span className="hidden sm:inline">Канбан</span>
+                <Icon name="LayoutGrid" size={16} className="sm:hidden" />
               </Button>
             </div>
 
@@ -153,10 +155,11 @@ const Tickets = () => {
                   setBulkMode(!bulkMode);
                   if (bulkMode) clearSelection();
                 }}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 text-sm sm:text-base"
               >
                 <Icon name="CheckSquare" size={16} />
-                {bulkMode ? 'Отменить выбор' : 'Массовые действия'}
+                <span className="hidden sm:inline">{bulkMode ? 'Отменить выбор' : 'Массовые действия'}</span>
+                <span className="sm:hidden">{bulkMode ? 'Отмена' : 'Массовые'}</span>
               </Button>
             )}
           </div>
