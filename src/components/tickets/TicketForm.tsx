@@ -144,13 +144,36 @@ const TicketForm = ({
     const updatedFormData = { 
       ...formData, 
       service_ids: selectedServices,
-      title: selectedTicketService?.ticket_title || formData.title,
+      title: selectedTicketService?.ticket_title || formData.title || 'Новая заявка',
       category_id: selectedTicketService?.category_id?.toString() || formData.category_id,
     };
+    
+    // Обновляем formData перед отправкой
     setFormData(updatedFormData);
     
-    await new Promise(resolve => setTimeout(resolve, 10));
-    await handleSubmit(e);
+    // Создаем синтетическое событие с обновленными данными
+    const syntheticEvent = {
+      ...e,
+      preventDefault: () => {},
+      target: {
+        ...e.target,
+        elements: {
+          title: { value: updatedFormData.title },
+          category_id: { value: updatedFormData.category_id },
+        }
+      }
+    } as React.FormEvent;
+    
+    // Временно обновляем formData напрямую для handleSubmit
+    const originalFormData = { ...formData };
+    Object.assign(formData, updatedFormData);
+    
+    try {
+      await handleSubmit(syntheticEvent);
+    } finally {
+      // Восстанавливаем оригинальные данные, если нужно
+      Object.assign(formData, originalFormData);
+    }
   };
 
   const toggleService = (serviceId: number) => {
