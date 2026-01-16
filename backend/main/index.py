@@ -979,7 +979,7 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
     try:
         if method == 'GET':
             cur.execute(f'''
-                SELECT ts.id, ts.name, ts.description, ts.category_id, 
+                SELECT ts.id, ts.name, ts.description, ts.ticket_title, ts.category_id, 
                        tsc.name as category_name, ts.created_at 
                 FROM {SCHEMA}.ticket_services ts
                 LEFT JOIN {SCHEMA}.ticket_service_categories tsc ON ts.category_id = tsc.id
@@ -1001,9 +1001,10 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                     'id': row[0],
                     'name': row[1],
                     'description': row[2] or '',
-                    'category_id': row[3],
-                    'category_name': row[4],
-                    'created_at': row[5].isoformat() if row[5] else None,
+                    'ticket_title': row[3] or '',
+                    'category_id': row[4],
+                    'category_name': row[5],
+                    'created_at': row[6].isoformat() if row[6] else None,
                     'service_ids': service_ids
                 })
             return response(200, ticket_services)
@@ -1012,6 +1013,7 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
             body = json.loads(event.get('body', '{}'))
             name = body.get('name')
             description = body.get('description', '')
+            ticket_title = body.get('ticket_title', '')
             category_id = body.get('category_id')
             service_ids = body.get('service_ids', [])
             
@@ -1019,8 +1021,8 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                 return response(400, {'error': 'Name is required'})
             
             cur.execute(
-                f"INSERT INTO {SCHEMA}.ticket_services (name, description, category_id) VALUES (%s, %s, %s) RETURNING id, name, description, category_id, created_at",
-                (name, description, category_id)
+                f"INSERT INTO {SCHEMA}.ticket_services (name, description, ticket_title, category_id) VALUES (%s, %s, %s, %s) RETURNING id, name, description, ticket_title, category_id, created_at",
+                (name, description, ticket_title, category_id)
             )
             row = cur.fetchone()
             ticket_service_id = row[0]
@@ -1038,8 +1040,9 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                 'id': row[0],
                 'name': row[1],
                 'description': row[2],
-                'category_id': row[3],
-                'created_at': row[4].isoformat() if row[4] else None,
+                'ticket_title': row[3],
+                'category_id': row[4],
+                'created_at': row[5].isoformat() if row[5] else None,
                 'service_ids': service_ids
             })
         
@@ -1049,6 +1052,7 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
             ticket_service_id = params.get('id') or body.get('id')
             name = body.get('name')
             description = body.get('description', '')
+            ticket_title = body.get('ticket_title', '')
             category_id = body.get('category_id')
             service_ids = body.get('service_ids', [])
             
@@ -1056,8 +1060,8 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                 return response(400, {'error': 'ID and name are required'})
             
             cur.execute(
-                f"UPDATE {SCHEMA}.ticket_services SET name = %s, description = %s, category_id = %s WHERE id = %s RETURNING id, name, description, category_id, created_at",
-                (name, description, category_id, ticket_service_id)
+                f"UPDATE {SCHEMA}.ticket_services SET name = %s, description = %s, ticket_title = %s, category_id = %s WHERE id = %s RETURNING id, name, description, ticket_title, category_id, created_at",
+                (name, description, ticket_title, category_id, ticket_service_id)
             )
             row = cur.fetchone()
             
@@ -1083,8 +1087,9 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                 'id': row[0],
                 'name': row[1],
                 'description': row[2],
-                'category_id': row[3],
-                'created_at': row[4].isoformat() if row[4] else None,
+                'ticket_title': row[3],
+                'category_id': row[4],
+                'created_at': row[5].isoformat() if row[5] else None,
                 'service_ids': service_ids
             })
         

@@ -38,6 +38,7 @@ interface TicketService {
   id: number;
   name: string;
   description: string;
+  ticket_title?: string;
   category_id?: number;
   category_name?: string;
   created_at: string;
@@ -74,6 +75,7 @@ const TicketServicesManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    ticket_title: '',
     category_id: '',
   });
 
@@ -162,6 +164,7 @@ const TicketServicesManagement = () => {
         body: JSON.stringify({
           name: formData.name,
           description: formData.description,
+          ticket_title: formData.ticket_title,
           category_id: formData.category_id ? parseInt(formData.category_id) : null,
           service_ids: selectedServiceIds,
         }),
@@ -193,6 +196,7 @@ const TicketServicesManagement = () => {
     setFormData({
       name: ticketService.name,
       description: ticketService.description || '',
+      ticket_title: ticketService.ticket_title || '',
       category_id: ticketService.category_id ? ticketService.category_id.toString() : '',
     });
     setSelectedServiceIds(ticketService.service_ids || []);
@@ -235,6 +239,7 @@ const TicketServicesManagement = () => {
     setFormData({
       name: '',
       description: '',
+      ticket_title: '',
       category_id: '',
     });
     setSelectedServiceIds([]);
@@ -326,6 +331,19 @@ const TicketServicesManagement = () => {
                       placeholder="Краткое описание услуги"
                       rows={3}
                     />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ticket_title">Название заявки</Label>
+                    <Input
+                      id="ticket_title"
+                      value={formData.ticket_title}
+                      onChange={(e) => setFormData({ ...formData, ticket_title: e.target.value })}
+                      placeholder="Например: Заявка на {название услуги}"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Это название будет использоваться автоматически при создании заявки
+                    </p>
                   </div>
 
                   <div>
@@ -440,6 +458,7 @@ const TicketServicesManagement = () => {
                     <TableRow>
                       <TableHead>Название</TableHead>
                       <TableHead>Категория</TableHead>
+                      <TableHead>Название заявки</TableHead>
                       <TableHead>Описание</TableHead>
                       <TableHead>Сервисов</TableHead>
                       <TableHead className="text-right">Действия</TableHead>
@@ -453,6 +472,9 @@ const TicketServicesManagement = () => {
                           {service.category_name && (
                             <Badge variant="secondary">{service.category_name}</Badge>
                           )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {service.ticket_title || '—'}
                         </TableCell>
                         <TableCell className="max-w-md truncate">{service.description}</TableCell>
                         <TableCell>
