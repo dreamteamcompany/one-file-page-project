@@ -91,6 +91,40 @@ def handler(event, context):
             
             return response(200, services)
         
+        elif method == 'POST':
+            body = json.loads(event.get('body', '{}'))
+            
+            name = body.get('name')
+            description = body.get('description', '')
+            intermediate_approver_id = body.get('intermediate_approver_id')
+            final_approver_id = body.get('final_approver_id')
+            customer_department_id = body.get('customer_department_id')
+            
+            if not name:
+                return response(400, {'error': 'Название сервиса обязательно'})
+            
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(f"""
+                INSERT INTO {SCHEMA}.services (
+                    name, 
+                    description, 
+                    intermediate_approver_id, 
+                    final_approver_id,
+                    customer_department_id,
+                    created_at, 
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                RETURNING id, name, description, intermediate_approver_id, 
+                          final_approver_id, customer_department_id, created_at, updated_at
+            """, (name, description, intermediate_approver_id, final_approver_id, customer_department_id))
+            
+            new_service = dict(cur.fetchone())
+            conn.commit()
+            cur.close()
+            
+            return response(201, new_service)
+        
         else:
             return response(405, {'error': 'Method not allowed'})
     
