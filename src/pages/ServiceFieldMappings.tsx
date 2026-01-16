@@ -89,6 +89,7 @@ const ServiceFieldMappings = () => {
     try {
       const response = await apiFetch(`${API_URL}?endpoint=ticket-service-categories`);
       const data = await response.json();
+      console.log('Loaded service categories:', data);
       setServiceCategories(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load service categories:', error);
@@ -99,6 +100,7 @@ const ServiceFieldMappings = () => {
     try {
       const response = await apiFetch(`${API_URL}?endpoint=ticket-services`);
       const data = await response.json();
+      console.log('Loaded services:', data);
       setServices(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load services:', error);
@@ -296,7 +298,7 @@ const ServiceFieldMappings = () => {
                   <div className="space-y-2">
                     <Label>Услуга *</Label>
                     <Select
-                      value={formData.service_category_id.toString()}
+                      value={formData.service_category_id > 0 ? formData.service_category_id.toString() : ''}
                       onValueChange={(value) =>
                         setFormData((prev) => ({
                           ...prev,
@@ -309,11 +311,17 @@ const ServiceFieldMappings = () => {
                         <SelectValue placeholder="Выберите услугу" />
                       </SelectTrigger>
                       <SelectContent>
-                        {serviceCategories.map((category) => (
-                          <SelectItem key={category.id} value={category.id.toString()}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
+                        {serviceCategories.length === 0 ? (
+                          <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                            Нет доступных услуг
+                          </div>
+                        ) : (
+                          serviceCategories.map((category) => (
+                            <SelectItem key={category.id} value={category.id.toString()}>
+                              {category.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -321,7 +329,7 @@ const ServiceFieldMappings = () => {
                   <div className="space-y-2">
                     <Label>Сервис *</Label>
                     <Select
-                      value={formData.service_id.toString()}
+                      value={formData.service_id > 0 ? formData.service_id.toString() : ''}
                       onValueChange={(value) =>
                         setFormData((prev) => ({ ...prev, service_id: parseInt(value) }))
                       }
@@ -331,16 +339,27 @@ const ServiceFieldMappings = () => {
                         <SelectValue placeholder="Выберите сервис" />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredServices.map((service) => (
-                          <SelectItem key={service.id} value={service.id.toString()}>
-                            {service.name}
-                          </SelectItem>
-                        ))}
+                        {filteredServices.length === 0 ? (
+                          <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                            Нет сервисов для выбранной услуги
+                          </div>
+                        ) : (
+                          filteredServices.map((service) => (
+                            <SelectItem key={service.id} value={service.id.toString()}>
+                              {service.name}
+                            </SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                     {!formData.service_category_id && (
                       <p className="text-xs text-muted-foreground">
                         Сначала выберите услугу
+                      </p>
+                    )}
+                    {formData.service_category_id > 0 && filteredServices.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Для этой услуги нет доступных сервисов
                       </p>
                     )}
                   </div>
