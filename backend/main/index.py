@@ -3158,6 +3158,8 @@ def handle_tickets_api(method: str, event: Dict[str, Any], conn, payload: Dict[s
         elif method == 'POST':
             data = json.loads(event.get('body', '{}'))
             
+            print(f"[TICKETS POST] Received data: {data}")
+            
             title = data.get('title')
             description = data.get('description')
             category_id = data.get('category_id')
@@ -3165,8 +3167,17 @@ def handle_tickets_api(method: str, event: Dict[str, Any], conn, payload: Dict[s
             department_id = data.get('department_id')
             due_date = data.get('due_date')
             
+            print(f"[TICKETS POST] Parsed values - title: {title}, category_id: {category_id}, priority_id: {priority_id}")
+            
             if not title or not description:
                 return response(400, {'error': 'Название и описание обязательны'})
+            
+            # Проверяем существование category_id если он указан
+            if category_id:
+                cur.execute(f"SELECT id FROM {SCHEMA}.ticket_categories WHERE id = %s", (category_id,))
+                if not cur.fetchone():
+                    print(f"[TICKETS POST] ERROR: category_id {category_id} not found in ticket_categories")
+                    return response(400, {'error': f'Категория с ID {category_id} не найдена'})
             
             cur.execute(f"""
                 INSERT INTO {SCHEMA}.tickets (title, description, category_id, priority_id, department_id, due_date, created_by, status_id)
