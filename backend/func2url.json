@@ -1,4 +1,5 @@
 {
+  "api-tickets": "https://functions.poehali.dev/42feebee-e551-4872-901b-0512a2085c1a",
   "api-general": "https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc",
   "auth": "https://functions.poehali.dev/390bc680-77ff-4e34-a383-c92f6b67d723",
   "api-bulk-tickets": "https://functions.poehali.dev/582ca427-5c6d-4995-b1b5-f4f206c12a07",

@@ -1,0 +1,24 @@
+{
+  "tests": [
+    {
+      "name": "Get tickets list (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=tickets",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get service categories (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=service_categories",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
