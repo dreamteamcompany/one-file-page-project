@@ -8,9 +8,16 @@
       "expectedStatus": 200
     },
     {
-      "name": "Unauthorized Access",
+      "name": "Login Invalid Credentials",
+      "method": "POST",
+      "path": "/?endpoint=login",
+      "body": {"username": "admin", "password": "wrong"},
+      "expectedStatus": 401
+    },
+    {
+      "name": "Me Unauthorized",
       "method": "GET",
-      "path": "/?endpoint=users",
+      "path": "/?endpoint=me",
       "expectedStatus": 401
     },
     {
@@ -18,12 +25,6 @@
       "method": "OPTIONS",
       "path": "/",
       "expectedStatus": 200
-    },
-    {
-      "name": "Ticket Dictionaries Unauthorized",
-      "method": "GET",
-      "path": "/?endpoint=ticket-dictionaries-api",
-      "expectedStatus": 401
     }
   ]
 }

@@ -1,11 +1,21 @@
-const API_BASE = 'https://functions.poehali.dev/3eae2c24-6b31-423b-ab37-dcd66c461749';
+const AUTH_API = 'https://functions.poehali.dev/390bc680-77ff-4e34-a383-c92f6b67d723';
+const GENERAL_API = 'https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc';
 
 const ENDPOINT_MAP: Record<string, string> = {
+  'login': AUTH_API,
+  'me': AUTH_API,
+  'refresh': AUTH_API,
+  'users': GENERAL_API,
+  'roles': GENERAL_API,
+  'categories': GENERAL_API,
+  'contractors': GENERAL_API,
+  'legal_entities': GENERAL_API,
+  'customer_departments': GENERAL_API,
   'services': 'https://functions.poehali.dev/2cfd72d5-c228-4dc9-af9b-f592d65be207',
   'payments': 'https://functions.poehali.dev/42303a3a-efd9-4863-9d99-b41962f017dc',
 };
 
-export const API_URL = API_BASE;
+export const API_URL = AUTH_API;
 
 export const getApiUrl = (endpoint?: string): string => {
   if (endpoint && ENDPOINT_MAP[endpoint]) {

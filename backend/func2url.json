@@ -1,4 +1,6 @@
 {
+  "api-general": "https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc",
+  "auth": "https://functions.poehali.dev/390bc680-77ff-4e34-a383-c92f6b67d723",
   "api-bulk-tickets": "https://functions.poehali.dev/582ca427-5c6d-4995-b1b5-f4f206c12a07",
   "api-payments": "https://functions.poehali.dev/42303a3a-efd9-4863-9d99-b41962f017dc",
   "api-services": "https://functions.poehali.dev/2cfd72d5-c228-4dc9-af9b-f592d65be207",

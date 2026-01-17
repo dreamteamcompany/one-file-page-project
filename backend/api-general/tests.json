@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Get Users Unauthorized",
+      "method": "GET",
+      "path": "/?endpoint=users",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Get Categories",
+      "method": "GET",
+      "path": "/?endpoint=categories",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Get Roles Unauthorized",
+      "method": "GET",
+      "path": "/?endpoint=roles",
+      "expectedStatus": 401
+    },
+    {
+      "name": "CORS Preflight",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    }
+  ]
+}
