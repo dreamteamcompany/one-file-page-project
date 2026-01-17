@@ -8,10 +8,10 @@ from psycopg2.extras import RealDictCursor
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
-# Deploy version: v2.5.2 - fixed handle_users payload variable names
+# Deploy version: v2.5.3 - fixed login schema prefix
 
 SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 't_p67567221_one_file_page_projec')
-VERSION = '2.5.2'
+VERSION = '2.5.3'
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -268,7 +268,7 @@ def handle_login(event: Dict[str, Any], conn) -> Dict[str, Any]:
     
     cur = conn.cursor(cursor_factory=RealDictCursor)
     cur.execute(
-        "SELECT id, email, username, password_hash, full_name, is_active FROM users WHERE username = %s",
+        f"SELECT id, email, username, password_hash, full_name, is_active FROM {SCHEMA}.users WHERE username = %s",
         (username,)
     )
     
