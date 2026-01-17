@@ -14,7 +14,7 @@
       "expectedStatus": 401
     },
     {
-      "name": "Check Health",
+      "name": "CORS Preflight Check",
       "method": "OPTIONS",
       "path": "/",
       "expectedStatus": 200

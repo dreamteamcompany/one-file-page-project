@@ -8,10 +8,10 @@ from psycopg2.extras import RealDictCursor
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
-# Deploy version: v2.5.1 - fixed verify_token_and_permission removal
+# Deploy version: v2.5.2 - fixed handle_users payload variable names
 
 SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 't_p67567221_one_file_page_projec')
-VERSION = '2.5.1'
+VERSION = '2.5.2'
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -409,8 +409,7 @@ def handle_users(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     
     elif method == 'POST':
         user_payload = verify_token(event)
- 'users.create')
-        if not payload:
+        if not user_payload:
             return response(401, {'error': 'Требуется авторизация'})
         
         body_data = json.loads(event.get('body', '{}'))
@@ -475,8 +474,7 @@ def handle_users(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     
     elif method == 'PUT':
         user_payload = verify_token(event)
- 'users.update')
-        if not payload:
+        if not user_payload:
             return response(401, {'error': 'Требуется авторизация'})
         
         query_params = event.get('queryStringParameters', {}) or {}
@@ -562,8 +560,7 @@ def handle_users(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     
     elif method == 'DELETE':
         user_payload = verify_token(event)
- 'users.delete')
-        if not payload:
+        if not user_payload:
             return response(401, {'error': 'Требуется авторизация'})
         
         query_params = event.get('queryStringParameters', {}) or {}
