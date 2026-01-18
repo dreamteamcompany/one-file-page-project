@@ -24,7 +24,7 @@ export const getApiUrl = (endpoint?: string): string => {
   if (endpoint && ENDPOINT_MAP[endpoint]) {
     return ENDPOINT_MAP[endpoint];
   }
-  return API_BASE;
+  return AUTH_API;
 };
 
 const getAuthToken = (): string | null => {

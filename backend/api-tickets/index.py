@@ -43,7 +43,7 @@ def get_db_connection():
     dsn = os.environ.get('DATABASE_URL')
     if not dsn:
         raise Exception('DATABASE_URL not found')
-    return psycopg2.connect(dsn, options=f'-c search_path={SCHEMA},public')
+    return psycopg2.connect(dsn, cursor_factory=RealDictCursor, options=f'-c search_path={SCHEMA},public')
 
 def verify_token(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     token = event.get('headers', {}).get('X-Auth-Token') or event.get('headers', {}).get('x-auth-token')
@@ -103,51 +103,51 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         from_date = query_params.get('from_date')
         to_date = query_params.get('to_date')
         
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         
-        query = f"""
+        query = """
             SELECT DISTINCT t.*, 
                    s.name as status_name, s.color as status_color,
                    p.name as priority_name, p.color as priority_color,
                    u1.username as assigned_to_name,
                    u2.username as created_by_name
-            FROM {SCHEMA}.tickets t
-            LEFT JOIN {SCHEMA}.ticket_statuses s ON t.status_id = s.id
-            LEFT JOIN {SCHEMA}.ticket_priorities p ON t.priority_id = p.id
-            LEFT JOIN {SCHEMA}.users u1 ON t.assigned_to = u1.id
-            LEFT JOIN {SCHEMA}.users u2 ON t.created_by = u2.id
-            LEFT JOIN {SCHEMA}.ticket_service_mappings tsm ON t.id = tsm.ticket_id
+            FROM tickets t
+            LEFT JOIN ticket_statuses s ON t.status_id = s.id
+            LEFT JOIN ticket_priorities p ON t.priority_id = p.id
+            LEFT JOIN users u1 ON t.assigned_to = u1.id
+            LEFT JOIN users u2 ON t.created_by = u2.id
+            LEFT JOIN ticket_service_mappings tsm ON t.id = tsm.ticket_id
             WHERE 1=1
         """
         
         params = []
         
         if status_id:
-            query += f" AND t.status_id = %s"
+            query += " AND t.status_id = %s"
             params.append(int(status_id))
         
         if priority_id:
-            query += f" AND t.priority_id = %s"
+            query += " AND t.priority_id = %s"
             params.append(int(priority_id))
         
         if assigned_to:
-            query += f" AND t.assigned_to = %s"
+            query += " AND t.assigned_to = %s"
             params.append(int(assigned_to))
         
         if created_by:
-            query += f" AND t.created_by = %s"
+            query += " AND t.created_by = %s"
             params.append(int(created_by))
         
         if service_id:
-            query += f" AND tsm.service_id = %s"
+            query += " AND tsm.service_id = %s"
             params.append(int(service_id))
         
         if from_date:
-            query += f" AND t.created_at >= %s"
+            query += " AND t.created_at >= %s"
             params.append(from_date)
         
         if to_date:
-            query += f" AND t.created_at <= %s"
+            query += " AND t.created_at <= %s"
             params.append(to_date)
         
         query += " ORDER BY t.created_at DESC"
@@ -156,25 +156,25 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         tickets = [dict(row) for row in cur.fetchall()]
         
         for ticket in tickets:
-            cur.execute(f"""
+            cur.execute("""
                 SELECT s.id, s.name, sc.name as category_name
-                FROM {SCHEMA}.services s
-                JOIN {SCHEMA}.ticket_service_mappings tsm ON s.id = tsm.service_id
-                LEFT JOIN {SCHEMA}.service_categories sc ON s.category_id = sc.id
+                FROM services s
+                JOIN ticket_service_mappings tsm ON s.id = tsm.service_id
+                LEFT JOIN service_categories sc ON s.category_id = sc.id
                 WHERE tsm.ticket_id = %s
             """, (ticket['id'],))
             ticket['services'] = [dict(row) for row in cur.fetchall()]
             
-            cur.execute(f"""
+            cur.execute("""
                 SELECT cf.id, cf.name, cf.field_type, tcfv.value
-                FROM {SCHEMA}.ticket_custom_field_values tcfv
-                JOIN {SCHEMA}.ticket_custom_fields cf ON tcfv.field_id = cf.id
+                FROM ticket_custom_field_values tcfv
+                JOIN ticket_custom_fields cf ON tcfv.field_id = cf.id
                 WHERE tcfv.ticket_id = %s
             """, (ticket['id'],))
             ticket['custom_fields'] = [dict(row) for row in cur.fetchall()]
         
         cur.close()
-        return response(200, tickets)
+        return response(200, {'tickets': tickets})
     
     elif method == 'POST':
         body = json.loads(event.get('body', '{}'))
@@ -184,10 +184,10 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         except Exception as e:
             return response(400, {'error': f'Validation error: {str(e)}'})
         
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         
-        cur.execute(f"""
-            INSERT INTO {SCHEMA}.tickets 
+        cur.execute("""
+            INSERT INTO tickets 
             (title, description, status_id, priority_id, assigned_to, created_by, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
             RETURNING id, title, description, status_id, priority_id, assigned_to, created_by, created_at, updated_at
@@ -203,14 +203,14 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         ticket = dict(cur.fetchone())
         
         for service_id in data.service_ids:
-            cur.execute(f"""
-                INSERT INTO {SCHEMA}.ticket_service_mappings (ticket_id, service_id)
+            cur.execute("""
+                INSERT INTO ticket_service_mappings (ticket_id, service_id)
                 VALUES (%s, %s)
             """, (ticket['id'], service_id))
         
         for field_id, value in data.custom_fields.items():
-            cur.execute(f"""
-                INSERT INTO {SCHEMA}.ticket_custom_field_values (ticket_id, field_id, value)
+            cur.execute("""
+                INSERT INTO ticket_custom_field_values (ticket_id, field_id, value)
                 VALUES (%s, %s, %s)
             """, (ticket['id'], int(field_id), value))
         
@@ -225,7 +225,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         if not ticket_id:
             return response(400, {'error': 'Ticket ID required'})
         
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         
         update_fields = []
         params = []
@@ -254,7 +254,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         params.append(ticket_id)
         
         cur.execute(f"""
-            UPDATE {SCHEMA}.tickets 
+            UPDATE tickets 
             SET {', '.join(update_fields)}
             WHERE id = %s
             RETURNING id, title, description, status_id, priority_id, assigned_to, created_by, created_at, updated_at
@@ -263,12 +263,20 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         ticket = dict(cur.fetchone())
         
         if 'service_ids' in body:
-            cur.execute(f"DELETE FROM {SCHEMA}.ticket_service_mappings WHERE ticket_id = %s", (ticket_id,))
+            cur.execute("DELETE FROM ticket_service_mappings WHERE ticket_id = %s", (ticket_id,))
             for service_id in body['service_ids']:
-                cur.execute(f"""
-                    INSERT INTO {SCHEMA}.ticket_service_mappings (ticket_id, service_id)
+                cur.execute("""
+                    INSERT INTO ticket_service_mappings (ticket_id, service_id)
                     VALUES (%s, %s)
                 """, (ticket_id, service_id))
+        
+        if 'custom_fields' in body:
+            cur.execute("DELETE FROM ticket_custom_field_values WHERE ticket_id = %s", (ticket_id,))
+            for field_id, value in body['custom_fields'].items():
+                cur.execute("""
+                    INSERT INTO ticket_custom_field_values (ticket_id, field_id, value)
+                    VALUES (%s, %s, %s)
+                """, (ticket_id, int(field_id), value))
         
         conn.commit()
         cur.close()
@@ -283,9 +291,9 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         
         cur = conn.cursor()
         
-        cur.execute(f"DELETE FROM {SCHEMA}.ticket_service_mappings WHERE ticket_id = %s", (ticket_id,))
-        cur.execute(f"DELETE FROM {SCHEMA}.ticket_custom_field_values WHERE ticket_id = %s", (ticket_id,))
-        cur.execute(f"DELETE FROM {SCHEMA}.tickets WHERE id = %s", (ticket_id,))
+        cur.execute("DELETE FROM ticket_service_mappings WHERE ticket_id = %s", (ticket_id,))
+        cur.execute("DELETE FROM ticket_custom_field_values WHERE ticket_id = %s", (ticket_id,))
+        cur.execute("DELETE FROM tickets WHERE id = %s", (ticket_id,))
         
         conn.commit()
         cur.close()
@@ -300,8 +308,8 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
         return response(401, {'error': 'Требуется авторизация'})
     
     if method == 'GET':
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute(f'SELECT id, name, description, icon, created_at FROM {SCHEMA}.service_categories ORDER BY name')
+        cur = conn.cursor()
+        cur.execute('SELECT id, name, description, icon, created_at FROM service_categories ORDER BY name')
         categories = [dict(row) for row in cur.fetchall()]
         cur.close()
         return response(200, categories)
@@ -314,10 +322,10 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
         except Exception as e:
             return response(400, {'error': f'Validation error: {str(e)}'})
         
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         
-        cur.execute(f"""
-            INSERT INTO {SCHEMA}.service_categories (name, description, icon)
+        cur.execute("""
+            INSERT INTO service_categories (name, description, icon)
             VALUES (%s, %s, %s)
             RETURNING id, name, description, icon, created_at
         """, (data.name, data.description, data.icon))
@@ -351,10 +359,10 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
         
         params.append(category_id)
         
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur = conn.cursor()
         
         cur.execute(f"""
-            UPDATE {SCHEMA}.service_categories 
+            UPDATE service_categories 
             SET {', '.join(update_fields)}
             WHERE id = %s
             RETURNING id, name, description, icon, created_at
@@ -373,7 +381,7 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
             return response(400, {'error': 'Category ID required'})
         
         cur = conn.cursor()
-        cur.execute(f"DELETE FROM {SCHEMA}.service_categories WHERE id = %s", (category_id,))
+        cur.execute("DELETE FROM service_categories WHERE id = %s", (category_id,))
         conn.commit()
         cur.close()
         
