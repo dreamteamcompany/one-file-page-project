@@ -124,9 +124,9 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         for ticket in tickets:
             cur.execute("""
                 SELECT s.id, s.name, sc.name as category_name
-                FROM services s
+                FROM ticket_services s
                 JOIN ticket_service_mappings tsm ON s.id = tsm.service_id
-                LEFT JOIN service_categories sc ON s.category_id = sc.id
+                LEFT JOIN ticket_service_categories sc ON s.category_id = sc.id
                 WHERE tsm.ticket_id = %s
             """, (ticket['id'],))
             ticket['services'] = [dict(row) for row in cur.fetchall()]
@@ -275,7 +275,7 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
     
     if method == 'GET':
         cur = conn.cursor()
-        cur.execute('SELECT id, name, description, icon, created_at FROM service_categories ORDER BY name')
+        cur.execute('SELECT id, name, icon, created_at FROM ticket_service_categories ORDER BY name')
         categories = [dict(row) for row in cur.fetchall()]
         cur.close()
         return response(200, categories)
@@ -291,10 +291,10 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
         cur = conn.cursor()
         
         cur.execute("""
-            INSERT INTO service_categories (name, description, icon)
-            VALUES (%s, %s, %s)
-            RETURNING id, name, description, icon, created_at
-        """, (data.name, data.description, data.icon))
+            INSERT INTO ticket_service_categories (name, icon)
+            VALUES (%s, %s)
+            RETURNING id, name, icon, created_at
+        """, (data.name, data.icon))
         
         category = dict(cur.fetchone())
         conn.commit()
@@ -328,10 +328,10 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
         cur = conn.cursor()
         
         cur.execute(f"""
-            UPDATE service_categories 
+            UPDATE ticket_service_categories 
             SET {', '.join(update_fields)}
             WHERE id = %s
-            RETURNING id, name, description, icon, created_at
+            RETURNING id, name, icon, created_at
         """, params)
         
         category = dict(cur.fetchone())
@@ -347,7 +347,7 @@ def handle_service_categories(method: str, event: Dict[str, Any], conn) -> Dict[
             return response(400, {'error': 'Category ID required'})
         
         cur = conn.cursor()
-        cur.execute("DELETE FROM service_categories WHERE id = %s", (category_id,))
+        cur.execute("DELETE FROM ticket_service_categories WHERE id = %s", (category_id,))
         conn.commit()
         cur.close()
         
