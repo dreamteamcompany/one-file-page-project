@@ -1,89 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch } from '@/utils/api';
-
-interface Category {
-  id: number;
-  name: string;
-  description?: string;
-  icon: string;
-}
-
-interface Priority {
-  id: number;
-  name: string;
-  level: number;
-  color: string;
-}
-
-interface Status {
-  id: number;
-  name: string;
-  color: string;
-  is_closed: boolean;
-}
-
-interface Department {
-  id: number;
-  name: string;
-  description?: string;
-}
-
-interface CustomField {
-  id: number;
-  name: string;
-  field_type: string;
-  options?: string;
-  is_required: boolean;
-  value?: string;
-}
-
-interface Service {
-  id: number;
-  name: string;
-  description: string;
-  category_id?: number;
-  category_name?: string;
-  service_ids?: number[];
-}
-
-interface Ticket {
-  id: number;
-  title: string;
-  description?: string;
-  category_id?: number;
-  category_name?: string;
-  category_icon?: string;
-  priority_id?: number;
-  priority_name?: string;
-  priority_color?: string;
-  status_id?: number;
-  status_name?: string;
-  status_color?: string;
-  department_id?: number;
-  department_name?: string;
-  created_by: number;
-  customer_name?: string;
-  assigned_to?: number;
-  assigned_to_name?: string;
-  due_date?: string;
-  created_at?: string;
-  updated_at?: string;
-  closed_at?: string;
-  custom_fields?: CustomField[];
-  has_response?: boolean;
-}
+import type {
+  Ticket,
+  CustomField,
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+  TicketDepartment,
+  TicketService,
+} from '@/types';
 
 export const useTicketsData = () => {
   const { token } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [priorities, setPriorities] = useState<Priority[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [categories, setCategories] = useState<TicketCategory[]>([]);
+  const [priorities, setPriorities] = useState<TicketPriority[]>([]);
+  const [statuses, setStatuses] = useState<TicketStatus[]>([]);
+  const [departments, setDepartments] = useState<TicketDepartment[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [ticketServices, setTicketServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<TicketService[]>([]);
+  const [ticketServices, setTicketServices] = useState<TicketService[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadTickets = useCallback(async () => {

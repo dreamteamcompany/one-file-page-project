@@ -3,19 +3,19 @@
     {
       "name": "Get Users Unauthorized",
       "method": "GET",
-      "path": "/?endpoint=users",
-      "expectedStatus": 200
+      "path": "/?resource=users",
+      "expectedStatus": 401
     },
     {
-      "name": "Get Categories",
+      "name": "Get Categories Unauthorized",
       "method": "GET",
-      "path": "/?endpoint=categories",
-      "expectedStatus": 200
+      "path": "/?resource=categories",
+      "expectedStatus": 401
     },
     {
       "name": "Get Roles Unauthorized",
       "method": "GET",
-      "path": "/?endpoint=roles",
+      "path": "/?resource=roles",
       "expectedStatus": 401
     },
     {

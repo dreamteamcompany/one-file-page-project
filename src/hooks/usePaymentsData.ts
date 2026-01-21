@@ -1,92 +1,24 @@
 import { useState, useEffect } from 'react';
 import { apiFetch, API_URL } from '@/utils/api';
-
-interface CustomField {
-  id: number;
-  name: string;
-  field_type: string;
-  value: string;
-}
-
-interface Payment {
-  id: number;
-  category_id: number;
-  category_name: string;
-  category_icon: string;
-  description: string;
-  amount: number;
-  payment_date: string;
-  legal_entity_id?: number;
-  legal_entity_name?: string;
-  status?: string;
-  created_by?: number;
-  created_by_name?: string;
-  service_id?: number;
-  service_name?: string;
-  service_description?: string;
-  contractor_name?: string;
-  contractor_id?: number;
-  department_name?: string;
-  department_id?: number;
-  invoice_number?: string;
-  invoice_date?: string;
-  created_at?: string;
-  submitted_at?: string;
-  custom_fields?: CustomField[];
-}
-
-interface Category {
-  id: number;
-  name: string;
-  icon: string;
-}
-
-interface LegalEntity {
-  id: number;
-  name: string;
-  inn: string;
-  kpp: string;
-  address: string;
-}
-
-interface Contractor {
-  id: number;
-  name: string;
-  inn: string;
-}
-
-interface CustomerDepartment {
-  id: number;
-  name: string;
-  description: string;
-}
-
-interface CustomFieldDefinition {
-  id: number;
-  name: string;
-  field_type: string;
-  options: string;
-}
-
-interface Service {
-  id: number;
-  name: string;
-  description: string;
-  intermediate_approver_id: number;
-  final_approver_id: number;
-  category_id?: number;
-  category_name?: string;
-  category_icon?: string;
-}
+import type {
+  Payment,
+  PaymentCustomField,
+  PaymentCustomFieldDefinition,
+  PaymentCategory,
+  LegalEntity,
+  Contractor,
+  CustomerDepartment,
+  PaymentService,
+} from '@/types';
 
 export const usePaymentsData = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<PaymentCategory[]>([]);
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [customerDepartments, setCustomerDepartments] = useState<CustomerDepartment[]>([]);
-  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+  const [customFields, setCustomFields] = useState<PaymentCustomFieldDefinition[]>([]);
+  const [services, setServices] = useState<PaymentService[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadPayments = () => {

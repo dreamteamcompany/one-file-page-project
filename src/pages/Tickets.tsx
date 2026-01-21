@@ -23,45 +23,7 @@ import TicketForm from '@/components/tickets/TicketForm';
 import TicketsList from '@/components/tickets/TicketsList';
 import TicketsKanban from '@/components/tickets/TicketsKanban';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
-
-interface CustomField {
-  id: number;
-  name: string;
-  field_type: string;
-  value: string;
-}
-
-interface Ticket {
-  id: number;
-  title: string;
-  description?: string;
-  category_id?: number;
-  category_name?: string;
-  category_icon?: string;
-  priority_id?: number;
-  priority_name?: string;
-  priority_color?: string;
-  status_id?: number;
-  status_name?: string;
-  status_color?: string;
-  department_id?: number;
-  department_name?: string;
-  service_id?: number;
-  service_name?: string;
-  created_by: number;
-  creator_name?: string;
-  creator_email?: string;
-  assigned_to?: number;
-  assignee_name?: string;
-  assignee_email?: string;
-  due_date?: string;
-  created_at?: string;
-  updated_at?: string;
-  closed_at?: string;
-  custom_fields?: CustomField[];
-  unread_comments?: number;
-  has_response?: boolean;
-}
+import type { Ticket, CustomField } from '@/types';
 
 const Tickets = () => {
   const { user } = useAuth();

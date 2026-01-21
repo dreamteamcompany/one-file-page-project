@@ -1,96 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch } from '@/utils/api';
-
-export interface CustomField {
-  id: number;
-  name: string;
-  field_type: string;
-  value: string;
-}
-
-export interface Ticket {
-  id: number;
-  title: string;
-  description?: string;
-  category_id?: number;
-  category_name?: string;
-  category_icon?: string;
-  priority_id?: number;
-  priority_name?: string;
-  priority_color?: string;
-  status_id?: number;
-  status_name?: string;
-  status_color?: string;
-  department_id?: number;
-  department_name?: string;
-  created_by: number;
-  creator_name?: string;
-  creator_email?: string;
-  assigned_to?: number;
-  assignee_name?: string;
-  assignee_email?: string;
-  due_date?: string;
-  created_at?: string;
-  updated_at?: string;
-  closed_at?: string;
-  custom_fields?: CustomField[];
-}
-
-export interface Comment {
-  id: number;
-  ticket_id: number;
-  user_id: number;
-  user_name?: string;
-  user_email?: string;
-  comment: string;
-  is_internal: boolean;
-  created_at?: string;
-  attachments?: {
-    id: number;
-    filename: string;
-    url: string;
-    size: number;
-  }[];
-  reactions?: {
-    emoji: string;
-    count: number;
-    users: number[];
-  }[];
-}
-
-export interface AuditLog {
-  id: number;
-  action: string;
-  username: string;
-  changed_fields?: any;
-  old_values?: any;
-  new_values?: any;
-  metadata?: any;
-  created_at: string;
-}
-
-export interface Status {
-  id: number;
-  name: string;
-  color: string;
-  order: number;
-}
-
-export interface User {
-  id: number;
-  name: string;
-  email: string;
-  role?: string;
-}
+import type { Ticket, TicketComment, TicketAuditLog, TicketStatus, User } from '@/types';
 
 export const useTicketData = (id: string | undefined, initialTicket: Ticket | null = null) => {
   const { token } = useAuth();
   const [ticket, setTicket] = useState<Ticket | null>(initialTicket);
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [comments, setComments] = useState<Comment[]>([]);
+  const [statuses, setStatuses] = useState<TicketStatus[]>([]);
+  const [comments, setComments] = useState<TicketComment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLogs, setAuditLogs] = useState<TicketAuditLog[]>([]);
   const [loading, setLoading] = useState(!initialTicket);
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
