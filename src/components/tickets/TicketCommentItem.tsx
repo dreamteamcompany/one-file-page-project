@@ -37,7 +37,7 @@ const renderHtmlPart = (text: string, mentioned: number[] | undefined, available
       if (user) {
         result = result.replace(
           new RegExp(`@${user.name}`, 'g'),
-          `<span class="text-primary font-semibold">@${user.name}</span>`,
+          `<span class="inline-flex items-center rounded px-1 py-0.5 bg-black/10 dark:bg-white/20 text-inherit font-semibold">@${user.name}</span>`,
         );
       }
     });
