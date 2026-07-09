@@ -263,7 +263,7 @@ const TicketComments = ({
         const text = node.textContent || '';
         const offset = range.startOffset;
         const before = text.slice(0, offset);
-        const match = before.match(/@(\w*)$/);
+        const match = before.match(/@([^@\s]*(?:\s[^@\s]*)?)$/);
         if (match) {
           const mentionText = `@${user.name} `;
           const newBefore = before.slice(0, before.length - match[0].length) + mentionText;
@@ -276,13 +276,13 @@ const TicketComments = ({
         }
       }
     }
-    onCommentChange(newComment.replace(/@\w*$/, `@${user.name} `));
+    onCommentChange(newComment.replace(/@([^@\s]*(?:\s[^@\s]*)?)$/, `@${user.name} `));
   };
 
   const detectMention = (value: string, cursorPos?: number) => {
     const pos = cursorPos ?? value.length;
     const textBeforeCursor = value.substring(0, pos);
-    const match = textBeforeCursor.match(/@(\w*)$/);
+    const match = textBeforeCursor.match(/@([^@\s]*(?:\s[^@\s]*)?)$/);
     if (match) {
       setMentionSearch(match[1]);
       setShowMentions(true);
@@ -315,11 +315,13 @@ const TicketComments = ({
       email: u.email || '',
     }));
 
-  const localFiltered = availableUsers.filter(
-    (user) =>
-      user.name.toLowerCase().includes(mentionSearch.toLowerCase()) &&
-      user.id !== currentUserId,
-  );
+  const mentionQuery = mentionSearch.trim().toLowerCase();
+  const localFiltered = availableUsers.filter((user) => {
+    if (user.id === currentUserId) return false;
+    if (!mentionQuery) return true;
+    const haystack = `${user.name} ${user.email}`.toLowerCase();
+    return mentionQuery.split(/\s+/).every((part) => haystack.includes(part));
+  });
 
   const seen = new Set<number>();
   const filteredUsers: User[] = [...remoteAsLocal, ...localFiltered].filter((u) => {
