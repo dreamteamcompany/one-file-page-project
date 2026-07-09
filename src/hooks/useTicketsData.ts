@@ -11,7 +11,7 @@ import type {
   TicketService,
 } from '@/types';
 
-const TICKETS_PER_PAGE = 6;
+const TICKETS_PER_PAGE = 20;
 
 export const useTicketsData = () => {
   const { token } = useAuth();
