@@ -69,7 +69,10 @@ const TicketInfoFields = ({
   };
 
   const currentStatus = statuses.find((s) => s.id === ticket.status_id);
-  const canSendForConfirmation = !!currentStatus?.is_in_progress || !!currentStatus?.is_approved;
+  const canSendForConfirmation =
+    !!currentStatus?.is_in_progress ||
+    !!currentStatus?.is_approved ||
+    !!currentStatus?.is_reopened;
 
   const deadlineInfo = getDeadlineInfo(ticket.due_date);
   const responseDeadlineInfo = getDeadlineInfo(ticket.response_due_date);

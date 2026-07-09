@@ -21,6 +21,7 @@ export interface Status {
   is_approval?: boolean;
   is_approved?: boolean;
   is_in_progress?: boolean;
+  is_reopened?: boolean;
   is_waiting_response?: boolean;
   order?: number;
 }

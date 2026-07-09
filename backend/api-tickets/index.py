@@ -2824,7 +2824,7 @@ def handle_ticket_dictionaries(method: str, event: Dict[str, Any], conn) -> Dict
         cur.execute(f"SELECT id, name, level, color, COALESCE(description, '') as description, COALESCE(is_critical, false) as is_critical FROM {SCHEMA}.ticket_priorities ORDER BY level DESC")
         priorities = [dict(row) for row in cur.fetchall()]
         
-        cur.execute(f'SELECT id, name, color, is_closed, is_approval, is_approval_revoked, is_approved, is_waiting_response, is_pending_confirmation, is_in_progress, COALESCE(is_paused, false) AS is_paused FROM {SCHEMA}.ticket_statuses ORDER BY id')
+        cur.execute(f'SELECT id, name, color, is_closed, is_approval, is_approval_revoked, is_approved, is_waiting_response, is_pending_confirmation, is_in_progress, is_reopened, COALESCE(is_paused, false) AS is_paused FROM {SCHEMA}.ticket_statuses ORDER BY id')
         statuses = [dict(row) for row in cur.fetchall()]
         status_role_map = _load_status_role_map(cur)
         user_id = payload.get('user_id')
