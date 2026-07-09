@@ -77,6 +77,9 @@ export interface TicketsListProps {
   totalPages?: number;
   totalTickets?: number;
   onPageChange?: (page: number) => void;
+  pageSize?: number;
+  pageSizeOptions?: readonly number[];
+  onPageSizeChange?: (size: number) => void;
 }
 
 export interface DeadlineProgress {

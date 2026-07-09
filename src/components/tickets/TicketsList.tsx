@@ -19,6 +19,9 @@ const TicketsList = ({
   totalPages = 1,
   totalTickets = 0,
   onPageChange,
+  pageSize,
+  pageSizeOptions,
+  onPageSizeChange,
 }: TicketsListProps) => {
   const { hasSystemRole } = useAuth();
   const canCallPhone = hasSystemRole('admin', 'executor');
@@ -99,6 +102,9 @@ const TicketsList = ({
         totalPages={totalPages}
         totalTickets={totalTickets}
         onPageChange={onPageChange}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={onPageSizeChange}
       />
     </div>
   );

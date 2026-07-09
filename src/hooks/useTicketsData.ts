@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch } from '@/utils/api';
 import type {
@@ -11,7 +11,15 @@ import type {
   TicketService,
 } from '@/types';
 
-const TICKETS_PER_PAGE = 20;
+const DEFAULT_TICKETS_PER_PAGE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
+const getInitialPageSize = (): number => {
+  const saved = Number(localStorage.getItem('tickets_page_size'));
+  return PAGE_SIZE_OPTIONS.includes(saved as (typeof PAGE_SIZE_OPTIONS)[number])
+    ? saved
+    : DEFAULT_TICKETS_PER_PAGE;
+};
 
 export const useTicketsData = () => {
   const { token } = useAuth();
@@ -25,6 +33,7 @@ export const useTicketsData = () => {
   const [ticketServices, setTicketServices] = useState<TicketService[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(getInitialPageSize);
   const [totalPages, setTotalPages] = useState(1);
   const [totalTickets, setTotalTickets] = useState(0);
   const [showArchived, setShowArchived] = useState(false);
@@ -88,7 +97,7 @@ export const useTicketsData = () => {
     const filters = filtersArg !== undefined ? filtersArg : searchFilters;
     setLoading(true);
     try {
-      let url = `${API_URL}?endpoint=tickets&page=${targetPage}&limit=${TICKETS_PER_PAGE}&sort_by=${encodeURIComponent(sortByValue)}&sort_dir=${sortDirValue}`;
+      let url = `${API_URL}?endpoint=tickets&page=${targetPage}&limit=${pageSize}&sort_by=${encodeURIComponent(sortByValue)}&sort_dir=${sortDirValue}`;
       const allowedFilterKeys = [
         'search_content',
         'search_assignee', 'search_creator', 'search_status',
@@ -134,7 +143,7 @@ export const useTicketsData = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, showArchived, showHidden, hideWaiting, needsMyReply, showAll, showWatching, sortBy, sortDir, searchFilters]);
+  }, [token, showArchived, showHidden, hideWaiting, needsMyReply, showAll, showWatching, sortBy, sortDir, searchFilters, pageSize]);
 
   const loadServices = useCallback(async () => {
     if (!token) return;
@@ -203,7 +212,7 @@ export const useTicketsData = () => {
     setLoading(true);
     try {
       const skipWaiting = hideWaiting;
-      let url = `${API_URL}?endpoint=tickets-bootstrap&page=1&limit=${TICKETS_PER_PAGE}&sort_by=${encodeURIComponent(sortBy)}&sort_dir=${sortDir}&is_archived=false`;
+      let url = `${API_URL}?endpoint=tickets-bootstrap&page=1&limit=${pageSize}&sort_by=${encodeURIComponent(sortBy)}&sort_dir=${sortDir}&is_archived=false`;
       if (skipWaiting) url += '&hide_waiting=true';
 
       const res = await apiFetch(url, { headers: { 'X-Auth-Token': token } });
@@ -241,7 +250,7 @@ export const useTicketsData = () => {
       loadHiddenCount();
       loadNeedsMyReplyCount();
     }
-  }, [token, hideWaiting, sortBy, sortDir, loadServices, loadTickets, loadDictionaries, loadHiddenCount, loadNeedsMyReplyCount]);
+  }, [token, hideWaiting, sortBy, sortDir, pageSize, loadServices, loadTickets, loadDictionaries, loadHiddenCount, loadNeedsMyReplyCount]);
 
   useEffect(() => {
     if (token) {
@@ -249,6 +258,18 @@ export const useTicketsData = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  const pageSizeInitRef = useRef(true);
+  useEffect(() => {
+    if (pageSizeInitRef.current) {
+      pageSizeInitRef.current = false;
+      return;
+    }
+    if (token) {
+      loadTickets(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize]);
 
   const toggleArchived = useCallback((archived: boolean) => {
     setShowArchived(archived);
@@ -306,6 +327,13 @@ export const useTicketsData = () => {
     loadTickets(1, false, false, undefined, false, false, value);
   }, [loadTickets]);
 
+  const changePageSize = useCallback((value: number) => {
+    if (!PAGE_SIZE_OPTIONS.includes(value as (typeof PAGE_SIZE_OPTIONS)[number])) return;
+    setPageSize(value);
+    localStorage.setItem('tickets_page_size', String(value));
+    setPage(1);
+  }, []);
+
   return {
     tickets,
     categories,
@@ -317,6 +345,9 @@ export const useTicketsData = () => {
     ticketServices,
     loading,
     page,
+    pageSize,
+    pageSizeOptions: PAGE_SIZE_OPTIONS,
+    changePageSize,
     totalPages,
     totalTickets,
     showArchived,

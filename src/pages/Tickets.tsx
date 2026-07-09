@@ -76,6 +76,9 @@ const Tickets = () => {
     page,
     totalPages,
     totalTickets,
+    pageSize,
+    pageSizeOptions,
+    changePageSize,
     loadTickets,
     loadDictionaries,
     loadServices,
@@ -441,6 +444,9 @@ const Tickets = () => {
                 totalPages={totalPages}
                 totalTickets={totalTickets}
                 onPageChange={(p) => loadTickets(p)}
+                pageSize={pageSize}
+                pageSizeOptions={pageSizeOptions}
+                onPageSizeChange={changePageSize}
               />
               
               {bulkMode && selectedCount > 0 && (
