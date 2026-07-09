@@ -15,6 +15,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import Icon from '@/components/ui/icon';
 import { ru } from 'date-fns/locale';
+import { getMskDateParts, mskPartsToUtcIso } from '@/utils/dateFormat';
 
 interface EditCommentDialogProps {
   open: boolean;
@@ -36,15 +37,17 @@ const EditCommentDialog = ({
   initialCreatedAt,
   onSave,
 }: EditCommentDialogProps) => {
-  const initialDate = useMemo(
-    () => (initialCreatedAt ? new Date(initialCreatedAt) : new Date()),
+  const initialParts = useMemo(
+    () => getMskDateParts(initialCreatedAt || undefined),
     [initialCreatedAt],
   );
 
   const [text, setText] = useState(initialText);
-  const [date, setDate] = useState<Date>(initialDate);
+  const [date, setDate] = useState<Date>(
+    new Date(initialParts.year, initialParts.month - 1, initialParts.day),
+  );
   const [time, setTime] = useState(
-    `${pad(initialDate.getHours())}:${pad(initialDate.getMinutes())}`,
+    `${pad(initialParts.hour)}:${pad(initialParts.minute)}`,
   );
   const [saving, setSaving] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -71,11 +74,12 @@ const EditCommentDialog = ({
   useEffect(() => {
     if (open) {
       setText(initialText);
-      const d = initialCreatedAt ? new Date(initialCreatedAt) : new Date();
-      setDate(d);
-      setTime(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+      setDate(new Date(initialParts.year, initialParts.month - 1, initialParts.day));
+      setTime(`${pad(initialParts.hour)}:${pad(initialParts.minute)}`);
+      setQuickInput('');
+      setQuickError(false);
     }
-  }, [open, initialText, initialCreatedAt]);
+  }, [open, initialText, initialParts]);
 
   const handleSave = async () => {
     const payload: { comment?: string; created_at?: string } = {};
@@ -85,12 +89,22 @@ const EditCommentDialog = ({
     }
 
     const [hh, mm] = time.split(':').map((s) => parseInt(s, 10) || 0);
-    const combined = new Date(date);
-    combined.setHours(hh, mm, 0, 0);
-
-    const initMs = initialDate.getTime();
-    if (combined.getTime() !== initMs) {
-      payload.created_at = combined.toISOString();
+    const newIso = mskPartsToUtcIso(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      date.getDate(),
+      hh,
+      mm,
+    );
+    const initialIso = mskPartsToUtcIso(
+      initialParts.year,
+      initialParts.month,
+      initialParts.day,
+      initialParts.hour,
+      initialParts.minute,
+    );
+    if (newIso !== initialIso) {
+      payload.created_at = newIso;
     }
 
     if (Object.keys(payload).length === 0) {

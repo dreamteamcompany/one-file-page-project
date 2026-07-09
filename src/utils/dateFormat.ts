@@ -86,6 +86,55 @@ export const getMskHourMinute = (input?: string | number | Date | null): { hour:
   };
 };
 
+export const getMskDateParts = (
+  input?: string | number | Date | null,
+): { year: number; month: number; day: number; hour: number; minute: number } => {
+  const d = parseAsUtc(input) ?? new Date();
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: MSK_TIMEZONE,
+  }).formatToParts(d);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value || '0');
+  const hour = get('hour');
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: hour === 24 ? 0 : hour,
+    minute: get('minute'),
+  };
+};
+
+export const mskPartsToUtcIso = (
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+): string => {
+  const asUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const probe = new Date(asUtc);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: MSK_TIMEZONE,
+  }).formatToParts(probe);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value || '0');
+  const shownHour = get('hour') === 24 ? 0 : get('hour');
+  const shownUtc = Date.UTC(get('year'), get('month') - 1, get('day'), shownHour, get('minute'), 0, 0);
+  const offsetMs = shownUtc - asUtc;
+  return new Date(asUtc - offsetMs).toISOString();
+};
+
 export const getMskTimestamp = (input?: string | number | Date | null): number => {
   const d = parseAsUtc(input);
   return d ? d.getTime() : 0;
