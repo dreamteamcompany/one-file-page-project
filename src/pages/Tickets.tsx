@@ -88,6 +88,8 @@ const Tickets = () => {
     hideWaiting,
     showAll,
     showWatching,
+    showSubordinates,
+    hasSubordinates,
     sortBy,
     sortDir,
     setSortBy,
@@ -99,6 +101,7 @@ const Tickets = () => {
     toggleHideWaiting,
     toggleShowAll,
     toggleWatching,
+    toggleSubordinates,
   } = useTicketsData();
 
   const { viewMode, setViewMode, bulkMode, toggleBulkMode, disableBulkMode } = useTicketsView();
@@ -389,6 +392,9 @@ const Tickets = () => {
           onToggleShowAll={toggleShowAll}
           showWatching={showWatching}
           onToggleWatching={toggleWatching}
+          showSubordinates={showSubordinates}
+          hasSubordinates={hasSubordinates}
+          onToggleSubordinates={toggleSubordinates}
           canBulkActions={canBulkActions}
         />
 

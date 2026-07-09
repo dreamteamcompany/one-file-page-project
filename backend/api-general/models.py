@@ -11,6 +11,8 @@ class UserRequest(BaseModel):
     bitrix_user_id: str = Field(default='')
     max_user_id: str = Field(default='')
     department_id: int | None = Field(default=None)
+    subordinate_department_ids: list[int] = Field(default=[])
+    subordinate_user_ids: list[int] = Field(default=[])
 
 class RoleRequest(BaseModel):
     name: str = Field(..., min_length=1)

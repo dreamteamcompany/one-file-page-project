@@ -1369,6 +1369,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         show_all = query_params.get('show_all')
         needs_my_reply = query_params.get('needs_my_reply')
         is_watcher = query_params.get('is_watcher')
+        is_subordinates = query_params.get('is_subordinates')
         from_date = query_params.get('from_date')
         to_date = query_params.get('to_date')
         page = max(1, int(query_params.get('page', 1)))
@@ -1459,7 +1460,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             where_clause += f" AND t.assigned_to IN ({placeholders})"
             params.extend(restricted_user_ids)
         
-        if not view_all_tickets and view_own_only:
+        if not view_all_tickets and view_own_only and is_subordinates != 'true':
             where_clause += f""" AND (
                 t.created_by = %s 
                 OR t.assigned_to = %s
@@ -1500,7 +1501,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses ps WHERE ps.id = t.status_id AND ps.is_pending_confirmation = true) AND (t.is_archived = true OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses cs WHERE cs.id = t.status_id AND cs.is_closed = true))"
             else:
                 where_clause += f" AND t.is_archived = false AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses cs WHERE cs.id = t.status_id AND cs.is_closed = true)"
-                if is_admin:
+                if is_admin or is_subordinates == 'true':
                     where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true)"
                 else:
                     where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true AND t.assigned_to = %s)"
@@ -1536,6 +1537,23 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 )
             """
             params.append(user_id)
+        if is_subordinates == 'true':
+            # Заявки, где заказчик (создатель) — подчинённый текущего пользователя:
+            # либо конкретный сотрудник, либо любой сотрудник из подчинённого отдела.
+            where_clause += f"""
+                AND (
+                    EXISTS (
+                        SELECT 1 FROM {SCHEMA}.user_subordinates usub
+                        WHERE usub.user_id = %s AND usub.subordinate_user_id = t.created_by
+                    )
+                    OR EXISTS (
+                        SELECT 1 FROM {SCHEMA}.user_subordinate_departments usd
+                        JOIN {SCHEMA}.users cu ON cu.id = t.created_by
+                        WHERE usd.user_id = %s AND cu.department_id = usd.department_id
+                    )
+                )
+            """
+            params.extend([user_id, user_id])
 
         # Поисковые фильтры по текстовым полям (ILIKE)
         search_assignee = (query_params.get('search_assignee') or '').strip()
@@ -3701,12 +3719,30 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
     reply_resp = _call(handle_tickets, {'page': '1', 'limit': '1', 'needs_my_reply': 'true'})
     needs_my_reply_count = _parse(reply_resp, {}).get('total', 0)
 
+    # 5. Есть ли у пользователя подчинённые (отделы или конкретные сотрудники)
+    has_subordinates = False
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT EXISTS (
+                SELECT 1 FROM {SCHEMA}.user_subordinates WHERE user_id = %s
+                UNION ALL
+                SELECT 1 FROM {SCHEMA}.user_subordinate_departments WHERE user_id = %s
+            ) AS has_subs
+        """, (payload.get('user_id'), payload.get('user_id')))
+        row = cur.fetchone()
+        has_subordinates = bool(row['has_subs']) if row else False
+        cur.close()
+    except Exception:
+        has_subordinates = False
+
     return response(200, {
         'tickets': tickets_data,
         'dictionaries': dictionaries,
         'ticket_services': ticket_services,
         'hidden_count': hidden_count,
         'needs_my_reply_count': needs_my_reply_count,
+        'has_subordinates': has_subordinates,
     })
 
 

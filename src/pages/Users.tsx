@@ -68,6 +68,8 @@ const Users = () => {
     bitrix_user_id: '',
     max_user_id: '',
     department_id: null as number | null,
+    subordinate_department_ids: [] as number[],
+    subordinate_user_ids: [] as number[],
   });
 
   const loadDepartments = async () => {
@@ -184,6 +186,8 @@ const Users = () => {
         bitrix_user_id: formData.bitrix_user_id,
         max_user_id: formData.max_user_id,
         department_id: formData.department_id,
+        subordinate_department_ids: formData.subordinate_department_ids,
+        subordinate_user_ids: formData.subordinate_user_ids,
       };
       
       if (formData.password) {
@@ -217,6 +221,8 @@ const Users = () => {
           bitrix_user_id: '',
           max_user_id: '',
           department_id: null,
+          subordinate_department_ids: [],
+          subordinate_user_ids: [],
         });
         loadUsers();
       } else {
@@ -308,7 +314,7 @@ const Users = () => {
     }
   };
 
-  const handleEditUser = (user: User) => {
+  const handleEditUser = async (user: User) => {
     if (!hasPermission('users', 'update')) {
       alert('У вас нет прав для редактирования пользователей');
       return;
@@ -316,7 +322,7 @@ const Users = () => {
     
     setEditingUser(user);
     const emailVal = user.email && !user.email.includes('@placeholder.local') ? user.email : '';
-    setFormData({
+    const baseData = {
       username: user.username,
       full_name: user.full_name,
       position: user.position || '',
@@ -327,8 +333,27 @@ const Users = () => {
       bitrix_user_id: user.bitrix_user_id || '',
       max_user_id: user.max_user_id || '',
       department_id: user.department_id ?? null,
-    });
+      subordinate_department_ids: [] as number[],
+      subordinate_user_ids: [] as number[],
+    };
+    setFormData(baseData);
     setDialogOpen(true);
+
+    try {
+      const res = await apiFetch(`${API_URL}?endpoint=users&id=${user.id}`, {
+        headers: { 'X-Auth-Token': token || '' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFormData({
+          ...baseData,
+          subordinate_department_ids: Array.isArray(data.subordinate_department_ids) ? data.subordinate_department_ids : [],
+          subordinate_user_ids: Array.isArray(data.subordinate_user_ids) ? data.subordinate_user_ids : [],
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load subordinates:', err);
+    }
   };
 
   const activeUsers = users.filter((u) => u.is_active);
@@ -403,6 +428,7 @@ const Users = () => {
             rolesError={rolesError}
             onRetryRoles={loadRoles}
             departments={departments}
+            allUsers={users}
             handleSubmit={handleSubmit}
             canCreate={hasPermission('users', 'create')}
           />

@@ -23,6 +23,9 @@ interface TicketsViewToggleProps {
   onToggleShowAll?: (value: boolean) => void;
   showWatching?: boolean;
   onToggleWatching?: (value: boolean) => void;
+  showSubordinates?: boolean;
+  hasSubordinates?: boolean;
+  onToggleSubordinates?: (value: boolean) => void;
   canBulkActions?: boolean;
 }
 
@@ -43,17 +46,21 @@ const TicketsViewToggle = ({
   onToggleShowAll,
   showWatching = false,
   onToggleWatching,
+  showSubordinates = false,
+  hasSubordinates = false,
+  onToggleSubordinates,
   canBulkActions = false,
 }: TicketsViewToggleProps) => {
   const { hasSystemRole } = useAuth();
   const isPlainUser = hasSystemRole('user') && !hasSystemRole('admin', 'manager');
-  const isOpenOrAllActive = !showArchived && !showHidden && !showWatching;
+  const isOpenOrAllActive = !showArchived && !showHidden && !showWatching && !showSubordinates;
 
   const handleSelectOpen = () => {
     onViewModeChange('list');
     if (showArchived) onToggleArchived(false);
     if (showHidden && onToggleHidden) onToggleHidden(false);
     if (showWatching && onToggleWatching) onToggleWatching(false);
+    if (showSubordinates && onToggleSubordinates) onToggleSubordinates(false);
     if (showAll && onToggleShowAll) onToggleShowAll(false);
   };
 
@@ -87,6 +94,25 @@ const TicketsViewToggle = ({
           <span className="hidden sm:inline">Наблюдаю</span>
           <span className="sm:hidden">Наблюдаю</span>
         </Button>
+        {hasSubordinates && onToggleSubordinates && (
+          <Button
+            variant={showSubordinates ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              const next = !showSubordinates;
+              onToggleSubordinates(next);
+              if (next) {
+                if (showArchived) onToggleArchived(false);
+                if (showHidden && onToggleHidden) onToggleHidden(false);
+                onViewModeChange('list');
+              }
+            }}
+            className="flex items-center gap-2"
+          >
+            <Icon name="UsersRound" size={16} />
+            <span>Заявки сотрудников</span>
+          </Button>
+        )}
         <Button
           variant={showArchived ? 'default' : 'outline'}
           size="sm"

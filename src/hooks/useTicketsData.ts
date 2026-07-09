@@ -47,6 +47,9 @@ export const useTicketsData = () => {
   const [needsMyReplyCount, setNeedsMyReplyCount] = useState(0);
   const [showAll, setShowAll] = useState<boolean>(false);
   const [showWatching, setShowWatching] = useState<boolean>(false);
+  const [showSubordinates, setShowSubordinates] = useState<boolean>(false);
+  const [hasSubordinates, setHasSubordinates] = useState<boolean>(false);
+  const showSubordinatesRef = useRef(false);
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
@@ -108,7 +111,12 @@ export const useTicketsData = () => {
         const v = (filters?.[key] || '').trim();
         if (v) url += `&${key}=${encodeURIComponent(v)}`;
       }
-      if (watching) {
+      if (showSubordinatesRef.current) {
+        url += '&is_subordinates=true&is_archived=false';
+        if (skipWaiting) {
+          url += '&hide_waiting=true';
+        }
+      } else if (watching) {
         url += `&is_archived=${archived}&is_watcher=true`;
         if (skipWaiting) {
           url += '&hide_waiting=true';
@@ -237,6 +245,7 @@ export const useTicketsData = () => {
       setTicketServices(data.ticket_services || []);
       setHiddenCount(data.hidden_count || 0);
       setNeedsMyReplyCount(data.needs_my_reply_count || 0);
+      setHasSubordinates(!!data.has_subordinates);
       setLoading(false);
 
       // services грузим отдельно в фоне (отдельная функция, нужна реже — для форм)
@@ -276,6 +285,8 @@ export const useTicketsData = () => {
     setShowHidden(false);
     setShowAll(false);
     setShowWatching(false);
+    showSubordinatesRef.current = false;
+    setShowSubordinates(false);
     setPage(1);
     loadTickets(1, archived, false, undefined, undefined, false, false);
     loadHiddenCount();
@@ -286,6 +297,8 @@ export const useTicketsData = () => {
     setShowArchived(false);
     setShowAll(false);
     setShowWatching(false);
+    showSubordinatesRef.current = false;
+    setShowSubordinates(false);
     setPage(1);
     loadTickets(1, false, hidden, undefined, undefined, false, false);
   }, [loadTickets]);
@@ -303,6 +316,8 @@ export const useTicketsData = () => {
     setShowHidden(false);
     setShowAll(false);
     setShowWatching(false);
+    showSubordinatesRef.current = false;
+    setShowSubordinates(false);
     setPage(1);
     loadTickets(1, false, false, undefined, value, false, false);
   }, [loadTickets]);
@@ -313,6 +328,8 @@ export const useTicketsData = () => {
     setShowHidden(false);
     setNeedsMyReply(false);
     setShowWatching(false);
+    showSubordinatesRef.current = false;
+    setShowSubordinates(false);
     setPage(1);
     loadTickets(1, false, false, undefined, false, value, false);
   }, [loadTickets]);
@@ -323,8 +340,22 @@ export const useTicketsData = () => {
     setShowHidden(false);
     setShowAll(false);
     setNeedsMyReply(false);
+    showSubordinatesRef.current = false;
+    setShowSubordinates(false);
     setPage(1);
     loadTickets(1, false, false, undefined, false, false, value);
+  }, [loadTickets]);
+
+  const toggleSubordinates = useCallback((value: boolean) => {
+    showSubordinatesRef.current = value;
+    setShowSubordinates(value);
+    setShowArchived(false);
+    setShowHidden(false);
+    setShowAll(false);
+    setNeedsMyReply(false);
+    setShowWatching(false);
+    setPage(1);
+    loadTickets(1, false, false, undefined, false, false, false);
   }, [loadTickets]);
 
   const changePageSize = useCallback((value: number) => {
@@ -358,6 +389,8 @@ export const useTicketsData = () => {
     needsMyReplyCount,
     showAll,
     showWatching,
+    showSubordinates,
+    hasSubordinates,
     sortBy,
     sortDir,
     setSortBy,
@@ -373,6 +406,7 @@ export const useTicketsData = () => {
     toggleNeedsMyReply,
     toggleShowAll,
     toggleWatching,
+    toggleSubordinates,
     loadHiddenCount,
     loadNeedsMyReplyCount,
   };

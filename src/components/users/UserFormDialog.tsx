@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UPLOAD_FILE_URL } from '@/utils/api';
 import DepartmentCombobox from '@/components/users/DepartmentCombobox';
+import SubordinatesSelector from '@/components/users/SubordinatesSelector';
 import {
   Dialog,
   DialogContent,
@@ -60,12 +61,15 @@ interface UserFormDialogProps {
     max_user_id: string;
     department_id?: number | null;
     is_active?: boolean;
+    subordinate_department_ids?: number[];
+    subordinate_user_ids?: number[];
   };
   setFormData: (data: Record<string, string | number[] | boolean | number | null>) => void;
   roles: Role[];
   rolesError?: boolean;
   onRetryRoles?: () => void;
   departments?: Department[];
+  allUsers?: { id: number; full_name: string; username?: string }[];
   handleSubmit: (e: React.FormEvent) => void;
   canCreate?: boolean;
   onToggleStatus?: (userId: number, currentStatus: boolean) => void;
@@ -83,6 +87,7 @@ const UserFormDialog = ({
   rolesError = false,
   onRetryRoles,
   departments = [],
+  allUsers = [],
   handleSubmit,
   canCreate = true,
   onToggleStatus,
@@ -172,6 +177,8 @@ const UserFormDialog = ({
           bitrix_user_id: '',
           max_user_id: '',
           department_id: null,
+          subordinate_department_ids: [],
+          subordinate_user_ids: [],
         });
       }
     }}>
@@ -271,6 +278,22 @@ const UserFormDialog = ({
             <p className="text-xs text-muted-foreground">
               Подтягивается автоматически из Битрикс24, можно изменить вручную
             </p>
+          </div>
+          <div className="space-y-2 rounded-md border border-border p-3 bg-accent/20">
+            <Label>Мои подчинённые</Label>
+            <p className="text-xs text-muted-foreground -mt-1">
+              Выберите отделы или конкретных сотрудников. Их заявки будут видны этому руководителю
+              в разделе «Заявки сотрудников» (без уведомлений).
+            </p>
+            <SubordinatesSelector
+              departments={departments}
+              users={allUsers}
+              currentUserId={editingUser?.id}
+              selectedDepartmentIds={formData.subordinate_department_ids ?? []}
+              selectedUserIds={formData.subordinate_user_ids ?? []}
+              onChangeDepartments={(ids) => setFormData({ ...formData, subordinate_department_ids: ids })}
+              onChangeUsers={(ids) => setFormData({ ...formData, subordinate_user_ids: ids })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

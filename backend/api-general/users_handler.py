@@ -11,6 +11,24 @@ SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 'public')
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
+
+def save_subordinates(cur, target_user_id, department_ids, user_ids):
+    """Пересохраняет подчинённых пользователя (отделы и конкретных сотрудников)."""
+    cur.execute(f"DELETE FROM {SCHEMA}.user_subordinate_departments WHERE user_id=%s", (target_user_id,))
+    for dep_id in set(department_ids or []):
+        cur.execute(
+            f"INSERT INTO {SCHEMA}.user_subordinate_departments (user_id, department_id) VALUES (%s, %s)",
+            (target_user_id, dep_id)
+        )
+    cur.execute(f"DELETE FROM {SCHEMA}.user_subordinates WHERE user_id=%s", (target_user_id,))
+    for sub_id in set(user_ids or []):
+        if int(sub_id) == int(target_user_id):
+            continue
+        cur.execute(
+            f"INSERT INTO {SCHEMA}.user_subordinates (user_id, subordinate_user_id) VALUES (%s, %s)",
+            (target_user_id, sub_id)
+        )
+
 def handle_users(method, event, conn, payload):
     user_id = payload.get('user_id')
     if not user_id:
@@ -41,7 +59,18 @@ def handle_users(method, event, conn, payload):
                 user = cur.fetchone()
                 if not user:
                     return response(404, {'error': 'User not found'})
-                return response(200, dict(user))
+                user_dict = dict(user)
+                cur.execute(
+                    f"SELECT department_id FROM {SCHEMA}.user_subordinate_departments WHERE user_id = %s",
+                    (target_user_id,)
+                )
+                user_dict['subordinate_department_ids'] = [r['department_id'] for r in cur.fetchall()]
+                cur.execute(
+                    f"SELECT subordinate_user_id FROM {SCHEMA}.user_subordinates WHERE user_id = %s",
+                    (target_user_id,)
+                )
+                user_dict['subordinate_user_ids'] = [r['subordinate_user_id'] for r in cur.fetchall()]
+                return response(200, user_dict)
             else:
                 # Опциональный фильтр по системным ролям: ?system_roles=admin,executor
                 system_roles_param = (params.get('system_roles') or '').strip()
@@ -141,6 +170,8 @@ def handle_users(method, event, conn, payload):
                     log(f"[CREATE USER] Assigning role {role_id} to user {new_user_id}")
                     cur.execute(f"INSERT INTO {SCHEMA}.user_roles (user_id, role_id) VALUES (%s, %s)", (new_user_id, role_id))
                 
+                save_subordinates(cur, new_user_id, req.subordinate_department_ids, req.subordinate_user_ids)
+                
                 conn.commit()
                 log(f"[CREATE USER] Transaction committed successfully")
                 return response(201, {'id': new_user_id, 'message': 'User created'})
@@ -238,6 +269,8 @@ def handle_users(method, event, conn, payload):
                 cur.execute(f"DELETE FROM {SCHEMA}.user_roles WHERE user_id=%s", (target_user_id,))
                 for role_id in req.role_ids:
                     cur.execute(f"INSERT INTO {SCHEMA}.user_roles (user_id, role_id) VALUES (%s, %s)", (target_user_id, role_id))
+
+                save_subordinates(cur, target_user_id, req.subordinate_department_ids, req.subordinate_user_ids)
 
                 conn.commit()
                 return response(200, {'message': 'User updated'})
