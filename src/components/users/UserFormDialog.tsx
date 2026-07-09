@@ -188,14 +188,14 @@ const UserFormDialog = ({
           <span>Добавить пользователя</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[720px] w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[720px] w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>{editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}</DialogTitle>
           <DialogDescription>
             {editingUser ? 'Измените данные пользователя' : 'Создайте нового пользователя системы'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 w-full min-w-0">
           <div className="space-y-2">
             <Label>Фото профиля</Label>
             <div className="flex items-center gap-4">
