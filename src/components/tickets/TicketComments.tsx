@@ -19,9 +19,7 @@ import { Comment, User, TicketCommentsProps } from './TicketCommentsTypes';
 import TicketCommentsPinned from './TicketCommentsPinned';
 import TicketCommentItem from './TicketCommentItem';
 import TicketCommentsInput from './TicketCommentsInput';
-import TicketEventItem from './TicketEventItem';
 import CommentReadIndicator from './CommentReadIndicator';
-import type { HistoryLog } from './TicketEventItem';
 
 const TicketComments = ({
   comments,
@@ -50,7 +48,6 @@ const TicketComments = ({
   participantIds = [],
   myLastSeenAt = null,
   onMarkRead,
-  auditLogs = [],
   canUseTemplates = false,
   canUseAI = false,
   canMarkInternal = false,
@@ -87,17 +84,10 @@ const TicketComments = ({
   const sortedAsc = [...comments].sort((a, b) => getMskTimestamp(a.created_at) - getMskTimestamp(b.created_at));
   const latestCommentId = sortedAsc.length > 0 ? sortedAsc[sortedAsc.length - 1].id : null;
 
-  type FeedItem =
-    | { kind: 'comment'; data: Comment; idx: number }
-    | { kind: 'event'; data: HistoryLog };
-
-  const HIDDEN_FIELDS = new Set(['reopen_reason']);
+  type FeedItem = { kind: 'comment'; data: Comment; idx: number };
 
   const feedItems: FeedItem[] = [
     ...sortedAsc.map((c, idx) => ({ kind: 'comment' as const, data: c, idx })),
-    ...auditLogs
-      .filter(log => !HIDDEN_FIELDS.has(log.field_name))
-      .map(log => ({ kind: 'event' as const, data: log })),
   ].sort((a, b) => getMskTimestamp(a.data.created_at) - getMskTimestamp(b.data.created_at));
 
   // Скролл вниз после загрузки комментариев — при первом заходе/обновлении страницы
@@ -412,9 +402,6 @@ const TicketComments = ({
           </div>
         ) : (
           feedItems.map((item) => {
-            if (item.kind === 'event') {
-              return <TicketEventItem key={`event-${item.data.id}`} log={item.data} />;
-            }
             const comment = item.data;
             const parentComment = getParentComment(comment.parent_comment_id);
             const isOwn = comment.user_id === currentUserId;
