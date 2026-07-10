@@ -42,6 +42,29 @@ const IntegrationsSettings = () => {
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState<string>('');
+  const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string }>>({});
+
+  const testConnection = async (service: string) => {
+    setTesting(service);
+    setTestResults((prev) => ({ ...prev, [service]: undefined as never }));
+    try {
+      const r = await apiFetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'test', service }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setTestResults((prev) => ({ ...prev, [service]: { ok: false, message: data.error || 'Ошибка проверки' } }));
+        return;
+      }
+      setTestResults((prev) => ({ ...prev, [service]: { ok: !!data.ok, message: data.message || '' } }));
+    } catch {
+      setTestResults((prev) => ({ ...prev, [service]: { ok: false, message: 'Ошибка соединения' } }));
+    } finally {
+      setTesting('');
+    }
+  };
 
   useEffect(() => {
     if (user && !isAdmin) navigate('/settings');
@@ -109,6 +132,40 @@ const IntegrationsSettings = () => {
     return map;
   }, [fields]);
 
+  const fieldService: Record<string, string> = {
+    bitrix_webhook_ru: 'bitrix_ru',
+    bitrix_webhook_kz: 'bitrix_kz',
+  };
+  const groupService: Record<string, string> = {
+    'Почта РФ (ISPmanager)': 'mail_ru',
+    'Почта КЗ (LanCloud)': 'mail_kz',
+  };
+
+  const renderTestResult = (service: string) => {
+    const res = testResults[service];
+    if (!res) return null;
+    return (
+      <p className={`text-xs mt-1.5 flex items-center gap-1 ${res.ok ? 'text-green-500' : 'text-red-500'}`}>
+        <Icon name={res.ok ? 'CheckCircle2' : 'XCircle'} size={13} />
+        {res.message}
+      </p>
+    );
+  };
+
+  const TestButton = ({ service }: { service: string }) => (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      onClick={() => testConnection(service)}
+      disabled={testing === service}
+      className="gap-1.5 h-8"
+    >
+      <Icon name={testing === service ? 'Loader2' : 'Activity'} size={13} className={testing === service ? 'animate-spin' : ''} />
+      Проверить
+    </Button>
+  );
+
   if (!isAdmin) return null;
 
   return (
@@ -141,10 +198,14 @@ const IntegrationsSettings = () => {
           {Object.entries(groups).map(([group, groupFields]) => (
             <Card key={group}>
               <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Icon name="Plug" size={18} className="text-primary" />
-                  {group}
-                </CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Icon name="Plug" size={18} className="text-primary" />
+                    {group}
+                  </CardTitle>
+                  {groupService[group] && <TestButton service={groupService[group]} />}
+                </div>
+                {groupService[group] && renderTestResult(groupService[group])}
               </CardHeader>
               <CardContent className="space-y-3">
                 {groupFields.map((f) => (
@@ -173,6 +234,12 @@ const IntegrationsSettings = () => {
                     />
                     {f.hint && (
                       <p className="text-xs text-muted-foreground mt-1">{f.hint}</p>
+                    )}
+                    {fieldService[f.key] && (
+                      <div className="pt-1">
+                        <TestButton service={fieldService[f.key]} />
+                        {renderTestResult(fieldService[f.key])}
+                      </div>
                     )}
                   </div>
                 ))}

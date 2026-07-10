@@ -2,6 +2,10 @@ import json
 import os
 import secrets
 import string
+import urllib.request
+import urllib.parse
+import urllib.error
+import ssl
 
 import jwt
 import psycopg2
@@ -275,11 +279,124 @@ def handle_create(body):
     })
 
 
+def _http_get(url, timeout=10, auth=None):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request(url, headers={'User-Agent': 'integration-check'})
+    if auth:
+        import base64
+        token = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
+        req.add_header('Authorization', f'Basic {token}')
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        return r.getcode(), r.read().decode('utf-8', 'replace')
+
+
+def check_bitrix(webhook_url):
+    if not webhook_url:
+        return {'ok': False, 'message': 'Вебхук не задан'}
+    base = webhook_url.rstrip('/')
+    url = f"{base}/profile.json"
+    try:
+        code, text = _http_get(url, timeout=10)
+        data = json.loads(text) if text else {}
+        if data.get('result'):
+            res = data['result']
+            name = res.get('NAME') or res.get('LAST_NAME') or res.get('ID') or ''
+            return {'ok': True, 'message': f'Подключение успешно (аккаунт: {name})'.strip()}
+        if data.get('error'):
+            return {'ok': False, 'message': f"Битрикс вернул ошибку: {data.get('error_description') or data.get('error')}"}
+        return {'ok': False, 'message': f'Неожиданный ответ (HTTP {code})'}
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'message': f'HTTP {e.code}: проверьте URL вебхука и права'}
+    except urllib.error.URLError as e:
+        return {'ok': False, 'message': f'Не удалось подключиться: {e.reason}'}
+    except Exception as e:
+        return {'ok': False, 'message': f'Ошибка проверки: {e}'}
+
+
+def check_ispmanager(url, login, password):
+    if not url or not login or not password:
+        return {'ok': False, 'message': 'Заполните URL, логин и пароль ISPmanager'}
+    base = url.rstrip('/')
+    auth_url = f"{base}/ispmgr?out=json&func=auth&username={urllib.parse.quote(login)}&password={urllib.parse.quote(password)}"
+    try:
+        code, text = _http_get(auth_url, timeout=12)
+        data = json.loads(text) if text else {}
+        if data.get('doc', {}).get('auth') or data.get('auth') or ('error' not in json.dumps(data)):
+            if 'error' in data or data.get('doc', {}).get('error'):
+                return {'ok': False, 'message': 'Неверный логин или пароль'}
+            return {'ok': True, 'message': 'Авторизация успешна'}
+        return {'ok': False, 'message': 'Неверный логин или пароль'}
+    except urllib.error.HTTPError as e:
+        return {'ok': False, 'message': f'HTTP {e.code}: панель недоступна или неверный адрес'}
+    except urllib.error.URLError as e:
+        return {'ok': False, 'message': f'Панель недоступна: {e.reason}'}
+    except Exception as e:
+        return {'ok': False, 'message': f'Ошибка проверки: {e}'}
+
+
+def check_lancloud(url, login, password):
+    if not url or not login or not password:
+        return {'ok': False, 'message': 'Заполните URL, логин и пароль LanCloud'}
+    base = url.rstrip('/')
+    try:
+        code, text = _http_get(base, timeout=12, auth=(login, password))
+        if code in (200, 302):
+            return {'ok': True, 'message': 'Панель доступна, авторизация принята'}
+        if code in (401, 403):
+            return {'ok': False, 'message': 'Неверный логин или пароль'}
+        return {'ok': False, 'message': f'Неожиданный ответ (HTTP {code})'}
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return {'ok': False, 'message': 'Неверный логин или пароль'}
+        return {'ok': False, 'message': f'HTTP {e.code}: панель недоступна'}
+    except urllib.error.URLError as e:
+        return {'ok': False, 'message': f'Панель недоступна: {e.reason}'}
+    except Exception as e:
+        return {'ok': False, 'message': f'Ошибка проверки: {e}'}
+
+
+def handle_test(payload, body):
+    if not is_admin(payload):
+        return response(403, {'error': 'Доступ только для администраторов'})
+    if not ENC_KEY:
+        return response(500, {'error': 'Не задан ключ шифрования INTEGRATION_ENCRYPTION_KEY'})
+
+    service = (body.get('service') or '').strip()
+    fernet = get_fernet()
+    try:
+        stored = load_settings_raw()
+    except Exception:
+        stored = {}
+
+    def val(key):
+        return get_setting(fernet, stored, key)
+
+    if service == 'bitrix_ru':
+        result = check_bitrix(val('bitrix_webhook_ru') or os.environ.get('BITRIX24_WEBHOOK_URL', ''))
+    elif service == 'bitrix_kz':
+        result = check_bitrix(val('bitrix_webhook_kz') or os.environ.get('BITRIX24_WEBHOOK_URL_KZ', ''))
+    elif service == 'mail_ru':
+        result = check_ispmanager(
+            val('ispmgr_url') or os.environ.get('ISPMGR_URL', ''),
+            val('ispmgr_login') or os.environ.get('ISPMGR_LOGIN', ''),
+            val('ispmgr_password') or os.environ.get('ISPMGR_PASSWORD', ''),
+        )
+    elif service == 'mail_kz':
+        result = check_lancloud(val('lancloud_url'), val('lancloud_login'), val('lancloud_password'))
+    else:
+        return response(400, {'error': 'Неизвестный сервис'})
+
+    return response(200, {'service': service, **result})
+
+
 def handler(event: dict, context) -> dict:
     '''Учётные записи сотрудников и настройки интеграций (Битрикс/почта РФ и КЗ).
 
     GET  ?action=settings          — прочитать настройки интеграций (только админ, секреты маскируются).
     POST {action:'save_settings'}  — сохранить настройки (только админ, шифрование в БД).
+    POST {action:'test'}           — проверить интеграцию сервиса (bitrix_ru/bitrix_kz/mail_ru/mail_kz).
     POST (создание)                — сгенерировать учётку сотрудника по выбранному порталу.
     '''
     method = event.get('httpMethod', 'GET')
@@ -319,5 +436,11 @@ def handler(event: dict, context) -> dict:
         if not payload:
             return response(401, {'error': 'Требуется авторизация'})
         return handle_save_settings(payload, body)
+
+    if body.get('action') == 'test':
+        payload = verify_token(event)
+        if not payload:
+            return response(401, {'error': 'Требуется авторизация'})
+        return handle_test(payload, body)
 
     return handle_create(body)

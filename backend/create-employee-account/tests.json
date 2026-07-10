@@ -81,6 +81,20 @@
         "error": "string"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Проверка интеграции без токена — 401",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "test",
+        "service": "bitrix_ru"
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }
