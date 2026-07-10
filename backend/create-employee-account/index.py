@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import html as html_lib
 import http.cookiejar
 import json
 import os
@@ -400,11 +401,11 @@ def lancloud_login(cp_url, login, password):
         return None, 'Не удалось получить форму входа LanCloud (изменилась страница)'
     token = m.group(1)
 
-    # Автоматически определяем реальные имена полей формы из HTML
+    # Разбираем ВСЕ поля формы с их реальными значениями (важно для antiforgery и ReturnUrl)
     inputs = re.findall(r'<input\b[^>]*>', html, re.IGNORECASE)
     login_field = None
     pass_field = None
-    extra = {}
+    form_data = {}
     for tag in inputs:
         name_m = re.search(r'name="([^"]+)"', tag)
         if not name_m:
@@ -412,67 +413,67 @@ def lancloud_login(cp_url, login, password):
         name = name_m.group(1)
         type_m = re.search(r'type="([^"]+)"', tag)
         itype = (type_m.group(1) if type_m else 'text').lower()
+        val_m = re.search(r'value="([^"]*)"', tag)
+        value = val_m.group(1) if val_m else ''
         low = name.lower()
-        if name == '__RequestVerificationToken':
-            continue
         if itype == 'password' and not pass_field:
             pass_field = name
         elif itype in ('email', 'text') and not login_field and (
             'user' in low or 'email' in low or 'login' in low or 'name' in low
         ):
             login_field = name
-        elif itype == 'hidden':
-            val_m = re.search(r'value="([^"]*)"', tag)
-            extra[name] = val_m.group(1) if val_m else ''
+        else:
+            # hidden/checkbox/token — отправляем как есть, с реальным значением
+            if itype == 'checkbox':
+                form_data[name] = value or 'false'
+            else:
+                form_data[name] = value
 
-    # Кандидаты: сперва распознанные из формы (с RememberLogin и без), затем запасные
-    field_sets = []
-    if login_field and pass_field:
-        field_sets.append({login_field: login, pass_field: password, 'Input.RememberLogin': 'true', 'button': 'login'})
-        field_sets.append({login_field: login, pass_field: password})
-    field_sets += [
-        {'Input.Username': login, 'Input.Password': password, 'Input.RememberLogin': 'true'},
-        {'Input.Email': login, 'Input.Password': password, 'Input.RememberMe': 'false'},
-        {'Username': login, 'Password': password, 'RememberLogin': 'false'},
-    ]
+    if not (login_field and pass_field):
+        return None, 'Не удалось распознать поля логина/пароля в форме LanCloud'
 
-    diag = f'поля: login={login_field or "?"}, pass={pass_field or "?"}, hidden={list(extra.keys())}'
-    last = ''
-    for fields in field_sets:
-        data = dict(extra)
-        data.update(fields)
-        data['__RequestVerificationToken'] = token
-        body = urllib.parse.urlencode(data).encode()
-        req = urllib.request.Request(login_url, data=body, method='POST')
-        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
-        req.add_header('Origin', LANCLOUD_SIGN)
-        req.add_header('Referer', login_url)
+    # Раскодируем HTML-сущности в значениях (ReturnUrl часто с &amp;)
+    form_data = {k: html_lib.unescape(v) for k, v in form_data.items()}
+    form_data['__RequestVerificationToken'] = html_lib.unescape(token)
+    form_data[login_field] = login
+    form_data[pass_field] = password
+    for rk in ('Input.RememberLogin', 'RememberLogin'):
+        if rk in form_data:
+            form_data[rk] = 'true'
+
+    diag = f'поля: login={login_field}, pass={pass_field}, hidden={list(k for k in form_data if k not in (login_field, pass_field))}'
+
+    body = urllib.parse.urlencode(form_data).encode()
+    req = urllib.request.Request(login_url, data=body, method='POST')
+    req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+    req.add_header('Origin', LANCLOUD_SIGN)
+    req.add_header('Referer', login_url)
+    req.add_header('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8')
+    try:
+        resp = opener.open(req, timeout=20)
+        final_html = resp.read().decode('utf-8', 'replace')
+        final_url = resp.geturl()
+        code = resp.getcode()
+    except urllib.error.HTTPError as e:
+        detail = ''
         try:
-            resp = opener.open(req, timeout=20)
-            final_html = resp.read().decode('utf-8', 'replace')
-            final_url = resp.geturl()
-            code = resp.getcode()
-        except urllib.error.HTTPError as e:
-            last = f'HTTP {e.code}'
-            if e.code in (400, 401, 403):
-                continue
-            return None, f'HTTP {e.code} при входе в LanCloud ({diag})'
-        except Exception as e:
-            return None, f'Ошибка входа: {e}'
+            detail = e.read().decode('utf-8', 'replace')[:200]
+        except Exception:
+            pass
+        return None, f'HTTP {e.code} при входе в LanCloud ({diag}). {detail}'
+    except Exception as e:
+        return None, f'Ошибка входа: {e}'
 
-        has_session = any(c.name.startswith('.AspNetCore.Identity') and 'Application' in c.name for c in cj)
-        cookies = [c.name for c in cj]
-        on_login = '/Account/Login' in final_url
-        has_error = 'validation-summary-errors' in final_html or 'field-validation-error' in final_html
-        # Признак успеха: есть форма авто-сабмита на /connect или ушли с логина без ошибки
-        continued = 'connect/authorize' in final_html or 'cp.lancloud.kz' in final_url
-        last = f'code={code}, url={final_url[:60]}, session={has_session}, error={has_error}, cookies={cookies}'
-        if has_session and not (on_login and has_error):
-            return opener, ''
-        if continued and not has_error:
-            return opener, ''
+    has_session = any(c.name.startswith('.AspNetCore.Identity') and 'Application' in c.name for c in cj)
+    cookies = [c.name for c in cj]
+    on_login = '/Account/Login' in final_url
+    has_error = 'validation-summary-errors' in final_html or 'field-validation-error' in final_html
+    continued = 'connect/authorize' in final_html or 'cp.lancloud.kz' in final_url or 'connect/token' in final_html
+    if (has_session or continued) and not (on_login and has_error):
+        return opener, ''
 
-    return None, f'Вход не удался. {diag}. Последняя попытка: {last}'
+    last = f'code={code}, url={final_url[:70]}, session={has_session}, error={has_error}, cookies={cookies}'
+    return None, f'Вход не удался. {diag}. {last}'
 
 
 def check_lancloud(url, login, password):
