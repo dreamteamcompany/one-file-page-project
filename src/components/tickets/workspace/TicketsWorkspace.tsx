@@ -47,6 +47,7 @@ interface TicketsWorkspaceProps {
   onSelectRole: (role: 'assignee' | 'overdue' | null) => void;
   assignedCount: number;
   filtersSlot?: ReactNode;
+  filterPanelSlot?: ReactNode;
   onCreateTicket?: () => void;
   canCreate: boolean;
 }
@@ -84,6 +85,7 @@ const TicketsWorkspace = ({
   onSelectRole,
   assignedCount,
   filtersSlot,
+  filterPanelSlot,
   onCreateTicket,
   canCreate,
 }: TicketsWorkspaceProps) => {
@@ -162,6 +164,7 @@ const TicketsWorkspace = ({
         activeRole={activeRole}
         onSelectRole={onSelectRole}
         filtersSlot={filtersSlot}
+        filterPanelSlot={filterPanelSlot}
         onCreateTicket={onCreateTicket}
         canCreate={canCreate}
       />

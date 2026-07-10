@@ -7,7 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import TicketsFilters, { TicketsFiltersValue } from './TicketsFilters';
+import { useState } from 'react';
+import TicketsFilters, { TicketsFilterPanel, TicketsFiltersValue } from './TicketsFilters';
 
 interface SortOption {
   value: string;
@@ -40,6 +41,7 @@ const TicketsSearchBar = ({
   showControls = true,
 }: TicketsSearchBarProps) => {
   const currentSortLabel = sortOptions.find((o) => o.value === sortBy)?.label || 'Сортировка';
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   return (
     <div className="w-full">
@@ -96,6 +98,8 @@ const TicketsSearchBar = ({
               onChange={onFiltersChange}
               align="right"
               compact
+              expanded={filtersOpen}
+              onExpandedChange={setFiltersOpen}
             />
           </div>
         )}
@@ -103,6 +107,17 @@ const TicketsSearchBar = ({
       <p className="mt-1.5 px-3 sm:px-5 text-[11px] sm:text-xs text-muted-foreground leading-snug">
         Ищет по теме, описанию, доп. полям, комментариям, участникам, номеру, дате, сервису и услуге
       </p>
+
+      {showControls && (
+        <div className="mt-2">
+          <TicketsFilterPanel
+            value={filtersValue}
+            onChange={onFiltersChange}
+            expanded={filtersOpen}
+            onExpandedChange={setFiltersOpen}
+          />
+        </div>
+      )}
     </div>
   );
 };

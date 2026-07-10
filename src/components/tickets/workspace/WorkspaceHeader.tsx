@@ -14,6 +14,7 @@ interface WorkspaceHeaderProps {
   activeRole: 'assignee' | 'overdue' | null;
   onSelectRole: (role: 'assignee' | 'overdue' | null) => void;
   filtersSlot?: ReactNode;
+  filterPanelSlot?: ReactNode;
   onCreateTicket?: () => void;
   canCreate: boolean;
 }
@@ -26,10 +27,12 @@ const WorkspaceHeader = ({
   activeRole,
   onSelectRole,
   filtersSlot,
+  filterPanelSlot,
   onCreateTicket,
   canCreate,
 }: WorkspaceHeaderProps) => {
   return (
+    <div className="flex flex-col gap-3">
     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
       {/* Заголовок + табы */}
       <div className="flex flex-wrap items-center gap-3">
@@ -89,6 +92,8 @@ const WorkspaceHeader = ({
           </button>
         )}
       </div>
+    </div>
+    {filterPanelSlot}
     </div>
   );
 };

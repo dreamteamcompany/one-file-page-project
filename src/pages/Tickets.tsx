@@ -27,7 +27,7 @@ import TicketsList from '@/components/tickets/TicketsList';
 import TicketsKanban from '@/components/tickets/TicketsKanban';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
 import { API_URL, apiFetch } from '@/utils/api';
-import TicketsFilters, { type TicketsFiltersValue } from '@/components/tickets/TicketsFilters';
+import TicketsFilters, { TicketsFilterPanel, type TicketsFiltersValue } from '@/components/tickets/TicketsFilters';
 import { getDeadlineSeverity } from '@/utils/dateFormat';
 
 type CounterRole = 'assignee' | 'customer' | 'approver' | 'mentions' | 'overdue';
@@ -59,6 +59,7 @@ const Tickets = () => {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkUsers, setBulkUsers] = useState<BulkUser[]>([]);
   const [bulkExecutorGroups, setBulkExecutorGroups] = useState<BulkExecutorGroup[]>([]);
   const isAdmin = hasSystemRole('admin');
@@ -335,6 +336,16 @@ const Tickets = () => {
                 value={searchFilters as TicketsFiltersValue}
                 onChange={handleFiltersChange}
                 compact
+                expanded={filtersOpen}
+                onExpandedChange={setFiltersOpen}
+              />
+            }
+            filterPanelSlot={
+              <TicketsFilterPanel
+                value={searchFilters as TicketsFiltersValue}
+                onChange={handleFiltersChange}
+                expanded={filtersOpen}
+                onExpandedChange={setFiltersOpen}
               />
             }
           />
