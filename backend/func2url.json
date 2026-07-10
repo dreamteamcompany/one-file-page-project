@@ -1,4 +1,5 @@
 {
+  "create-employee-account": "https://functions.poehali.dev/30868c2a-0677-4a5e-b668-e78c5d7f918a",
   "reassign-by-schedule": "https://functions.poehali.dev/42295d4a-eb89-4bd6-b915-d94a2a734b16",
   "bitrix-sync-heads": "https://functions.poehali.dev/d76a8ec5-152f-427f-802c-ebf292c0f3e8",
   "automation-dispatcher": "https://functions.poehali.dev/221a303b-b060-4700-bdef-8995e6de915d",

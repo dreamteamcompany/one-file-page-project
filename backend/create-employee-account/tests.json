@@ -1,0 +1,42 @@
+{
+  "tests": [
+    {
+      "name": "OPTIONS CORS",
+      "method": "OPTIONS",
+      "path": "/",
+      "expectedStatus": 200
+    },
+    {
+      "name": "Создание учётки — успех",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "last_name": "Лалиев",
+        "first_name": "Роберт",
+        "middle_name": "Захарович",
+        "position": "Менеджер",
+        "department": "Продажи",
+        "targets": ["bitrix", "email"]
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "ok": true,
+        "demo": true
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Без имени — ошибка",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "last_name": "Лалиев"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
