@@ -537,36 +537,59 @@ def list_lancloud_domains(url, login, password):
         return None, err
 
     base = (url or 'https://cp.lancloud.kz').rstrip('/')
+    api = 'https://api.lancloud.kz'
     candidates = [
         f'{base}/api/exchange/domains',
+        f'{base}/api/exchange/accepted-domains',
         f'{base}/api/mail/domains',
         f'{base}/api/domains',
+        f'{base}/api/v1/exchange/domains',
         f'{base}/ru/api/exchange/domains',
+        f'{api}/exchange/domains',
+        f'{api}/api/exchange/domains',
+        f'{api}/v1/exchange/domains',
     ]
-    last_err = 'Не удалось получить список доменов из LanCloud'
+
+    def try_json(path):
+        req = urllib.request.Request(path)
+        req.add_header('Accept', 'application/json, text/plain, */*')
+        req.add_header('X-Requested-With', 'XMLHttpRequest')
+        req.add_header('Referer', f'{base}/ru/')
+        resp = opener.open(req, timeout=20)
+        text = resp.read().decode('utf-8', 'replace')
+        data = json.loads(text) if text else None
+        return _extract_domains(data) if data is not None else []
+
+    errors = []
     for path in candidates:
         try:
-            req = urllib.request.Request(path)
-            req.add_header('Accept', 'application/json')
-            resp = opener.open(req, timeout=20)
-            text = resp.read().decode('utf-8', 'replace')
-            if not text:
-                continue
-            try:
-                data = json.loads(text)
-            except Exception:
-                continue
-            domains = _extract_domains(data)
+            domains = try_json(path)
             if domains:
                 return domains, ''
         except urllib.error.HTTPError as e:
-            last_err = f'HTTP {e.code} при получении доменов LanCloud'
+            errors.append(f'{e.code}:{path.split("//")[-1][:40]}')
             continue
         except urllib.error.URLError as e:
-            return None, f'Панель LanCloud недоступна: {getattr(e, "reason", e)}'
+            errors.append(f'net:{path.split("//")[-1][:30]}')
+            continue
         except Exception:
             continue
-    return None, last_err
+
+    # Fallback: попробовать вытащить домены прямо со страницы панели почты
+    for page in (f'{base}/ru/', f'{base}/ru/exchange', f'{base}/ru/mail'):
+        try:
+            req = urllib.request.Request(page)
+            req.add_header('Accept', 'text/html,application/xhtml+xml,*/*')
+            resp = opener.open(req, timeout=20)
+            text = resp.read().decode('utf-8', 'replace')
+            found = sorted(set(re.findall(r'@([a-z0-9][a-z0-9.\-]+\.[a-z]{2,})', text.lower())))
+            found = [d for d in found if not d.endswith('lancloud.kz')]
+            if found:
+                return found, ''
+        except Exception:
+            continue
+
+    return None, f'Не удалось получить домены LanCloud. Проверенные адреса: {", ".join(errors[:5]) or "нет ответа"}'
 
 
 def handle_list_domains(payload, body):
