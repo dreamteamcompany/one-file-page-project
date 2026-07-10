@@ -290,6 +290,14 @@ const Settings = () => {
       permission: { resource: 'settings', action: 'read' },
     },
     {
+      title: 'Интеграции',
+      description: 'Вебхуки Битрикс и корпоративная почта (РФ и КЗ)',
+      icon: 'Plug',
+      color: 'hsl(280, 70%, 55%)',
+      path: '/settings/integrations',
+      permission: { resource: 'settings', action: 'read' },
+    },
+    {
       title: 'Анализатор логов',
       description: 'Просмотр и анализ системных логов',
       icon: 'FileText',

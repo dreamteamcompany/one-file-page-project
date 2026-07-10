@@ -3,6 +3,29 @@ import os
 import secrets
 import string
 
+import jwt
+import psycopg2
+from cryptography.fernet import Fernet
+
+
+JWT_SECRET = os.environ.get('JWT_SECRET', '')
+SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 'public')
+ENC_KEY = os.environ.get('INTEGRATION_ENCRYPTION_KEY', '')
+
+# Поля настроек интеграций: secret=True — маскируется при чтении в UI
+SETTING_FIELDS = [
+    {'key': 'bitrix_webhook_ru', 'label': 'Вебхук Битрикс РФ', 'group': 'Битрикс', 'secret': True},
+    {'key': 'bitrix_webhook_kz', 'label': 'Вебхук Битрикс КЗ', 'group': 'Битрикс', 'secret': True},
+    {'key': 'mail_domain_ru', 'label': 'Домен почты РФ', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
+    {'key': 'ispmgr_url', 'label': 'URL ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
+    {'key': 'ispmgr_login', 'label': 'Логин ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
+    {'key': 'ispmgr_password', 'label': 'Пароль ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': True},
+    {'key': 'mail_domain_kz', 'label': 'Домен почты КЗ', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
+    {'key': 'lancloud_url', 'label': 'URL LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
+    {'key': 'lancloud_login', 'label': 'Логин LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
+    {'key': 'lancloud_password', 'label': 'Пароль LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': True},
+]
+SETTING_MAP = {f['key']: f for f in SETTING_FIELDS}
 
 TRANSLIT = {
     'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'e',
@@ -51,34 +74,136 @@ def response(status: int, body: dict) -> dict:
     }
 
 
-def handler(event: dict, context) -> dict:
-    '''Создание учётной записи сотрудника (Битрикс + корпоративная почта).
+def get_db():
+    return psycopg2.connect(os.environ['DATABASE_URL'])
 
-    Пока работает в режиме заглушки: генерирует логин по ФИО и пароли,
-    не выполняя реальных вызовов к Битрикс/ISPmanager.
-    '''
-    method = event.get('httpMethod', 'GET')
 
-    if method == 'OPTIONS':
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
-                'Access-Control-Max-Age': '86400',
-            },
-            'body': '',
-        }
+def get_fernet():
+    return Fernet(ENC_KEY.encode()) if ENC_KEY else None
 
-    if method != 'POST':
-        return response(405, {'error': 'Method not allowed'})
 
+def verify_token(event):
+    headers = event.get('headers', {})
+    token = headers.get('X-Auth-Token') or headers.get('x-auth-token')
+    if not token:
+        return None
     try:
-        body = json.loads(event.get('body') or '{}')
-    except (ValueError, TypeError):
-        return response(400, {'error': 'Некорректный JSON'})
+        return jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+    except Exception:
+        return None
 
+
+def is_admin(payload):
+    if not payload:
+        return False
+    roles = payload.get('roles') or []
+    for r in roles:
+        if isinstance(r, dict):
+            if r.get('system_role') == 'admin' or r.get('name') in ('admin', 'Администратор', 'Admin'):
+                return True
+        elif r in ('admin', 'Администратор', 'Admin'):
+            return True
+    user_id = payload.get('user_id') or payload.get('id')
+    if not user_id:
+        return False
+    try:
+        conn = get_db()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                f"SELECT 1 FROM {SCHEMA}.user_roles ur "
+                f"JOIN {SCHEMA}.roles r ON r.id = ur.role_id "
+                f"WHERE ur.user_id = {int(user_id)} "
+                f"AND (r.system_role = 'admin' OR r.name IN ('admin', 'Администратор', 'Admin')) LIMIT 1"
+            )
+            return cur.fetchone() is not None
+        finally:
+            conn.close()
+    except Exception:
+        return False
+
+
+def load_settings_raw():
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"SELECT key, value_encrypted FROM {SCHEMA}.integration_settings")
+        return {row[0]: row[1] for row in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+def decrypt_setting(fernet, enc):
+    if not enc or not fernet:
+        return ''
+    try:
+        return fernet.decrypt(enc.encode()).decode()
+    except Exception:
+        return ''
+
+
+def get_setting(fernet, stored, key, env_fallback=''):
+    """Значение из БД (расшифрованное) или из env, если в БД пусто."""
+    val = decrypt_setting(fernet, stored.get(key))
+    if val:
+        return val
+    return os.environ.get(env_fallback, '') if env_fallback else ''
+
+
+def handle_get_settings(payload):
+    if not is_admin(payload):
+        return response(403, {'error': 'Доступ только для администраторов'})
+    if not ENC_KEY:
+        return response(500, {'error': 'Не задан ключ шифрования INTEGRATION_ENCRYPTION_KEY'})
+    stored = load_settings_raw()
+    fernet = get_fernet()
+    fields = []
+    for f in SETTING_FIELDS:
+        enc = stored.get(f['key'])
+        has_value = bool(enc)
+        value = ''
+        if has_value and not f['secret']:
+            value = decrypt_setting(fernet, enc)
+        fields.append({
+            'key': f['key'], 'label': f['label'], 'group': f['group'],
+            'secret': f['secret'], 'has_value': has_value, 'value': value,
+        })
+    return response(200, {'fields': fields})
+
+
+def handle_save_settings(payload, body):
+    if not is_admin(payload):
+        return response(403, {'error': 'Доступ только для администраторов'})
+    if not ENC_KEY:
+        return response(500, {'error': 'Не задан ключ шифрования INTEGRATION_ENCRYPTION_KEY'})
+    fernet = get_fernet()
+    values = body.get('values') or {}
+    user_id = payload.get('user_id') or payload.get('id') or 0
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        saved = 0
+        for key, raw in values.items():
+            if key not in SETTING_MAP:
+                continue
+            if SETTING_MAP[key]['secret'] and (raw is None or raw == ''):
+                continue  # пустой секрет — не затираем
+            enc = fernet.encrypt(str(raw if raw is not None else '').encode()).decode()
+            cur.execute(
+                f"INSERT INTO {SCHEMA}.integration_settings (key, value_encrypted, updated_by, updated_at) "
+                f"VALUES (%s, %s, %s, CURRENT_TIMESTAMP) "
+                f"ON CONFLICT (key) DO UPDATE SET value_encrypted = EXCLUDED.value_encrypted, "
+                f"updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP",
+                (key, enc, int(user_id) if user_id else None),
+            )
+            saved += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return response(200, {'ok': True, 'saved': saved})
+
+
+def handle_create(body):
     portal = (body.get('portal') or '').strip().lower()
     last_name = (body.get('last_name') or '').strip()
     first_name = (body.get('first_name') or '').strip()
@@ -90,38 +215,36 @@ def handler(event: dict, context) -> dict:
     if not last_name or not first_name:
         return response(400, {'error': 'Укажите фамилию и имя'})
 
+    # Настройки из БД (с фолбэком на env-секреты)
+    fernet = get_fernet()
+    try:
+        stored = load_settings_raw()
+    except Exception:
+        stored = {}
+
     if portal == 'kz':
-        domain = os.environ.get('CORP_MAIL_DOMAIN_KZ', 'company.kz')
-        bitrix_url = os.environ.get('BITRIX_PORTAL_URL_KZ', '')
+        domain = get_setting(fernet, stored, 'mail_domain_kz', 'CORP_MAIL_DOMAIN_KZ') or 'company.kz'
+        bitrix_url = get_setting(fernet, stored, 'bitrix_webhook_kz', 'BITRIX24_WEBHOOK_URL_KZ')
     else:
-        domain = os.environ.get(
-            'CORP_MAIL_DOMAIN_RU',
-            os.environ.get('CORP_MAIL_DOMAIN', 'company.ru'),
-        )
-        bitrix_url = os.environ.get('BITRIX_PORTAL_URL_RU', '')
+        domain = (get_setting(fernet, stored, 'mail_domain_ru', 'CORP_MAIL_DOMAIN_RU')
+                  or os.environ.get('CORP_MAIL_DOMAIN', 'company.ru'))
+        bitrix_url = get_setting(fernet, stored, 'bitrix_webhook_ru', 'BITRIX24_WEBHOOK_URL')
 
     login = build_login(first_name, last_name)
     email = f"{login}@{domain}"
-
     full_name = ' '.join(p for p in [last_name, first_name, middle_name] if p)
 
     accounts = []
-
     if 'email' in targets:
         accounts.append({
-            'system': 'email',
-            'title': 'Корпоративная почта',
-            'login': email,
-            'password': gen_password(),
+            'system': 'email', 'title': 'Корпоративная почта',
+            'login': email, 'password': gen_password(),
             'url': f'https://mail.{domain}',
         })
-
     if 'bitrix' in targets:
         accounts.append({
-            'system': 'bitrix',
-            'title': 'Битрикс24',
-            'login': email,
-            'password': gen_password(),
+            'system': 'bitrix', 'title': 'Битрикс24',
+            'login': email, 'password': gen_password(),
             'url': bitrix_url,
         })
 
@@ -139,3 +262,51 @@ def handler(event: dict, context) -> dict:
         },
         'accounts': accounts,
     })
+
+
+def handler(event: dict, context) -> dict:
+    '''Учётные записи сотрудников и настройки интеграций (Битрикс/почта РФ и КЗ).
+
+    GET  ?action=settings          — прочитать настройки интеграций (только админ, секреты маскируются).
+    POST {action:'save_settings'}  — сохранить настройки (только админ, шифрование в БД).
+    POST (создание)                — сгенерировать учётку сотрудника по выбранному порталу.
+    '''
+    method = event.get('httpMethod', 'GET')
+
+    if method == 'OPTIONS':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token',
+                'Access-Control-Max-Age': '86400',
+            },
+            'body': '',
+        }
+
+    params = event.get('queryStringParameters') or {}
+
+    if method == 'GET':
+        if params.get('action') == 'settings':
+            payload = verify_token(event)
+            if not payload:
+                return response(401, {'error': 'Требуется авторизация'})
+            return handle_get_settings(payload)
+        return response(400, {'error': 'Неизвестный запрос'})
+
+    if method != 'POST':
+        return response(405, {'error': 'Method not allowed'})
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (ValueError, TypeError):
+        return response(400, {'error': 'Некорректный JSON'})
+
+    if body.get('action') == 'save_settings':
+        payload = verify_token(event)
+        if not payload:
+            return response(401, {'error': 'Требуется авторизация'})
+        return handle_save_settings(payload, body)
+
+    return handle_create(body)

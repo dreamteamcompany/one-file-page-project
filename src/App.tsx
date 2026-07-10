@@ -18,6 +18,7 @@ import LogAnalyzer from "./pages/LogAnalyzer";
 import Settings from "./pages/Settings";
 import VsdeskSettings from "./pages/VsdeskSettings";
 import AutomationSettings from "./pages/AutomationSettings";
+import IntegrationsSettings from "./pages/IntegrationsSettings";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
@@ -70,6 +71,7 @@ const App = () => {
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/settings/vsdesk" element={<ProtectedRoute><VsdeskSettings /></ProtectedRoute>} />
             <Route path="/settings/automation" element={<ProtectedRoute><AutomationSettings /></ProtectedRoute>} />
+            <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationsSettings /></ProtectedRoute>} />
             <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
             <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
             <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetails /></ProtectedRoute>} />

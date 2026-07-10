@@ -57,6 +57,30 @@
         "error": "string"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Настройки без токена — 401",
+      "method": "GET",
+      "path": "/?action=settings",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Сохранение настроек без токена — 401",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "save_settings",
+        "values": {}
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }
