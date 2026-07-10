@@ -52,10 +52,14 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
   const [city, setCity] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | ''>('');
   const [phone, setPhone] = useState('');
+  const [domain, setDomain] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
 
   const [departments, setDepartments] = useState<Dict[]>([]);
   const [positions, setPositions] = useState<Dict[]>([]);
+  const [domains, setDomains] = useState<string[]>([]);
+  const [domainsLoading, setDomainsLoading] = useState(false);
+  const [domainsError, setDomainsError] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AccountResult[] | null>(null);
@@ -73,6 +77,31 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
       .catch(() => {});
   }, [open]);
 
+  useEffect(() => {
+    setDomain('');
+    setDomains([]);
+    setDomainsError('');
+    if (!open || !portal) return;
+    setDomainsLoading(true);
+    apiFetch(CREATE_ACCOUNT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'list_domains', portal }),
+    })
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setDomainsError(data.error || 'Не удалось получить список доменов');
+          return;
+        }
+        const list: string[] = data.domains || [];
+        setDomains(list);
+        if (list.length === 1) setDomain(list[0]);
+        if (list.length === 0) setDomainsError('Список доменов пуст');
+      })
+      .catch(() => setDomainsError('Ошибка соединения при получении доменов'))
+      .finally(() => setDomainsLoading(false));
+  }, [open, portal]);
+
   const resetForm = () => {
     setLastName('');
     setFirstName('');
@@ -85,6 +114,9 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
     setCity('');
     setGender('');
     setPhone('');
+    setDomain('');
+    setDomains([]);
+    setDomainsError('');
     setPhotoPreview('');
     setResults(null);
   };
@@ -111,12 +143,17 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
       toast({ title: 'Укажите фамилию и имя', variant: 'destructive' });
       return;
     }
+    if (!domain) {
+      toast({ title: 'Выберите домен почты', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       const res = await apiFetch(CREATE_ACCOUNT_URL, {
         method: 'POST',
         body: JSON.stringify({
           portal,
+          domain,
           last_name: lastName,
           first_name: firstName,
           middle_name: middleName,
@@ -196,6 +233,32 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
                 </button>
               </div>
             </div>
+
+            {portal && (
+              <div className="space-y-1">
+                <Label>Домен почты *</Label>
+                {domainsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Icon name="Loader2" size={16} className="animate-spin" />
+                    Загружаем домены из панели...
+                  </div>
+                ) : domainsError ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-500">
+                    <Icon name="XCircle" size={16} className="mt-0.5 shrink-0" />
+                    <span>{domainsError}. Проверьте доступы почты в Настройки → Интеграции.</span>
+                  </div>
+                ) : (
+                  <FilterCombobox
+                    options={domains.map((d) => ({ value: d, label: d }))}
+                    value={domain}
+                    onChange={setDomain}
+                    placeholder="Выберите домен"
+                    searchPlaceholder="Поиск домена..."
+                    emptyText="Домен не найден"
+                  />
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
@@ -316,7 +379,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
               <Button variant="ghost" onClick={() => handleClose(false)} disabled={loading}>
                 Отмена
               </Button>
-              <Button onClick={handleSubmit} disabled={loading || !portal}>
+              <Button onClick={handleSubmit} disabled={loading || !portal || !domain}>
                 {loading ? (
                   <>
                     <Icon name="Loader2" size={16} className="mr-2 animate-spin" />

@@ -237,11 +237,14 @@ def handle_create(body):
     except Exception:
         stored = {}
 
+    selected_domain = (body.get('domain') or '').strip().lower()
+
     if portal == 'kz':
-        domain = get_setting(fernet, stored, 'mail_domain_kz', 'CORP_MAIL_DOMAIN_KZ') or 'company.kz'
+        domain = selected_domain or get_setting(fernet, stored, 'mail_domain_kz', 'CORP_MAIL_DOMAIN_KZ') or 'company.kz'
         bitrix_url = get_setting(fernet, stored, 'bitrix_webhook_kz', 'BITRIX24_WEBHOOK_URL_KZ')
     else:
-        domain = (get_setting(fernet, stored, 'mail_domain_ru', 'CORP_MAIL_DOMAIN_RU')
+        domain = (selected_domain
+                  or get_setting(fernet, stored, 'mail_domain_ru', 'CORP_MAIL_DOMAIN_RU')
                   or os.environ.get('CORP_MAIL_DOMAIN', 'company.ru'))
         bitrix_url = get_setting(fernet, stored, 'bitrix_webhook_ru', 'BITRIX24_WEBHOOK_URL')
 
@@ -357,6 +360,111 @@ def check_lancloud(url, login, password):
         return {'ok': False, 'message': f'Ошибка проверки: {e}'}
 
 
+def _extract_domains(obj):
+    """Рекурсивно собрать доменные имена из произвольной JSON-структуры."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in ('name', 'domain', 'domain_name', '$') and isinstance(v, str):
+                    cand = v.strip().lower()
+                    if '.' in cand and ' ' not in cand and '@' not in cand:
+                        found.add(cand)
+                walk(v)
+        elif isinstance(node, list):
+            for it in node:
+                walk(it)
+
+    walk(obj)
+    return sorted(found)
+
+
+def list_ispmanager_domains(url, login, password):
+    if not url or not login or not password:
+        return None, 'Не заполнены доступы ISPmanager в настройках'
+    base = url.rstrip('/')
+    q = urllib.parse.urlencode({
+        'out': 'json', 'func': 'email', 'authinfo': f'{login}:{password}',
+    })
+    try:
+        code, text = _http_get(f"{base}/ispmgr?{q}", timeout=15)
+        data = json.loads(text) if text else {}
+        if 'error' in data or data.get('doc', {}).get('error'):
+            return None, 'Ошибка авторизации или доступа к почте ISPmanager'
+        domains = _extract_domains(data)
+        if not domains:
+            return None, 'Домены не найдены в ответе ISPmanager'
+        return domains, ''
+    except urllib.error.HTTPError as e:
+        return None, f'HTTP {e.code}: панель ISPmanager недоступна'
+    except urllib.error.URLError as e:
+        return None, f'Панель ISPmanager недоступна: {e.reason}'
+    except Exception as e:
+        return None, f'Ошибка получения доменов: {e}'
+
+
+def list_lancloud_domains(url, login, password):
+    if not url or not login or not password:
+        return None, 'Не заполнены доступы LanCloud в настройках'
+    base = url.rstrip('/')
+    for path in ('/api/domains', '/api/mail/domains', '/domains'):
+        try:
+            code, text = _http_get(f"{base}{path}", timeout=15, auth=(login, password))
+            if code == 200 and text:
+                try:
+                    data = json.loads(text)
+                except Exception:
+                    continue
+                domains = _extract_domains(data)
+                if domains:
+                    return domains, ''
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return None, 'Неверный логин или пароль LanCloud'
+            continue
+        except urllib.error.URLError as e:
+            return None, f'Панель LanCloud недоступна: {e.reason}'
+        except Exception:
+            continue
+    return None, 'Не удалось получить список доменов из LanCloud'
+
+
+def handle_list_domains(payload, body):
+    if not payload:
+        return response(401, {'error': 'Требуется авторизация'})
+    if not ENC_KEY:
+        return response(500, {'error': 'Не задан ключ шифрования INTEGRATION_ENCRYPTION_KEY'})
+
+    portal = (body.get('portal') or '').strip().lower()
+    if portal not in ('ru', 'kz'):
+        return response(400, {'error': 'Выберите портал (ru или kz)'})
+
+    fernet = get_fernet()
+    try:
+        stored = load_settings_raw()
+    except Exception:
+        stored = {}
+
+    def val(key, env=''):
+        return get_setting(fernet, stored, key, env)
+
+    if portal == 'ru':
+        domains, err = list_ispmanager_domains(
+            val('ispmgr_url', 'ISPMGR_URL'),
+            val('ispmgr_login', 'ISPMGR_LOGIN'),
+            val('ispmgr_password', 'ISPMGR_PASSWORD'),
+        )
+    else:
+        domains, err = list_lancloud_domains(
+            val('lancloud_url'), val('lancloud_login'), val('lancloud_password'),
+        )
+
+    if domains is None:
+        return response(502, {'error': err})
+    return response(200, {'portal': portal, 'domains': domains})
+
+
 def handle_test(payload, body):
     if not is_admin(payload):
         return response(403, {'error': 'Доступ только для администраторов'})
@@ -397,6 +505,7 @@ def handler(event: dict, context) -> dict:
     GET  ?action=settings          — прочитать настройки интеграций (только админ, секреты маскируются).
     POST {action:'save_settings'}  — сохранить настройки (только админ, шифрование в БД).
     POST {action:'test'}           — проверить интеграцию сервиса (bitrix_ru/bitrix_kz/mail_ru/mail_kz).
+    POST {action:'list_domains'}   — список доменов почты портала (ru — ISPmanager, kz — LanCloud).
     POST (создание)                — сгенерировать учётку сотрудника по выбранному порталу.
     '''
     method = event.get('httpMethod', 'GET')
@@ -442,5 +551,11 @@ def handler(event: dict, context) -> dict:
         if not payload:
             return response(401, {'error': 'Требуется авторизация'})
         return handle_test(payload, body)
+
+    if body.get('action') == 'list_domains':
+        payload = verify_token(event)
+        if not payload:
+            return response(401, {'error': 'Требуется авторизация'})
+        return handle_list_domains(payload, body)
 
     return handle_create(body)

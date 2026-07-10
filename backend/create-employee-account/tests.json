@@ -95,6 +95,20 @@
         "error": "string"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Список доменов без токена — 401",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "list_domains",
+        "portal": "ru"
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }
