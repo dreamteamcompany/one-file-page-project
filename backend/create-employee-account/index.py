@@ -400,18 +400,52 @@ def lancloud_login(cp_url, login, password):
         return None, 'Не удалось получить форму входа LanCloud (изменилась страница)'
     token = m.group(1)
 
-    # Возможные имена полей ASP.NET Core Identity
-    field_sets = [
+    # Автоматически определяем реальные имена полей формы из HTML
+    inputs = re.findall(r'<input\b[^>]*>', html, re.IGNORECASE)
+    login_field = None
+    pass_field = None
+    extra = {}
+    for tag in inputs:
+        name_m = re.search(r'name="([^"]+)"', tag)
+        if not name_m:
+            continue
+        name = name_m.group(1)
+        type_m = re.search(r'type="([^"]+)"', tag)
+        itype = (type_m.group(1) if type_m else 'text').lower()
+        low = name.lower()
+        if name == '__RequestVerificationToken':
+            continue
+        if itype == 'password' and not pass_field:
+            pass_field = name
+        elif itype in ('email', 'text') and not login_field and (
+            'user' in low or 'email' in low or 'login' in low or 'name' in low
+        ):
+            login_field = name
+        elif itype == 'hidden':
+            val_m = re.search(r'value="([^"]*)"', tag)
+            extra[name] = val_m.group(1) if val_m else ''
+
+    # Кандидаты: сперва распознанные из формы, затем типовые запасные
+    field_sets = []
+    if login_field and pass_field:
+        field_sets.append({login_field: login, pass_field: password})
+    field_sets += [
         {'Input.Email': login, 'Input.Password': password, 'Input.RememberMe': 'false'},
+        {'Input.Username': login, 'Input.Password': password},
         {'Username': login, 'Password': password, 'RememberLogin': 'false'},
         {'Email': login, 'Password': password},
     ]
+
+    diag = f'поля формы: login={login_field or "?"}, pass={pass_field or "?"}'
     for fields in field_sets:
-        data = dict(fields)
+        data = dict(extra)
+        data.update(fields)
         data['__RequestVerificationToken'] = token
         body = urllib.parse.urlencode(data).encode()
         req = urllib.request.Request(login_url, data=body, method='POST')
         req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        req.add_header('Origin', LANCLOUD_SIGN)
+        req.add_header('Referer', login_url)
         try:
             resp = opener.open(req, timeout=20)
             final_html = resp.read().decode('utf-8', 'replace')
@@ -419,18 +453,17 @@ def lancloud_login(cp_url, login, password):
         except urllib.error.HTTPError as e:
             if e.code in (400, 401, 403):
                 continue
-            return None, f'HTTP {e.code} при входе в LanCloud'
+            return None, f'HTTP {e.code} при входе в LanCloud ({diag})'
         except Exception as e:
             return None, f'Ошибка входа: {e}'
 
-        # Успех: ушли со страницы Login (нет формы/ошибки), получили сессионную cookie
         has_session = any(c.name.startswith('.AspNetCore.Identity') for c in cj)
         on_login = '/Account/Login' in final_url
         has_error = 'validation-summary-errors' in final_html or 'field-validation-error' in final_html
         if has_session and not (on_login and has_error):
             return opener, ''
 
-    return None, 'Неверный логин или пароль'
+    return None, f'Неверный логин или пароль ({diag})'
 
 
 def check_lancloud(url, login, password):
