@@ -290,14 +290,6 @@ const Settings = () => {
       permission: { resource: 'settings', action: 'read' },
     },
     {
-      title: 'Интеграции',
-      description: 'Вебхуки Битрикс и корпоративная почта (РФ и КЗ)',
-      icon: 'Plug',
-      color: 'hsl(280, 70%, 55%)',
-      path: '/settings/integrations',
-      permission: { resource: 'settings', action: 'read' },
-    },
-    {
       title: 'Анализатор логов',
       description: 'Просмотр и анализ системных логов',
       icon: 'FileText',
@@ -370,6 +362,27 @@ const Settings = () => {
                   {syncLoading ? 'Синхронизация...' : 'Синхронизировать'}
                 </Button>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50 mt-3">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-md bg-purple-500/10 flex items-center justify-center">
+                  <Icon name="UserPlus" size={16} className="text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Учётные записи сотрудников</p>
+                  <p className="text-xs text-muted-foreground">Вебхуки Битрикс и корпоративная почта (РФ и КЗ)</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/settings/integrations')}
+                className="gap-2"
+              >
+                <Icon name="Settings" size={14} />
+                Настроить
+              </Button>
             </div>
           </CardContent>
         </Card>
