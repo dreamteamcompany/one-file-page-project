@@ -425,18 +425,19 @@ def lancloud_login(cp_url, login, password):
             val_m = re.search(r'value="([^"]*)"', tag)
             extra[name] = val_m.group(1) if val_m else ''
 
-    # Кандидаты: сперва распознанные из формы, затем типовые запасные
+    # Кандидаты: сперва распознанные из формы (с RememberLogin и без), затем запасные
     field_sets = []
     if login_field and pass_field:
+        field_sets.append({login_field: login, pass_field: password, 'Input.RememberLogin': 'true', 'button': 'login'})
         field_sets.append({login_field: login, pass_field: password})
     field_sets += [
+        {'Input.Username': login, 'Input.Password': password, 'Input.RememberLogin': 'true'},
         {'Input.Email': login, 'Input.Password': password, 'Input.RememberMe': 'false'},
-        {'Input.Username': login, 'Input.Password': password},
         {'Username': login, 'Password': password, 'RememberLogin': 'false'},
-        {'Email': login, 'Password': password},
     ]
 
-    diag = f'поля формы: login={login_field or "?"}, pass={pass_field or "?"}'
+    diag = f'поля: login={login_field or "?"}, pass={pass_field or "?"}, hidden={list(extra.keys())}'
+    last = ''
     for fields in field_sets:
         data = dict(extra)
         data.update(fields)
@@ -450,20 +451,28 @@ def lancloud_login(cp_url, login, password):
             resp = opener.open(req, timeout=20)
             final_html = resp.read().decode('utf-8', 'replace')
             final_url = resp.geturl()
+            code = resp.getcode()
         except urllib.error.HTTPError as e:
+            last = f'HTTP {e.code}'
             if e.code in (400, 401, 403):
                 continue
             return None, f'HTTP {e.code} при входе в LanCloud ({diag})'
         except Exception as e:
             return None, f'Ошибка входа: {e}'
 
-        has_session = any(c.name.startswith('.AspNetCore.Identity') for c in cj)
+        has_session = any(c.name.startswith('.AspNetCore.Identity') and 'Application' in c.name for c in cj)
+        cookies = [c.name for c in cj]
         on_login = '/Account/Login' in final_url
         has_error = 'validation-summary-errors' in final_html or 'field-validation-error' in final_html
+        # Признак успеха: есть форма авто-сабмита на /connect или ушли с логина без ошибки
+        continued = 'connect/authorize' in final_html or 'cp.lancloud.kz' in final_url
+        last = f'code={code}, url={final_url[:60]}, session={has_session}, error={has_error}, cookies={cookies}'
         if has_session and not (on_login and has_error):
             return opener, ''
+        if continued and not has_error:
+            return opener, ''
 
-    return None, f'Неверный логин или пароль ({diag})'
+    return None, f'Вход не удался. {diag}. Последняя попытка: {last}'
 
 
 def check_lancloud(url, login, password):
