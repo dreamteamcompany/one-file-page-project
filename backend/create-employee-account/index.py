@@ -14,16 +14,26 @@ ENC_KEY = os.environ.get('INTEGRATION_ENCRYPTION_KEY', '')
 
 # Поля настроек интеграций: secret=True — маскируется при чтении в UI
 SETTING_FIELDS = [
-    {'key': 'bitrix_webhook_ru', 'label': 'Вебхук Битрикс РФ', 'group': 'Битрикс', 'secret': True},
-    {'key': 'bitrix_webhook_kz', 'label': 'Вебхук Битрикс КЗ', 'group': 'Битрикс', 'secret': True},
-    {'key': 'mail_domain_ru', 'label': 'Домен почты РФ', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
-    {'key': 'ispmgr_url', 'label': 'URL ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
-    {'key': 'ispmgr_login', 'label': 'Логин ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False},
-    {'key': 'ispmgr_password', 'label': 'Пароль ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': True},
-    {'key': 'mail_domain_kz', 'label': 'Домен почты КЗ', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
-    {'key': 'lancloud_url', 'label': 'URL LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
-    {'key': 'lancloud_login', 'label': 'Логин LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False},
-    {'key': 'lancloud_password', 'label': 'Пароль LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': True},
+    {'key': 'bitrix_webhook_ru', 'label': 'Вебхук Битрикс РФ', 'group': 'Битрикс', 'secret': True,
+     'hint': 'Полный URL входящего вебхука с правом user. Формат: https://портал.bitrix24.ru/rest/1/КОД/ (со слэшем в конце)'},
+    {'key': 'bitrix_webhook_kz', 'label': 'Вебхук Битрикс КЗ', 'group': 'Битрикс', 'secret': True,
+     'hint': 'Полный URL входящего вебхука с правом user. Формат: https://портал.bitrix24.kz/rest/1/КОД/ (со слэшем в конце)'},
+    {'key': 'mail_domain_ru', 'label': 'Домен почты РФ', 'group': 'Почта РФ (ISPmanager)', 'secret': False,
+     'hint': 'Только домен, без @ и https. Например: dreamteamcompany.ru'},
+    {'key': 'ispmgr_url', 'label': 'URL ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False,
+     'hint': 'Адрес панели с https и портом. Например: https://mail.reg.ru:1500'},
+    {'key': 'ispmgr_login', 'label': 'Логин ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': False,
+     'hint': 'Логин учётной записи с правами управления почтой домена'},
+    {'key': 'ispmgr_password', 'label': 'Пароль ISPmanager', 'group': 'Почта РФ (ISPmanager)', 'secret': True,
+     'hint': 'Пароль от учётной записи ISPmanager'},
+    {'key': 'mail_domain_kz', 'label': 'Домен почты КЗ', 'group': 'Почта КЗ (LanCloud)', 'secret': False,
+     'hint': 'Только домен, без @ и https. Например: company.kz'},
+    {'key': 'lancloud_url', 'label': 'URL LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False,
+     'hint': 'Адрес панели с https. Например: https://cp.lancloud.kz'},
+    {'key': 'lancloud_login', 'label': 'Логин LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': False,
+     'hint': 'Логин учётной записи LanCloud (CloudExchange)'},
+    {'key': 'lancloud_password', 'label': 'Пароль LanCloud', 'group': 'Почта КЗ (LanCloud)', 'secret': True,
+     'hint': 'Пароль от учётной записи LanCloud'},
 ]
 SETTING_MAP = {f['key']: f for f in SETTING_FIELDS}
 
@@ -167,6 +177,7 @@ def handle_get_settings(payload):
         fields.append({
             'key': f['key'], 'label': f['label'], 'group': f['group'],
             'secret': f['secret'], 'has_value': has_value, 'value': value,
+            'hint': f.get('hint', ''),
         })
     return response(200, {'fields': fields})
 

@@ -20,6 +20,7 @@ interface SettingField {
   secret: boolean;
   has_value: boolean;
   value: string;
+  hint?: string;
 }
 
 const IntegrationsSettings = () => {
@@ -170,6 +171,9 @@ const IntegrationsSettings = () => {
                       }
                       autoComplete="off"
                     />
+                    {f.hint && (
+                      <p className="text-xs text-muted-foreground mt-1">{f.hint}</p>
+                    )}
                   </div>
                 ))}
               </CardContent>
