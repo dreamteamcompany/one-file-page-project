@@ -10,7 +10,6 @@ import type { Ticket as AssignTicket, User as AssignUser, ExecutorGroup as Assig
 import ApprovalDialog from './sidebar/ApprovalDialog';
 import RecentTicketsBlock from './sidebar/RecentTicketsBlock';
 import TicketGroupBudget from './sidebar/TicketGroupBudget';
-import CreateAccountButton from './create-account/CreateAccountButton';
 
 interface User {
   id: number;
@@ -216,8 +215,6 @@ const TicketDetailsSidebar = ({
           onConfirmationChanged={onApprovalChange || (() => {})}
           onReopened={onReopened}
         />
-
-        <CreateAccountButton ticketId={ticket.id} />
 
         {/* Объединённый блок: Группа исполнителей, Исполнитель, Наблюдатели, Согласующие */}
         <div className="rounded-lg bg-card border divide-y">

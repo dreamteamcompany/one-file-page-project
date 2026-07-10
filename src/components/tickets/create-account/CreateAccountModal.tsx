@@ -9,16 +9,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
+import FilterCombobox, { FilterComboboxOption } from '@/components/tickets/FilterCombobox';
 
 const CREATE_ACCOUNT_URL = 'https://functions.poehali.dev/30868c2a-0677-4a5e-b668-e78c5d7f918a';
 
@@ -144,6 +138,9 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
     .map((t) => (t === 'bitrix' ? 'Битрикс' : 'Корпоративная почта'))
     .join(' + ');
 
+  const positionOptions: FilterComboboxOption[] = positions.map((p) => ({ value: String(p.id), label: p.name }));
+  const departmentOptions: FilterComboboxOption[] = departments.map((d) => ({ value: String(d.id), label: d.name }));
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -183,29 +180,25 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Должность</Label>
-                <Select value={position} onValueChange={setPosition}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите должность" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.map((p) => (
-                      <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FilterCombobox
+                  options={positionOptions}
+                  value={position}
+                  onChange={setPosition}
+                  placeholder="Выберите должность"
+                  searchPlaceholder="Поиск должности..."
+                  emptyText="Должность не найдена"
+                />
               </div>
               <div className="space-y-1">
                 <Label>Отдел</Label>
-                <Select value={department} onValueChange={setDepartment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите отдел" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((d) => (
-                      <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FilterCombobox
+                  options={departmentOptions}
+                  value={department}
+                  onChange={setDepartment}
+                  placeholder="Выберите отдел"
+                  searchPlaceholder="Поиск отдела..."
+                  emptyText="Отдел не найден"
+                />
               </div>
             </div>
 

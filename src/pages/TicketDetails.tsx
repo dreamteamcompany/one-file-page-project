@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import PageLayout from '@/components/layout/PageLayout';
 import TicketDetailsContent from '@/components/tickets/TicketDetailsContent';
 import TicketDetailsSidebar from '@/components/tickets/TicketDetailsSidebar';
+import CreateAccountButton from '@/components/tickets/create-account/CreateAccountButton';
 import ConfirmationOverlay from '@/components/tickets/ConfirmationOverlay';
 import ReopenTicketButton from '@/components/tickets/ReopenTicketButton';
 import { useTicketData } from '@/hooks/useTicketData';
@@ -321,6 +322,11 @@ const TicketDetails = () => {
         >
           <Icon name="ArrowLeft" size={20} />
         </Button>
+        {hasPermission('account_automation', 'access') && (
+          <div className="ml-auto shrink-0">
+            <CreateAccountButton ticketId={ticket.id} />
+          </div>
+        )}
       </div>
 
       {needsCreatorConfirmation && (

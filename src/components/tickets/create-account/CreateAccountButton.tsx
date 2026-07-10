@@ -27,15 +27,16 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            size="lg"
-            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-base shadow-lg shadow-blue-500/30"
+            size="sm"
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold shadow-md shadow-blue-500/30"
           >
-            <Icon name="UserPlus" size={18} className="mr-2" />
-            Создать учётную запись
-            <Icon name="ChevronDown" size={16} className="ml-2" />
+            <Icon name="UserPlus" size={16} className="mr-1.5" />
+            <span className="hidden sm:inline">Создать учётную запись</span>
+            <span className="sm:hidden">Учётка</span>
+            <Icon name="ChevronDown" size={14} className="ml-1.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="center" className="w-[--radix-dropdown-menu-trigger-width]">
+        <DropdownMenuContent align="end">
           <DropdownMenuItem onClick={() => openWith(['bitrix', 'email'])}>
             <Icon name="LayoutGrid" size={16} className="mr-2" />
             Битрикс + корпоративная почта
