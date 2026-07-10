@@ -1449,16 +1449,34 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 WHERE ur.user_id = %s
             """, (user_id,))
             restricted_user_ids = [row['user_id'] for row in cur.fetchall()]
-            if not restricted_user_ids:
-                return response(200, {'tickets': [], 'total': 0, 'page': page, 'limit': limit, 'pages': 0})
         
         where_clause = "WHERE 1=1"
         params = []
 
         if restricted_user_ids is not None:
-            placeholders = ','.join(['%s'] * len(restricted_user_ids))
-            where_clause += f" AND t.assigned_to IN ({placeholders})"
-            params.extend(restricted_user_ids)
+            # Ограничение по группам: показываем заявки, где исполнитель входит в
+            # видимые группы роли. НО пользователь всегда видит заявки, в которых
+            # сам является участником (автор, исполнитель, наблюдатель, согласующий),
+            # даже если исполнитель не из его группы.
+            if restricted_user_ids:
+                placeholders = ','.join(['%s'] * len(restricted_user_ids))
+                where_clause += f""" AND (
+                    t.assigned_to IN ({placeholders})
+                    OR t.created_by = %s
+                    OR t.assigned_to = %s
+                    OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_watchers tw WHERE tw.ticket_id = t.id AND tw.user_id = %s)
+                    OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_approvals ta WHERE ta.ticket_id = t.id AND ta.approver_id = %s)
+                )"""
+                params.extend(restricted_user_ids)
+                params.extend([user_id, user_id, user_id, user_id])
+            else:
+                where_clause += f""" AND (
+                    t.created_by = %s
+                    OR t.assigned_to = %s
+                    OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_watchers tw WHERE tw.ticket_id = t.id AND tw.user_id = %s)
+                    OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_approvals ta WHERE ta.ticket_id = t.id AND ta.approver_id = %s)
+                )"""
+                params.extend([user_id, user_id, user_id, user_id])
         
         if not view_all_tickets and view_own_only and is_subordinates != 'true':
             where_clause += f""" AND (
