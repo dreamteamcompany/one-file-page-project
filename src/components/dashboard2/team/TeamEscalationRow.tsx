@@ -153,9 +153,21 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
                   }}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted/50 transition-colors"
                 >
-                  <span className="flex flex-col min-w-0">
+                  <span className="flex flex-col min-w-0 gap-1">
                     <span className="text-sm font-medium text-foreground truncate">{t.title || `Заявка #${t.id}`}</span>
-                    <span className="text-xs text-muted-foreground">#{t.id}</span>
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span>#{t.id}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Icon name="User" size={12} />
+                        {t.executor}
+                      </span>
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium"
+                        style={{ backgroundColor: `${t.status_color}22`, color: t.status_color }}
+                      >
+                        {t.status}
+                      </span>
+                    </span>
                   </span>
                   <span className="flex items-center gap-2 shrink-0">
                     <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">{t.wait}</span>

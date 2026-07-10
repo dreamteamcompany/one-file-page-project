@@ -54,6 +54,9 @@ export interface EscalationTicket {
   title: string;
   wait: string;
   wait_seconds: number;
+  executor: string;
+  status: string;
+  status_color: string;
 }
 
 export interface EscalationDirection {

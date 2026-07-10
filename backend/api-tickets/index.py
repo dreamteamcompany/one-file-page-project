@@ -1337,7 +1337,9 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
     cur = conn.cursor()
     try:
         cur.execute(f"""
-            SELECT t.id, t.title, e.elapsed_sec, e.event_at
+            SELECT t.id, t.title, e.elapsed_sec, e.event_at,
+                   u.full_name AS executor,
+                   s.name AS status_name, s.color AS status_color
             FROM (
                 SELECT l1.ticket_id, l1.released_at AS event_at,
                        {work_seconds('l1.assigned_at', 'l1.released_at')} AS elapsed_sec
@@ -1376,6 +1378,8 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
                   AND h.created_at::date = %(day)s::date
             ) e
             JOIN {SCHEMA}.tickets t ON t.id = e.ticket_id
+            LEFT JOIN {SCHEMA}.users u ON u.id = t.assigned_to
+            LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
             ORDER BY e.elapsed_sec DESC
             LIMIT 10
         """, {'from_line': from_line, 'to_line': to_line, 'day': day})
@@ -1387,6 +1391,9 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
                 'title': r['title'],
                 'wait': _fmt_duration(float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0),
                 'wait_seconds': float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0,
+                'executor': r['executor'] or 'Не назначен',
+                'status': r['status_name'] or '—',
+                'status_color': r['status_color'] or '#94a3b8',
             })
 
         return response(200, {'day': day, 'direction': direction, 'tickets': tickets})
