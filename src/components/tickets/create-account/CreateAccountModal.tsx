@@ -44,10 +44,14 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
   const [lastName, setLastName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
+  const [portal, setPortal] = useState<'ru' | 'kz' | ''>('');
   const [birthDate, setBirthDate] = useState('');
   const [hireDate, setHireDate] = useState('');
   const [position, setPosition] = useState('');
   const [department, setDepartment] = useState('');
+  const [city, setCity] = useState('');
+  const [gender, setGender] = useState<'male' | 'female' | ''>('');
+  const [phone, setPhone] = useState('');
   const [photoPreview, setPhotoPreview] = useState('');
 
   const [departments, setDepartments] = useState<Dict[]>([]);
@@ -73,10 +77,14 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
     setLastName('');
     setFirstName('');
     setMiddleName('');
+    setPortal('');
     setBirthDate('');
     setHireDate('');
     setPosition('');
     setDepartment('');
+    setCity('');
+    setGender('');
+    setPhone('');
     setPhotoPreview('');
     setResults(null);
   };
@@ -95,6 +103,10 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
   };
 
   const handleSubmit = async () => {
+    if (!portal) {
+      toast({ title: 'Выберите портал', variant: 'destructive' });
+      return;
+    }
     if (!lastName.trim() || !firstName.trim()) {
       toast({ title: 'Укажите фамилию и имя', variant: 'destructive' });
       return;
@@ -104,6 +116,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
       const res = await apiFetch(CREATE_ACCOUNT_URL, {
         method: 'POST',
         body: JSON.stringify({
+          portal,
           last_name: lastName,
           first_name: firstName,
           middle_name: middleName,
@@ -111,6 +124,9 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
           hire_date: hireDate,
           position,
           department,
+          city,
+          gender,
+          phone,
           targets,
           ticket_id: ticketId,
         }),
@@ -151,6 +167,36 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
 
         {!results ? (
           <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Портал *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPortal('ru')}
+                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                    portal === 'ru'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:bg-muted text-foreground'
+                  }`}
+                >
+                  <span className="text-base">🇷🇺</span>
+                  Россия
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPortal('kz')}
+                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                    portal === 'kz'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:bg-muted text-foreground'
+                  }`}
+                >
+                  <span className="text-base">🇰🇿</span>
+                  Казахстан
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label>Фамилия *</Label>
@@ -202,6 +248,52 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Город</Label>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Москва" />
+              </div>
+              <div className="space-y-1">
+                <Label>Номер телефона</Label>
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+7 900 000-00-00"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Пол</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGender('male')}
+                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    gender === 'male'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:bg-muted text-foreground'
+                  }`}
+                >
+                  <Icon name="Mars" fallback="User" size={16} />
+                  Мужской
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGender('female')}
+                  className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    gender === 'female'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border hover:bg-muted text-foreground'
+                  }`}
+                >
+                  <Icon name="Venus" fallback="User" size={16} />
+                  Женский
+                </button>
+              </div>
+            </div>
+
             <div className="space-y-1">
               <Label>Фото</Label>
               <div className="flex items-center gap-3">
@@ -224,7 +316,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
               <Button variant="ghost" onClick={() => handleClose(false)} disabled={loading}>
                 Отмена
               </Button>
-              <Button onClick={handleSubmit} disabled={loading}>
+              <Button onClick={handleSubmit} disabled={loading || !portal}>
                 {loading ? (
                   <>
                     <Icon name="Loader2" size={16} className="mr-2 animate-spin" />

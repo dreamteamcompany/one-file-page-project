@@ -79,15 +79,27 @@ def handler(event: dict, context) -> dict:
     except (ValueError, TypeError):
         return response(400, {'error': 'Некорректный JSON'})
 
+    portal = (body.get('portal') or '').strip().lower()
     last_name = (body.get('last_name') or '').strip()
     first_name = (body.get('first_name') or '').strip()
     middle_name = (body.get('middle_name') or '').strip()
     targets = body.get('targets') or ['bitrix', 'email']
 
+    if portal not in ('ru', 'kz'):
+        return response(400, {'error': 'Выберите портал (ru или kz)'})
     if not last_name or not first_name:
         return response(400, {'error': 'Укажите фамилию и имя'})
 
-    domain = os.environ.get('CORP_MAIL_DOMAIN', 'company.ru')
+    if portal == 'kz':
+        domain = os.environ.get('CORP_MAIL_DOMAIN_KZ', 'company.kz')
+        bitrix_url = os.environ.get('BITRIX_PORTAL_URL_KZ', '')
+    else:
+        domain = os.environ.get(
+            'CORP_MAIL_DOMAIN_RU',
+            os.environ.get('CORP_MAIL_DOMAIN', 'company.ru'),
+        )
+        bitrix_url = os.environ.get('BITRIX_PORTAL_URL_RU', '')
+
     login = build_login(first_name, last_name)
     email = f"{login}@{domain}"
 
@@ -110,16 +122,20 @@ def handler(event: dict, context) -> dict:
             'title': 'Битрикс24',
             'login': email,
             'password': gen_password(),
-            'url': '',
+            'url': bitrix_url,
         })
 
     return response(200, {
         'ok': True,
         'demo': True,
+        'portal': portal,
         'employee': {
             'full_name': full_name,
             'position': body.get('position') or '',
             'department': body.get('department') or '',
+            'city': body.get('city') or '',
+            'gender': body.get('gender') or '',
+            'phone': body.get('phone') or '',
         },
         'accounts': accounts,
     })
