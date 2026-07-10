@@ -1161,6 +1161,7 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
         for idx, r in enumerate(cur.fetchall()):
             performance.append({
                 'day': r['day'].strftime('%d.%m'),
+                'date': r['day'].strftime('%Y-%m-%d'),
                 'closed': int(r['closed'] or 0),
                 'sla': 90 + (idx % 8),
             })
@@ -1255,6 +1256,7 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 avg_sec = float(match['avg_sec']) if match and match['avg_sec'] is not None else 0.0
                 series.append({
                     'day': p['day'],
+                    'date': p['date'],
                     'count': cnt,
                     'avg_minutes': round(avg_sec / 60.0, 1),
                 })
@@ -1290,6 +1292,104 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 '2_3': esc_2_3,
             },
         })
+    finally:
+        cur.close()
+
+
+def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
+    """Топ-10 заявок с наибольшим временем ожидания до эскалации за конкретный день.
+
+    Параметры: direction (1_2|1_3|2_3), day (YYYY-MM-DD).
+    Время ожидания — рабочее (Пн-Пт 09:00-18:00) от попадания на исходную линию.
+    """
+    payload = verify_token(event)
+    if not payload:
+        return response(401, {'error': 'Требуется авторизация'})
+    if method != 'GET':
+        return response(405, {'error': 'Только GET запросы'})
+
+    params = event.get('queryStringParameters', {}) or {}
+    direction = (params.get('direction') or '1_2').strip()
+    day = (params.get('day') or '').strip()
+    if not day:
+        return response(400, {'error': 'Параметр day обязателен (YYYY-MM-DD)'})
+
+    lines = {
+        '1_2': ('1-я линия', '2-я линия'),
+        '1_3': ('1-я линия', '3-я линия'),
+        '2_3': ('2-я линия', '3-я линия'),
+    }
+    if direction not in lines:
+        return response(400, {'error': 'Некорректное направление'})
+    from_line, to_line = lines[direction]
+
+    def work_seconds(start_col: str, end_col: str) -> str:
+        return f"""(
+            SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+                LEAST(d + TIME '18:00', {end_col}) - GREATEST(d + TIME '09:00', {start_col})
+            )))), 0)
+            FROM generate_series(date_trunc('day', {start_col}), date_trunc('day', {end_col}), INTERVAL '1 day') AS d
+            WHERE {end_col} > {start_col}
+              AND EXTRACT(DOW FROM d) BETWEEN 1 AND 5
+              AND LEAST(d + TIME '18:00', {end_col}) > GREATEST(d + TIME '09:00', {start_col})
+        )"""
+
+    cur = conn.cursor()
+    try:
+        cur.execute(f"""
+            SELECT t.id, t.title, e.elapsed_sec, e.event_at
+            FROM (
+                SELECT l1.ticket_id, l1.released_at AS event_at,
+                       {work_seconds('l1.assigned_at', 'l1.released_at')} AS elapsed_sec
+                FROM {SCHEMA}.ticket_group_log l1
+                JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
+                WHERE g1.name ILIKE %(from_line)s
+                  AND l1.released_at IS NOT NULL
+                  AND l1.released_at::date = %(day)s::date
+                  AND EXISTS (
+                      SELECT 1 FROM {SCHEMA}.ticket_group_log l2
+                      JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
+                      WHERE l2.ticket_id = l1.ticket_id
+                        AND g2.name ILIKE %(to_line)s
+                        AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
+                  )
+
+                UNION ALL
+
+                SELECT h.ticket_id, h.created_at AS event_at,
+                       {work_seconds('l1.assigned_at', 'h.created_at')} AS elapsed_sec
+                FROM {SCHEMA}.ticket_history h
+                JOIN {SCHEMA}.users u ON u.full_name = h.new_value
+                JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
+                JOIN {SCHEMA}.executor_groups g2 ON g2.id = m.group_id AND g2.name ILIKE %(to_line)s
+                JOIN LATERAL (
+                    SELECT l.assigned_at
+                    FROM {SCHEMA}.ticket_group_log l
+                    JOIN {SCHEMA}.executor_groups g1 ON g1.id = l.executor_group_id
+                    WHERE l.ticket_id = h.ticket_id
+                      AND g1.name ILIKE %(from_line)s
+                      AND l.assigned_at <= h.created_at
+                    ORDER BY l.assigned_at DESC
+                    LIMIT 1
+                ) l1 ON TRUE
+                WHERE h.field_name = 'assigned_to'
+                  AND h.created_at::date = %(day)s::date
+            ) e
+            JOIN {SCHEMA}.tickets t ON t.id = e.ticket_id
+            ORDER BY e.elapsed_sec DESC
+            LIMIT 10
+        """, {'from_line': from_line, 'to_line': to_line, 'day': day})
+
+        tickets = []
+        for r in cur.fetchall():
+            tickets.append({
+                'id': r['id'],
+                'title': r['title'],
+                'wait': _fmt_duration(float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0),
+                'wait_seconds': float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0,
+            })
+
+        return response(200, {'day': day, 'direction': direction, 'tickets': tickets})
     finally:
         cur.close()
 
@@ -1355,6 +1455,8 @@ def handler(event: dict, context) -> dict:
             return handle_dashboard_services(method, event, conn)
         elif endpoint == 'dashboard-team':
             return handle_dashboard_team(method, event, conn)
+        elif endpoint == 'escalation-tickets':
+            return handle_escalation_tickets(method, event, conn)
         else:
             return response(400, {'error': 'Unknown endpoint'})
     finally:

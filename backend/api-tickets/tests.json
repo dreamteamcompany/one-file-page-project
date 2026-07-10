@@ -11,6 +11,16 @@
       "bodyMatcher": "partial"
     },
     {
+      "name": "Get escalation tickets (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=escalation-tickets&direction=1_2&day=2026-07-08",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
       "name": "Get service categories (requires auth)",
       "method": "GET",
       "path": "/?endpoint=service_categories",

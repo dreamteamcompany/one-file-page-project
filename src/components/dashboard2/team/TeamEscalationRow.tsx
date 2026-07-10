@@ -1,6 +1,11 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import { TeamDashboardData, EscalationDirectionKey } from './useTeamDashboard';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import Icon from '@/components/ui/icon';
+import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/utils/api';
+import { TeamDashboardData, EscalationDirectionKey, EscalationTicket } from './useTeamDashboard';
 
 interface TeamEscalationRowProps {
   data?: TeamDashboardData | null;
@@ -23,12 +28,42 @@ const formatMinutes = (min: number) => {
 
 const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
   const [dir, setDir] = useState<EscalationDirectionKey>('1_2');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDay, setModalDay] = useState<string>('');
+  const [modalTickets, setModalTickets] = useState<EscalationTicket[]>([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const { token } = useAuth();
+  const navigate = useNavigate();
 
   const current = DIRECTIONS.find((d) => d.key === dir) ?? DIRECTIONS[0];
   const dirData = data?.escalation_directions?.[dir];
   const esc = dirData?.series ?? [];
   const total = dirData?.total ?? 0;
   const avg = dirData?.avg ?? '—';
+
+  const openTicketsForDay = async (date: string, label: string) => {
+    if (!token) return;
+    setModalDay(label);
+    setModalOpen(true);
+    setModalLoading(true);
+    setModalTickets([]);
+    try {
+      const url = `${getApiUrl('dashboard-team')}?endpoint=escalation-tickets&direction=${dir}&day=${date}`;
+      const res = await fetch(url, { headers: { 'X-Auth-Token': token } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setModalTickets(json.tickets ?? []);
+    } catch (e) {
+      console.error('Failed to fetch escalation tickets:', e);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleChartClick = (state: { activePayload?: { payload?: { date?: string; day?: string } }[] }) => {
+    const point = state?.activePayload?.[0]?.payload;
+    if (point?.date) openTicketsForDay(point.date, point.day ?? point.date);
+  };
 
   return (
     <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
@@ -66,14 +101,17 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
         </div>
 
         <div className="lg:col-span-2">
-          <div className="flex items-center justify-end gap-3 text-xs mb-2">
-            <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500" /> Кол-во эскалаций</span>
-            <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Ср. время</span>
+          <div className="flex items-center justify-between gap-3 text-xs mb-2">
+            <span className="text-muted-foreground">Клик по дню — список заявок с наибольшим ожиданием</span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500" /> Кол-во эскалаций</span>
+              <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Ср. время</span>
+            </div>
           </div>
           <div className="h-48">
             {!loading && (
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={esc} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                <ComposedChart data={esc} margin={{ top: 5, right: 5, left: -20, bottom: 0 }} onClick={handleChartClick} className="cursor-pointer">
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
                   <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={32} />
@@ -92,6 +130,43 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
           </div>
         </div>
       </div>
+
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Заявки с наибольшим ожиданием · {current.label} линия · {modalDay}
+            </DialogTitle>
+          </DialogHeader>
+          {modalLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Загрузка…</div>
+          ) : modalTickets.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Нет эскалаций за этот день</div>
+          ) : (
+            <div className="flex flex-col gap-1 max-h-96 overflow-y-auto">
+              {modalTickets.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setModalOpen(false);
+                    navigate(`/tickets/${t.id}`);
+                  }}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-left hover:bg-muted/50 transition-colors"
+                >
+                  <span className="flex flex-col min-w-0">
+                    <span className="text-sm font-medium text-foreground truncate">{t.title || `Заявка #${t.id}`}</span>
+                    <span className="text-xs text-muted-foreground">#{t.id}</span>
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-semibold text-amber-600 whitespace-nowrap">{t.wait}</span>
+                    <Icon name="ChevronRight" size={16} className="text-muted-foreground" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

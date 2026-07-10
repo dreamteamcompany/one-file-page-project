@@ -44,8 +44,16 @@ export interface PerformancePoint {
 
 export interface EscalationPoint {
   day: string;
+  date: string;
   count: number;
   avg_minutes: number;
+}
+
+export interface EscalationTicket {
+  id: number;
+  title: string;
+  wait: string;
+  wait_seconds: number;
 }
 
 export interface EscalationDirection {
