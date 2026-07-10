@@ -1470,8 +1470,17 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                     SELECT 1 FROM {SCHEMA}.executor_group_members egm 
                     WHERE egm.group_id = t.executor_group_id AND egm.user_id = %s
                 ))
+                OR EXISTS (
+                    SELECT 1 FROM {SCHEMA}.user_subordinates usub
+                    WHERE usub.user_id = %s AND usub.subordinate_user_id = t.created_by
+                )
+                OR EXISTS (
+                    SELECT 1 FROM {SCHEMA}.user_subordinate_departments usd
+                    JOIN {SCHEMA}.users cu ON cu.id = t.created_by
+                    WHERE usd.user_id = %s AND cu.department_id = usd.department_id
+                )
             )"""
-            params.extend([user_id, user_id, user_id, user_id, user_id])
+            params.extend([user_id, user_id, user_id, user_id, user_id, user_id, user_id])
         
         if status_id:
             where_clause += " AND t.status_id = %s"
