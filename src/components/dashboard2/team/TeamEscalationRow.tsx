@@ -13,6 +13,14 @@ const DIRECTIONS: { key: EscalationDirectionKey; label: string; from: string }[]
   { key: '2_3', label: '2-я → 3-я', from: '2-ю' },
 ];
 
+const formatMinutes = (min: number) => {
+  const total = Math.round(min);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0) return `${h} ч ${String(m).padStart(2, '0')} мин`;
+  return `${m} мин`;
+};
+
 const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
   const [dir, setDir] = useState<EscalationDirectionKey>('1_2');
 
@@ -60,7 +68,7 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
         <div className="lg:col-span-2">
           <div className="flex items-center justify-end gap-3 text-xs mb-2">
             <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500" /> Кол-во эскалаций</span>
-            <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Ср. время (мин)</span>
+            <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Ср. время</span>
           </div>
           <div className="h-48">
             {!loading && (
@@ -69,10 +77,15 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={24} />
                   <YAxis yAxisId="left" allowDecimals={false} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={32} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={36} />
-                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12, color: 'hsl(var(--foreground))' }} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={(v: number) => formatMinutes(v)} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} width={64} />
+                  <Tooltip
+                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 12, fontSize: 12, color: 'hsl(var(--foreground))' }}
+                    formatter={(value: number, name: string) =>
+                      name === 'Ср. время' ? [formatMinutes(value), name] : [value, name]
+                    }
+                  />
                   <Bar yAxisId="left" dataKey="count" name="Кол-во эскалаций" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                  <Line yAxisId="right" type="monotone" dataKey="avg_minutes" name="Ср. время (мин)" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="avg_minutes" name="Ср. время" stroke="#f59e0b" strokeWidth={2} dot={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
