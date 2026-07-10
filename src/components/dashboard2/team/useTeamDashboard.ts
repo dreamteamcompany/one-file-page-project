@@ -48,6 +48,14 @@ export interface EscalationPoint {
   avg_minutes: number;
 }
 
+export interface EscalationDirection {
+  series: EscalationPoint[];
+  total: number;
+  avg: string;
+}
+
+export type EscalationDirectionKey = '1_2' | '1_3' | '2_3';
+
 export interface TeamDashboardData {
   kpi: TeamKpi;
   engineers_rating: EngineerRating[];
@@ -58,6 +66,7 @@ export interface TeamDashboardData {
   escalations: EscalationPoint[];
   escalations_total: number;
   escalations_avg: string;
+  escalation_directions: Record<EscalationDirectionKey, EscalationDirection>;
 }
 
 const formatDate = (d: Date) => {

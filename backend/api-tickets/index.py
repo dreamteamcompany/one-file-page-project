@@ -1165,85 +1165,95 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 'sla': 90 + (idx % 8),
             })
 
-        # Эскалации на 2-ю линию по дням. Считаем ДВА события (каждое отдельно):
-        #  (а) смена группы заявки на "2-я линия" (ticket_group_log);
-        #  (б) назначение исполнителем сотрудника, входящего в группу "2-я линия"
+        # Эскалации между линиями по дням для направлений 1->2, 1->3, 2->3.
+        # Для каждого направления считаем ДВА события (каждое отдельно):
+        #  (а) смена группы заявки на целевую линию (ticket_group_log);
+        #  (б) назначение исполнителем сотрудника целевой линии
         #      (ticket_history, field_name='assigned_to', матч по ФИО).
-        # Время до эскалации в обоих случаях считаем от попадания заявки на 1-ю
-        # линию (последний assigned_at группы "1-я линия" до момента события).
-        cur.execute(f"""
-            SELECT day::date AS day,
-                   COUNT(*) AS escalations,
-                   AVG(elapsed_sec) AS avg_sec
-            FROM (
-                -- (а) заявка была на 1-й линии и передана на 2-ю (смена группы)
-                SELECT
-                    l1.released_at AS day,
-                    EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at)) AS elapsed_sec
-                FROM {SCHEMA}.ticket_group_log l1
-                JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
-                WHERE g1.name ILIKE '1-я линия'
-                  AND l1.released_at IS NOT NULL
-                  AND l1.released_at >= {start_expr} AND l1.released_at < {end_expr}
-                  AND EXISTS (
-                      SELECT 1 FROM {SCHEMA}.ticket_group_log l2
-                      JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
-                      WHERE l2.ticket_id = l1.ticket_id
-                        AND g2.name ILIKE '2-я линия'
-                        AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
-                  )
+        # Время до эскалации считаем от попадания заявки на исходную линию
+        # (последний assigned_at исходной линии до момента события).
+        def build_escalations(from_line: str, to_line: str):
+            cur.execute(f"""
+                SELECT day::date AS day,
+                       COUNT(*) AS escalations,
+                       AVG(elapsed_sec) AS avg_sec
+                FROM (
+                    -- (а) смена группы: заявка была на исходной линии и передана на целевую
+                    SELECT
+                        l1.released_at AS day,
+                        EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at)) AS elapsed_sec
+                    FROM {SCHEMA}.ticket_group_log l1
+                    JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
+                    WHERE g1.name ILIKE %(from_line)s
+                      AND l1.released_at IS NOT NULL
+                      AND l1.released_at >= {start_expr} AND l1.released_at < {end_expr}
+                      AND EXISTS (
+                          SELECT 1 FROM {SCHEMA}.ticket_group_log l2
+                          JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
+                          WHERE l2.ticket_id = l1.ticket_id
+                            AND g2.name ILIKE %(to_line)s
+                            AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
+                      )
 
-                UNION ALL
+                    UNION ALL
 
-                -- (б) исполнителем назначен сотрудник 2-й линии
-                SELECT
-                    h.created_at AS day,
-                    EXTRACT(EPOCH FROM (h.created_at - l1.assigned_at)) AS elapsed_sec
-                FROM {SCHEMA}.ticket_history h
-                JOIN {SCHEMA}.users u ON u.full_name = h.new_value
-                JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
-                JOIN {SCHEMA}.executor_groups g2 ON g2.id = m.group_id AND g2.name ILIKE '2-я линия'
-                JOIN LATERAL (
-                    SELECT l.assigned_at
-                    FROM {SCHEMA}.ticket_group_log l
-                    JOIN {SCHEMA}.executor_groups g1 ON g1.id = l.executor_group_id
-                    WHERE l.ticket_id = h.ticket_id
-                      AND g1.name ILIKE '1-я линия'
-                      AND l.assigned_at <= h.created_at
-                    ORDER BY l.assigned_at DESC
-                    LIMIT 1
-                ) l1 ON TRUE
-                WHERE h.field_name = 'assigned_to'
-                  AND h.created_at >= {start_expr} AND h.created_at < {end_expr}
-            ) events
-            GROUP BY day::date
-            ORDER BY day
-        """, qp)
-        esc_by_day = {r['day']: r for r in cur.fetchall()}
+                    -- (б) исполнителем назначен сотрудник целевой линии
+                    SELECT
+                        h.created_at AS day,
+                        EXTRACT(EPOCH FROM (h.created_at - l1.assigned_at)) AS elapsed_sec
+                    FROM {SCHEMA}.ticket_history h
+                    JOIN {SCHEMA}.users u ON u.full_name = h.new_value
+                    JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
+                    JOIN {SCHEMA}.executor_groups g2 ON g2.id = m.group_id AND g2.name ILIKE %(to_line)s
+                    JOIN LATERAL (
+                        SELECT l.assigned_at
+                        FROM {SCHEMA}.ticket_group_log l
+                        JOIN {SCHEMA}.executor_groups g1 ON g1.id = l.executor_group_id
+                        WHERE l.ticket_id = h.ticket_id
+                          AND g1.name ILIKE %(from_line)s
+                          AND l.assigned_at <= h.created_at
+                        ORDER BY l.assigned_at DESC
+                        LIMIT 1
+                    ) l1 ON TRUE
+                    WHERE h.field_name = 'assigned_to'
+                      AND h.created_at >= {start_expr} AND h.created_at < {end_expr}
+                ) events
+                GROUP BY day::date
+                ORDER BY day
+            """, {**qp, 'from_line': from_line, 'to_line': to_line})
+            by_day = {r['day']: r for r in cur.fetchall()}
 
-        escalations = []
-        esc_total = 0
-        esc_avg_sec_sum = 0.0
-        esc_avg_sec_weight = 0
-        for p in performance:
-            match = None
-            for d, r in esc_by_day.items():
-                if d.strftime('%d.%m') == p['day']:
-                    match = r
-                    break
-            cnt = int(match['escalations']) if match else 0
-            avg_sec = float(match['avg_sec']) if match and match['avg_sec'] is not None else 0.0
-            escalations.append({
-                'day': p['day'],
-                'count': cnt,
-                'avg_minutes': round(avg_sec / 60.0, 1),
-            })
-            esc_total += cnt
-            if cnt:
-                esc_avg_sec_sum += avg_sec * cnt
-                esc_avg_sec_weight += cnt
+            series = []
+            total = 0
+            avg_sec_sum = 0.0
+            avg_weight = 0
+            for p in performance:
+                match = None
+                for d, r in by_day.items():
+                    if d.strftime('%d.%m') == p['day']:
+                        match = r
+                        break
+                cnt = int(match['escalations']) if match else 0
+                avg_sec = float(match['avg_sec']) if match and match['avg_sec'] is not None else 0.0
+                series.append({
+                    'day': p['day'],
+                    'count': cnt,
+                    'avg_minutes': round(avg_sec / 60.0, 1),
+                })
+                total += cnt
+                if cnt:
+                    avg_sec_sum += avg_sec * cnt
+                    avg_weight += cnt
+            overall_avg_sec = avg_sec_sum / avg_weight if avg_weight else 0.0
+            return {
+                'series': series,
+                'total': total,
+                'avg': _fmt_duration(overall_avg_sec),
+            }
 
-        esc_overall_avg_sec = esc_avg_sec_sum / esc_avg_sec_weight if esc_avg_sec_weight else 0.0
+        esc_1_2 = build_escalations('1-я линия', '2-я линия')
+        esc_1_3 = build_escalations('1-я линия', '3-я линия')
+        esc_2_3 = build_escalations('2-я линия', '3-я линия')
 
         return response(200, {
             'kpi': kpi,
@@ -1252,9 +1262,15 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
             'distribution': distribution,
             'distribution_total': dist_total,
             'performance': performance,
-            'escalations': escalations,
-            'escalations_total': esc_total,
-            'escalations_avg': _fmt_duration(esc_overall_avg_sec),
+            # Обратная совместимость: 1->2 в прежних полях
+            'escalations': esc_1_2['series'],
+            'escalations_total': esc_1_2['total'],
+            'escalations_avg': esc_1_2['avg'],
+            'escalation_directions': {
+                '1_2': esc_1_2,
+                '1_3': esc_1_3,
+                '2_3': esc_2_3,
+            },
         })
     finally:
         cur.close()
