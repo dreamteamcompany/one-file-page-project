@@ -53,7 +53,7 @@ const TeamEscalationRow = ({ data, loading }: TeamEscalationRowProps) => {
           <div className="bg-muted/30 border border-border rounded-2xl p-5 flex flex-col gap-2">
             <div className="text-xs text-muted-foreground">Среднее время до эскалации</div>
             <div className="text-3xl font-bold text-foreground leading-none">{loading ? '—' : avg}</div>
-            <div className="text-xs text-muted-foreground">от попадания на {current.from} линию</div>
+            <div className="text-xs text-muted-foreground">рабочее время (Пн–Пт 9–18) от попадания на {current.from} линию</div>
           </div>
         </div>
 

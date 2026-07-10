@@ -1172,6 +1172,24 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
         #      (ticket_history, field_name='assigned_to', матч по ФИО).
         # Время до эскалации считаем от попадания заявки на исходную линию
         # (последний assigned_at исходной линии до момента события).
+        # Рабочее время между двумя моментами по единому окну Пн-Пт 09:00-18:00.
+        # Возвращает секунды: суммируем пересечение каждого дня диапазона с окном 9-18,
+        # только для будних дней (DOW 1..5). Ночи и выходные не учитываются.
+        def work_seconds(start_col: str, end_col: str) -> str:
+            return f"""(
+                SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+                    LEAST(d + TIME '18:00', {end_col}) - GREATEST(d + TIME '09:00', {start_col})
+                )))), 0)
+                FROM generate_series(
+                    date_trunc('day', {start_col}),
+                    date_trunc('day', {end_col}),
+                    INTERVAL '1 day'
+                ) AS d
+                WHERE {end_col} > {start_col}
+                  AND EXTRACT(DOW FROM d) BETWEEN 1 AND 5
+                  AND LEAST(d + TIME '18:00', {end_col}) > GREATEST(d + TIME '09:00', {start_col})
+            )"""
+
         def build_escalations(from_line: str, to_line: str):
             cur.execute(f"""
                 SELECT day::date AS day,
@@ -1181,7 +1199,7 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                     -- (а) смена группы: заявка была на исходной линии и передана на целевую
                     SELECT
                         l1.released_at AS day,
-                        EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at)) AS elapsed_sec
+                        {work_seconds('l1.assigned_at', 'l1.released_at')} AS elapsed_sec
                     FROM {SCHEMA}.ticket_group_log l1
                     JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
                     WHERE g1.name ILIKE %(from_line)s
@@ -1200,7 +1218,7 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                     -- (б) исполнителем назначен сотрудник целевой линии
                     SELECT
                         h.created_at AS day,
-                        EXTRACT(EPOCH FROM (h.created_at - l1.assigned_at)) AS elapsed_sec
+                        {work_seconds('l1.assigned_at', 'h.created_at')} AS elapsed_sec
                     FROM {SCHEMA}.ticket_history h
                     JOIN {SCHEMA}.users u ON u.full_name = h.new_value
                     JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
