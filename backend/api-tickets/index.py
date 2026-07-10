@@ -1165,28 +1165,58 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 'sla': 90 + (idx % 8),
             })
 
-        # Эскалации 1-я линия -> 2-я линия по дням.
-        # Время до эскалации = от попадания на 1-ю линию (assigned_at группы 1)
-        # до передачи на 2-ю (released_at группы 1). Учитываем только периоды 1-й
-        # линии, за которыми последовало назначение на 2-ю линию.
+        # Эскалации на 2-ю линию по дням. Считаем ДВА события (каждое отдельно):
+        #  (а) смена группы заявки на "2-я линия" (ticket_group_log);
+        #  (б) назначение исполнителем сотрудника, входящего в группу "2-я линия"
+        #      (ticket_history, field_name='assigned_to', матч по ФИО).
+        # Время до эскалации в обоих случаях считаем от попадания заявки на 1-ю
+        # линию (последний assigned_at группы "1-я линия" до момента события).
         cur.execute(f"""
-            SELECT
-                l1.released_at::date AS day,
-                COUNT(*) AS escalations,
-                AVG(EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at))) AS avg_sec
-            FROM {SCHEMA}.ticket_group_log l1
-            JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
-            WHERE g1.name ILIKE '1-я линия'
-              AND l1.released_at IS NOT NULL
-              AND l1.released_at >= {start_expr} AND l1.released_at < {end_expr}
-              AND EXISTS (
-                  SELECT 1 FROM {SCHEMA}.ticket_group_log l2
-                  JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
-                  WHERE l2.ticket_id = l1.ticket_id
-                    AND g2.name ILIKE '2-я линия'
-                    AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
-              )
-            GROUP BY l1.released_at::date
+            SELECT day::date AS day,
+                   COUNT(*) AS escalations,
+                   AVG(elapsed_sec) AS avg_sec
+            FROM (
+                -- (а) заявка была на 1-й линии и передана на 2-ю (смена группы)
+                SELECT
+                    l1.released_at AS day,
+                    EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at)) AS elapsed_sec
+                FROM {SCHEMA}.ticket_group_log l1
+                JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
+                WHERE g1.name ILIKE '1-я линия'
+                  AND l1.released_at IS NOT NULL
+                  AND l1.released_at >= {start_expr} AND l1.released_at < {end_expr}
+                  AND EXISTS (
+                      SELECT 1 FROM {SCHEMA}.ticket_group_log l2
+                      JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
+                      WHERE l2.ticket_id = l1.ticket_id
+                        AND g2.name ILIKE '2-я линия'
+                        AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
+                  )
+
+                UNION ALL
+
+                -- (б) исполнителем назначен сотрудник 2-й линии
+                SELECT
+                    h.created_at AS day,
+                    EXTRACT(EPOCH FROM (h.created_at - l1.assigned_at)) AS elapsed_sec
+                FROM {SCHEMA}.ticket_history h
+                JOIN {SCHEMA}.users u ON u.full_name = h.new_value
+                JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
+                JOIN {SCHEMA}.executor_groups g2 ON g2.id = m.group_id AND g2.name ILIKE '2-я линия'
+                JOIN LATERAL (
+                    SELECT l.assigned_at
+                    FROM {SCHEMA}.ticket_group_log l
+                    JOIN {SCHEMA}.executor_groups g1 ON g1.id = l.executor_group_id
+                    WHERE l.ticket_id = h.ticket_id
+                      AND g1.name ILIKE '1-я линия'
+                      AND l.assigned_at <= h.created_at
+                    ORDER BY l.assigned_at DESC
+                    LIMIT 1
+                ) l1 ON TRUE
+                WHERE h.field_name = 'assigned_to'
+                  AND h.created_at >= {start_expr} AND h.created_at < {end_expr}
+            ) events
+            GROUP BY day::date
             ORDER BY day
         """, qp)
         esc_by_day = {r['day']: r for r in cur.fetchall()}
