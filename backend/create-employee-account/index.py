@@ -1,5 +1,9 @@
+import base64
+import hashlib
+import http.cookiejar
 import json
 import os
+import re
 import secrets
 import string
 import urllib.request
@@ -339,25 +343,103 @@ def check_ispmanager(url, login, password):
         return {'ok': False, 'message': f'Ошибка проверки: {e}'}
 
 
+LANCLOUD_SIGN = 'https://sign.lancloud.kz'
+LANCLOUD_CLIENT_ID = '3A5E1F10-1FFB-45B5-A763-4BC46D02AD47'
+
+
+def _ssl_ctx():
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def _pkce_pair():
+    verifier = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b'=').decode()
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b'=').decode()
+    return verifier, challenge
+
+
+def lancloud_login(cp_url, login, password):
+    """Вход в LanCloud через OAuth-форму (IdentityServer). Возвращает (opener, error)."""
+    cp_base = (cp_url or 'https://cp.lancloud.kz').rstrip('/')
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPCookieProcessor(cj),
+        urllib.request.HTTPSHandler(context=_ssl_ctx()),
+    )
+    opener.addheaders = [('User-Agent', 'Mozilla/5.0 integration')]
+
+    verifier, challenge = _pkce_pair()
+    state = secrets.token_urlsafe(16)
+    nonce = secrets.token_urlsafe(16)
+    authorize = f"{LANCLOUD_SIGN}/connect/authorize?" + urllib.parse.urlencode({
+        'response_type': 'code',
+        'client_id': LANCLOUD_CLIENT_ID,
+        'state': state,
+        'redirect_uri': f'{cp_base}/ru/',
+        'scope': 'cloud openid profile offline_access',
+        'code_challenge': challenge,
+        'code_challenge_method': 'S256',
+        'nonce': nonce,
+    })
+
+    try:
+        r = opener.open(authorize, timeout=20)
+        html = r.read().decode('utf-8', 'replace')
+        login_url = r.geturl()
+    except urllib.error.URLError as e:
+        return None, f'Панель авторизации недоступна: {getattr(e, "reason", e)}'
+    except Exception as e:
+        return None, f'Ошибка запроса авторизации: {e}'
+
+    m = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', html)
+    if not m:
+        return None, 'Не удалось получить форму входа LanCloud (изменилась страница)'
+    token = m.group(1)
+
+    # Возможные имена полей ASP.NET Core Identity
+    field_sets = [
+        {'Input.Email': login, 'Input.Password': password, 'Input.RememberMe': 'false'},
+        {'Username': login, 'Password': password, 'RememberLogin': 'false'},
+        {'Email': login, 'Password': password},
+    ]
+    for fields in field_sets:
+        data = dict(fields)
+        data['__RequestVerificationToken'] = token
+        body = urllib.parse.urlencode(data).encode()
+        req = urllib.request.Request(login_url, data=body, method='POST')
+        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+        try:
+            resp = opener.open(req, timeout=20)
+            final_html = resp.read().decode('utf-8', 'replace')
+            final_url = resp.geturl()
+        except urllib.error.HTTPError as e:
+            if e.code in (400, 401, 403):
+                continue
+            return None, f'HTTP {e.code} при входе в LanCloud'
+        except Exception as e:
+            return None, f'Ошибка входа: {e}'
+
+        # Успех: ушли со страницы Login (нет формы/ошибки), получили сессионную cookie
+        has_session = any(c.name.startswith('.AspNetCore.Identity') for c in cj)
+        on_login = '/Account/Login' in final_url
+        has_error = 'validation-summary-errors' in final_html or 'field-validation-error' in final_html
+        if has_session and not (on_login and has_error):
+            return opener, ''
+
+    return None, 'Неверный логин или пароль'
+
+
 def check_lancloud(url, login, password):
     if not url or not login or not password:
         return {'ok': False, 'message': 'Заполните URL, логин и пароль LanCloud'}
-    base = url.rstrip('/')
-    try:
-        code, text = _http_get(base, timeout=12, auth=(login, password))
-        if code in (200, 302):
-            return {'ok': True, 'message': 'Панель доступна, авторизация принята'}
-        if code in (401, 403):
-            return {'ok': False, 'message': 'Неверный логин или пароль'}
-        return {'ok': False, 'message': f'Неожиданный ответ (HTTP {code})'}
-    except urllib.error.HTTPError as e:
-        if e.code in (401, 403):
-            return {'ok': False, 'message': 'Неверный логин или пароль'}
-        return {'ok': False, 'message': f'HTTP {e.code}: панель недоступна'}
-    except urllib.error.URLError as e:
-        return {'ok': False, 'message': f'Панель недоступна: {e.reason}'}
-    except Exception as e:
-        return {'ok': False, 'message': f'Ошибка проверки: {e}'}
+    opener, err = lancloud_login(url, login, password)
+    if opener is None:
+        return {'ok': False, 'message': err}
+    return {'ok': True, 'message': 'Авторизация через форму успешна'}
 
 
 def _extract_domains(obj):
@@ -407,27 +489,41 @@ def list_ispmanager_domains(url, login, password):
 def list_lancloud_domains(url, login, password):
     if not url or not login or not password:
         return None, 'Не заполнены доступы LanCloud в настройках'
-    base = url.rstrip('/')
-    for path in ('/api/domains', '/api/mail/domains', '/domains'):
+    opener, err = lancloud_login(url, login, password)
+    if opener is None:
+        return None, err
+
+    base = (url or 'https://cp.lancloud.kz').rstrip('/')
+    candidates = [
+        f'{base}/api/exchange/domains',
+        f'{base}/api/mail/domains',
+        f'{base}/api/domains',
+        f'{base}/ru/api/exchange/domains',
+    ]
+    last_err = 'Не удалось получить список доменов из LanCloud'
+    for path in candidates:
         try:
-            code, text = _http_get(f"{base}{path}", timeout=15, auth=(login, password))
-            if code == 200 and text:
-                try:
-                    data = json.loads(text)
-                except Exception:
-                    continue
-                domains = _extract_domains(data)
-                if domains:
-                    return domains, ''
+            req = urllib.request.Request(path)
+            req.add_header('Accept', 'application/json')
+            resp = opener.open(req, timeout=20)
+            text = resp.read().decode('utf-8', 'replace')
+            if not text:
+                continue
+            try:
+                data = json.loads(text)
+            except Exception:
+                continue
+            domains = _extract_domains(data)
+            if domains:
+                return domains, ''
         except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                return None, 'Неверный логин или пароль LanCloud'
+            last_err = f'HTTP {e.code} при получении доменов LanCloud'
             continue
         except urllib.error.URLError as e:
-            return None, f'Панель LanCloud недоступна: {e.reason}'
+            return None, f'Панель LanCloud недоступна: {getattr(e, "reason", e)}'
         except Exception:
             continue
-    return None, 'Не удалось получить список доменов из LanCloud'
+    return None, last_err
 
 
 def handle_list_domains(payload, body):
