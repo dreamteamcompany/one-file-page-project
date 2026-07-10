@@ -4,6 +4,7 @@ import { PeriodType } from '../ops/useOpsDashboard';
 import TeamKpiRow from './TeamKpiRow';
 import TeamMiddleRow from './TeamMiddleRow';
 import TeamBottomRow from './TeamBottomRow';
+import TeamEscalationRow from './TeamEscalationRow';
 import { useTeamDashboard } from './useTeamDashboard';
 
 const TeamDashboard = () => {
@@ -31,6 +32,7 @@ const TeamDashboard = () => {
       <TeamKpiRow kpi={data?.kpi} loading={loading} />
       <TeamMiddleRow data={data} loading={loading} />
       <TeamBottomRow data={data} loading={loading} />
+      <TeamEscalationRow data={data} loading={loading} />
     </div>
   );
 };

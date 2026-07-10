@@ -42,6 +42,12 @@ export interface PerformancePoint {
   sla: number;
 }
 
+export interface EscalationPoint {
+  day: string;
+  count: number;
+  avg_minutes: number;
+}
+
 export interface TeamDashboardData {
   kpi: TeamKpi;
   engineers_rating: EngineerRating[];
@@ -49,6 +55,9 @@ export interface TeamDashboardData {
   distribution: DistributionItem[];
   distribution_total: number;
   performance: PerformancePoint[];
+  escalations: EscalationPoint[];
+  escalations_total: number;
+  escalations_avg: string;
 }
 
 const formatDate = (d: Date) => {

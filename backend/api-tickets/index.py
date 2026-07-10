@@ -1165,6 +1165,56 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 'sla': 90 + (idx % 8),
             })
 
+        # Эскалации 1-я линия -> 2-я линия по дням.
+        # Время до эскалации = от попадания на 1-ю линию (assigned_at группы 1)
+        # до передачи на 2-ю (released_at группы 1). Учитываем только периоды 1-й
+        # линии, за которыми последовало назначение на 2-ю линию.
+        cur.execute(f"""
+            SELECT
+                l1.released_at::date AS day,
+                COUNT(*) AS escalations,
+                AVG(EXTRACT(EPOCH FROM (l1.released_at - l1.assigned_at))) AS avg_sec
+            FROM {SCHEMA}.ticket_group_log l1
+            JOIN {SCHEMA}.executor_groups g1 ON g1.id = l1.executor_group_id
+            WHERE g1.name ILIKE '1-я линия'
+              AND l1.released_at IS NOT NULL
+              AND l1.released_at >= {start_expr} AND l1.released_at < {end_expr}
+              AND EXISTS (
+                  SELECT 1 FROM {SCHEMA}.ticket_group_log l2
+                  JOIN {SCHEMA}.executor_groups g2 ON g2.id = l2.executor_group_id
+                  WHERE l2.ticket_id = l1.ticket_id
+                    AND g2.name ILIKE '2-я линия'
+                    AND l2.assigned_at >= l1.released_at - INTERVAL '2 minute'
+              )
+            GROUP BY l1.released_at::date
+            ORDER BY day
+        """, qp)
+        esc_by_day = {r['day']: r for r in cur.fetchall()}
+
+        escalations = []
+        esc_total = 0
+        esc_avg_sec_sum = 0.0
+        esc_avg_sec_weight = 0
+        for p in performance:
+            match = None
+            for d, r in esc_by_day.items():
+                if d.strftime('%d.%m') == p['day']:
+                    match = r
+                    break
+            cnt = int(match['escalations']) if match else 0
+            avg_sec = float(match['avg_sec']) if match and match['avg_sec'] is not None else 0.0
+            escalations.append({
+                'day': p['day'],
+                'count': cnt,
+                'avg_minutes': round(avg_sec / 60.0, 1),
+            })
+            esc_total += cnt
+            if cnt:
+                esc_avg_sec_sum += avg_sec * cnt
+                esc_avg_sec_weight += cnt
+
+        esc_overall_avg_sec = esc_avg_sec_sum / esc_avg_sec_weight if esc_avg_sec_weight else 0.0
+
         return response(200, {
             'kpi': kpi,
             'engineers_rating': engineers_rating,
@@ -1172,6 +1222,9 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
             'distribution': distribution,
             'distribution_total': dist_total,
             'performance': performance,
+            'escalations': escalations,
+            'escalations_total': esc_total,
+            'escalations_avg': _fmt_duration(esc_overall_avg_sec),
         })
     finally:
         cur.close()
