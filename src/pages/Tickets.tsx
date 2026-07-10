@@ -27,7 +27,7 @@ import TicketsList from '@/components/tickets/TicketsList';
 import TicketsKanban from '@/components/tickets/TicketsKanban';
 import BulkActionsBar from '@/components/tickets/BulkActionsBar';
 import { API_URL, apiFetch } from '@/utils/api';
-import TicketsFilters, { TicketsFilterPanel, type TicketsFiltersValue } from '@/components/tickets/TicketsFilters';
+import TicketsFilters, { TicketsFilterPanel, type TicketsFiltersValue, type TicketsFilterOptions } from '@/components/tickets/TicketsFilters';
 import { getDeadlineSeverity } from '@/utils/dateFormat';
 
 type CounterRole = 'assignee' | 'customer' | 'approver' | 'mentions' | 'overdue';
@@ -62,6 +62,9 @@ const Tickets = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [bulkUsers, setBulkUsers] = useState<BulkUser[]>([]);
   const [bulkExecutorGroups, setBulkExecutorGroups] = useState<BulkExecutorGroup[]>([]);
+  const [filterAssignees, setFilterAssignees] = useState<BulkUser[]>([]);
+  const [filterCreators, setFilterCreators] = useState<BulkUser[]>([]);
+  const [filterGroups, setFilterGroups] = useState<BulkExecutorGroup[]>([]);
   const isAdmin = hasSystemRole('admin');
 
   const {
@@ -201,6 +204,50 @@ const Tickets = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketsInterface]);
+
+  // Справочники для выпадающих фильтров: подгружаем один раз.
+  const filterDictsLoaded = useRef(false);
+  useEffect(() => {
+    if (!token || filterDictsLoaded.current) return;
+    filterDictsLoaded.current = true;
+
+    if (statuses.length === 0) loadDictionaries();
+    if (services.length === 0 || ticketServices.length === 0) loadServices();
+
+    apiFetch(`${API_URL}?endpoint=users&system_roles=executor`, { headers: { 'X-Auth-Token': token } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setFilterAssignees(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+      })
+      .catch(() => {});
+
+    apiFetch(`${API_URL}?endpoint=users&system_roles=user`, { headers: { 'X-Auth-Token': token } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setFilterCreators(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+      })
+      .catch(() => {});
+
+    apiFetch(EXECUTOR_GROUPS_URL, { headers: { 'X-Auth-Token': token } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.groups || [];
+        setFilterGroups(list);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const userLabel = (u: BulkUser) => (u.full_name || u.username || `#${u.id}`);
+
+  const filterOptions: TicketsFilterOptions = useMemo(() => ({
+    statuses: statuses.map((s) => ({ value: String(s.id), label: s.name })),
+    assignees: filterAssignees.map((u) => ({ value: String(u.id), label: userLabel(u) })),
+    creators: filterCreators.map((u) => ({ value: String(u.id), label: userLabel(u) })),
+    executorGroups: filterGroups.map((g) => ({ value: String(g.id), label: g.name })),
+    services: services.map((s) => ({ value: String(s.id), label: s.name })),
+    ticketServices: ticketServices.map((s) => ({ value: String(s.id), label: s.name })),
+  }), [statuses, filterAssignees, filterCreators, filterGroups, services, ticketServices]);
 
   useEffect(() => {
     // Проверяем, есть ли ЛЮБОЕ право на просмотр заявок
@@ -346,6 +393,7 @@ const Tickets = () => {
                 onChange={handleFiltersChange}
                 expanded={filtersOpen}
                 onExpandedChange={setFiltersOpen}
+                options={filterOptions}
               />
             }
           />
@@ -442,6 +490,7 @@ const Tickets = () => {
               sortOptions={SORT_OPTIONS}
               filtersValue={searchFilters as TicketsFiltersValue}
               onFiltersChange={handleFiltersChange}
+              filterOptions={filterOptions}
               showControls={viewMode === 'list'}
             />
           </div>

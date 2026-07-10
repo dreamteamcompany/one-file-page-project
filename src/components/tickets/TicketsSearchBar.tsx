@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
-import TicketsFilters, { TicketsFilterPanel, TicketsFiltersValue } from './TicketsFilters';
+import TicketsFilters, { TicketsFilterPanel, TicketsFiltersValue, TicketsFilterOptions } from './TicketsFilters';
 
 interface SortOption {
   value: string;
@@ -25,6 +25,7 @@ interface TicketsSearchBarProps {
   sortOptions: SortOption[];
   filtersValue: TicketsFiltersValue;
   onFiltersChange: (next: TicketsFiltersValue) => void;
+  filterOptions?: TicketsFilterOptions;
   showControls?: boolean;
 }
 
@@ -38,6 +39,7 @@ const TicketsSearchBar = ({
   sortOptions,
   filtersValue,
   onFiltersChange,
+  filterOptions,
   showControls = true,
 }: TicketsSearchBarProps) => {
   const currentSortLabel = sortOptions.find((o) => o.value === sortBy)?.label || 'Сортировка';
@@ -115,6 +117,7 @@ const TicketsSearchBar = ({
             onChange={onFiltersChange}
             expanded={filtersOpen}
             onExpandedChange={setFiltersOpen}
+            options={filterOptions}
           />
         </div>
       )}
