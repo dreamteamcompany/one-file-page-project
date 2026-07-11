@@ -278,6 +278,7 @@ def handle_create(body):
         ok, message, bitrix_id = create_bitrix_user(
             bitrix_url, email, bx_password, first_name, last_name,
             middle_name=middle_name, position=position, phone=phone,
+            department=(body.get('department') or '').strip(),
         )
         accounts.append({
             'system': 'bitrix', 'title': 'Битрикс24',
@@ -331,13 +332,34 @@ def _http_post(url, params: dict, timeout=15):
         return r.getcode(), r.read().decode('utf-8', 'replace')
 
 
+def find_bitrix_department(webhook_url, name):
+    """Ищет ID отдела в Битрикс по названию (без учёта регистра). None если не найден."""
+    if not name:
+        return None
+    base = webhook_url.rstrip('/')
+    target = name.strip().lower()
+    try:
+        code, text = _http_get(f"{base}/department.get.json?ORDER[NAME]=ASC", timeout=12)
+        data = json.loads(text) if text else {}
+        for dep in data.get('result', []) or []:
+            if str(dep.get('NAME', '')).strip().lower() == target:
+                return dep.get('ID')
+        for dep in data.get('result', []) or []:
+            if target in str(dep.get('NAME', '')).strip().lower():
+                return dep.get('ID')
+    except Exception:
+        pass
+    return None
+
+
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
-                       middle_name='', position='', phone=''):
+                       middle_name='', position='', phone='', department=''):
     """Создаёт пользователя в Битрикс через user.add. Возвращает (ok, message, bitrix_id)."""
     if not webhook_url:
         return False, 'Вебхук Битрикс не задан', None
     base = webhook_url.rstrip('/')
     url = f"{base}/user.add.json"
+    dep_id = find_bitrix_department(webhook_url, department) or '1'
     params = {
         'EMAIL': email,
         'LOGIN': email,
@@ -349,6 +371,7 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'WORK_POSITION': position,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
+        'UF_DEPARTMENT[0]': dep_id,
     }
     try:
         code, text = _http_post(url, params)
