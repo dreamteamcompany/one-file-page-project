@@ -228,7 +228,9 @@ def handle_create(body):
     last_name = (body.get('last_name') or '').strip()
     first_name = (body.get('first_name') or '').strip()
     middle_name = (body.get('middle_name') or '').strip()
-    targets = body.get('targets') or ['bitrix', 'email']
+    targets = body.get('targets')
+    if targets is None:
+        targets = ['bitrix', 'email']
 
     if portal not in ('ru', 'kz'):
         return response(400, {'error': 'Выберите портал (ru или kz)'})
@@ -262,13 +264,29 @@ def handle_create(body):
 
     accounts = []
     if 'email' in targets:
-        accounts.append({
-            'system': 'email', 'title': 'Корпоративная почта',
-            'login': email, 'password': gen_password(),
-            'url': f'https://mail.{domain}',
-            'status': 'demo',
-            'error': '',
-        })
+        mail_password = gen_password()
+        if portal == 'ru':
+            isp_url = get_setting(fernet, stored, 'ispmgr_url', 'ISPMGR_URL')
+            isp_login = get_setting(fernet, stored, 'ispmgr_login', 'ISPMGR_LOGIN')
+            isp_password = get_setting(fernet, stored, 'ispmgr_password', 'ISPMGR_PASSWORD')
+            m_ok, m_msg = create_ispmanager_mailbox(
+                isp_url, isp_login, isp_password, domain, login, mail_password,
+            )
+            accounts.append({
+                'system': 'email', 'title': 'Корпоративная почта',
+                'login': email, 'password': mail_password,
+                'url': isp_url or f'https://mail.{domain}',
+                'status': 'created' if m_ok else 'error',
+                'error': '' if m_ok else m_msg,
+            })
+        else:
+            accounts.append({
+                'system': 'email', 'title': 'Корпоративная почта',
+                'login': email, 'password': mail_password,
+                'url': f'https://mail.{domain}',
+                'status': 'demo',
+                'error': '',
+            })
     if 'bitrix' in targets:
         bx_password = gen_password()
         portal_url = ''
@@ -289,10 +307,10 @@ def handle_create(body):
             'bitrix_id': bitrix_id,
         })
 
-    bitrix_failed = any(a['system'] == 'bitrix' and a['status'] == 'error' for a in accounts)
+    any_failed = any(a['status'] == 'error' for a in accounts)
 
     return response(200, {
-        'ok': not bitrix_failed,
+        'ok': not any_failed,
         'portal': portal,
         'employee': {
             'full_name': full_name,
@@ -648,6 +666,82 @@ def list_ispmanager_domains(url, login, password):
         if domains:
             return domains, ''
     return None, last_err
+
+
+def _isp_parse_error(text):
+    """Разбирает ответ ISPmanager. Возвращает (status, message):
+    status: 'ok' — успех, 'error' — ошибка с текстом, 'missing' — функция не найдена."""
+    if not text:
+        return 'ok', 'Ящик создан'
+    try:
+        data = json.loads(text)
+    except Exception:
+        low = text.lower()
+        if 'error' in low:
+            m = re.search(r'<error[^>]*>(.*?)</error>', text, re.S | re.I)
+            msg = (m.group(1).strip() if m else 'ошибка создания ящика')
+            status = 'missing' if 'missing' in low or 'find the' in low else 'error'
+            return status, msg[:200]
+        return 'ok', 'Ящик создан'
+
+    if not isinstance(data, dict):
+        return 'ok', 'Ящик создан'
+    doc = data.get('doc') if isinstance(data.get('doc'), dict) else {}
+    err = doc.get('error') or data.get('error')
+    if not err:
+        return 'ok', 'Ящик создан'
+    raw = err
+    if isinstance(raw, dict):
+        raw = raw.get('msg') or raw.get('$') or raw.get('type') or raw
+    if isinstance(raw, dict):
+        raw = raw.get('$') or raw.get('msg') or json.dumps(raw, ensure_ascii=False)
+    msg = str(raw)
+    status = 'missing' if ('missing' in msg.lower() or 'find the' in msg.lower()) else 'error'
+    return status, msg[:200]
+
+
+def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_password):
+    """Создаёт почтовый ящик в ISPmanager. Перебирает возможные имена функции. Возвращает (ok, message)."""
+    if not url or not login or not password:
+        return False, 'Не заполнены доступы ISPmanager в настройках'
+    if not domain:
+        return False, 'Не указан домен почты'
+    base = url.rstrip('/')
+    full = f'{mailbox}@{domain}'
+    authinfo = f'{login}:{password}'
+
+    variants = [
+        {'func': 'emailbox', 'name': full, 'domain': domain,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'email.box.edit', 'elid': domain, 'domain': domain, 'name': mailbox,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'emailbox.edit', 'name': full, 'domain': domain,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+    ]
+
+    last_msg = 'Не удалось создать ящик'
+    for params in variants:
+        q = urllib.parse.urlencode(dict(params, out='json', authinfo=authinfo))
+        try:
+            code, text = _http_get(f"{base}/ispmgr?{q}", timeout=20)
+        except urllib.error.HTTPError as e:
+            try:
+                text = e.read().decode('utf-8', 'replace')
+            except Exception:
+                return False, f'HTTP {e.code}: панель ISPmanager недоступна'
+        except urllib.error.URLError as e:
+            return False, f'Панель ISPmanager недоступна: {getattr(e, "reason", e)}'
+        except Exception as e:
+            return False, f'Ошибка соединения с ISPmanager: {e}'
+
+        status, msg = _isp_parse_error(text)
+        if status == 'ok':
+            return True, 'Ящик создан'
+        last_msg = msg
+        if status == 'missing':
+            continue  # эта функция недоступна на панели — пробуем следующую
+        return False, f'ISPmanager: {msg}'  # реальная ошибка (напр. ящик уже есть)
+    return False, f'ISPmanager: {last_msg}'
 
 
 def list_lancloud_domains(url, login, password):

@@ -7,7 +7,7 @@
       "expectedStatus": 200
     },
     {
-      "name": "Создание учётки РФ (только почта) — структура",
+      "name": "Создание учётки РФ (без целей) — структура",
       "method": "POST",
       "path": "/",
       "body": {
@@ -20,7 +20,7 @@
         "city": "Москва",
         "gender": "male",
         "phone": "+79000000000",
-        "targets": ["email"]
+        "targets": []
       },
       "expectedStatus": 200,
       "expectedBody": {
