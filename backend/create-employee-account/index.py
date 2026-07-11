@@ -509,24 +509,46 @@ def list_ispmanager_domains(url, login, password):
     if not url or not login or not password:
         return None, 'Не заполнены доступы ISPmanager в настройках'
     base = url.rstrip('/')
-    q = urllib.parse.urlencode({
-        'out': 'json', 'func': 'email', 'authinfo': f'{login}:{password}',
-    })
-    try:
-        code, text = _http_get(f"{base}/ispmgr?{q}", timeout=15)
-        data = json.loads(text) if text else {}
-        if 'error' in data or data.get('doc', {}).get('error'):
-            return None, 'Ошибка авторизации или доступа к почте ISPmanager'
+    # func=emaildomain — список почтовых доменов; email — ящики. Пробуем оба.
+    last_err = 'Домены не найдены в ответе ISPmanager'
+    for func in ('emaildomain', 'email'):
+        q = urllib.parse.urlencode({
+            'out': 'json', 'func': func, 'authinfo': f'{login}:{password}',
+        })
+        try:
+            code, text = _http_get(f"{base}/ispmgr?{q}", timeout=15)
+        except urllib.error.HTTPError as e:
+            last_err = f'HTTP {e.code}: панель ISPmanager недоступна'
+            continue
+        except urllib.error.URLError as e:
+            return None, f'Панель ISPmanager недоступна: {getattr(e, "reason", e)}'
+        except Exception as e:
+            last_err = f'Ошибка соединения с ISPmanager: {e}'
+            continue
+
+        if not text:
+            continue
+        data = None
+        try:
+            data = json.loads(text)
+        except Exception:
+            # ISPmanager иногда отдаёт XML — вытащим домены регуляркой
+            names = re.findall(r'name=["\']([a-z0-9.\-]+\.[a-z]{2,})["\']', text.lower())
+            names += re.findall(r'<name>\s*([a-z0-9.\-]+\.[a-z]{2,})\s*</name>', text.lower())
+            domains = sorted(set(n for n in names if '@' not in n))
+            if 'error' in text.lower() and not domains:
+                last_err = 'Ошибка авторизации или доступа к почте ISPmanager'
+            if domains:
+                return domains, ''
+            continue
+
+        if isinstance(data, dict) and (data.get('doc', {}).get('error') or data.get('error')):
+            last_err = 'Ошибка авторизации или доступа к почте ISPmanager'
+            continue
         domains = _extract_domains(data)
-        if not domains:
-            return None, 'Домены не найдены в ответе ISPmanager'
-        return domains, ''
-    except urllib.error.HTTPError as e:
-        return None, f'HTTP {e.code}: панель ISPmanager недоступна'
-    except urllib.error.URLError as e:
-        return None, f'Панель ISPmanager недоступна: {e.reason}'
-    except Exception as e:
-        return None, f'Ошибка получения доменов: {e}'
+        if domains:
+            return domains, ''
+    return None, last_err
 
 
 def list_lancloud_domains(url, login, password):
