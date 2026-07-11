@@ -67,6 +67,12 @@ export interface EscalationDirection {
 
 export type EscalationDirectionKey = '1_2' | '1_3' | '2_3';
 
+export interface TimeToL3 {
+  series: EscalationPoint[];
+  total: number;
+  avg: string;
+}
+
 export interface TeamDashboardData {
   kpi: TeamKpi;
   engineers_rating: EngineerRating[];
@@ -78,6 +84,7 @@ export interface TeamDashboardData {
   escalations_total: number;
   escalations_avg: string;
   escalation_directions: Record<EscalationDirectionKey, EscalationDirection>;
+  time_to_l3?: TimeToL3;
 }
 
 const formatDate = (d: Date) => {

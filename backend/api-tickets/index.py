@@ -1275,6 +1275,68 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
         esc_1_3 = build_escalations('1-я линия', '3-я линия')
         esc_2_3 = build_escalations('2-я линия', '3-я линия')
 
+        # Время от СОЗДАНИЯ заявки до первого попадания на 3-ю линию.
+        # Событие = самое раннее из (а) назначение на группу "3-я линия"
+        # и (б) назначение исполнителем сотрудника 3-й линии. Считаем рабочие часы
+        # от t.created_at до этого события. Только по дошедшим до 3-й линии заявкам.
+        cur.execute(f"""
+            SELECT ev.first_l3::date AS day,
+                   COUNT(*) AS cnt,
+                   AVG({work_seconds('t.created_at', 'ev.first_l3')}) AS avg_sec
+            FROM (
+                SELECT ticket_id, MIN(event_at) AS first_l3
+                FROM (
+                    SELECT l.ticket_id, l.assigned_at AS event_at
+                    FROM {SCHEMA}.ticket_group_log l
+                    JOIN {SCHEMA}.executor_groups g ON g.id = l.executor_group_id
+                    WHERE g.name ILIKE '3-я линия'
+
+                    UNION ALL
+
+                    SELECT h.ticket_id, h.created_at AS event_at
+                    FROM {SCHEMA}.ticket_history h
+                    JOIN {SCHEMA}.users u ON u.full_name = h.new_value
+                    JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
+                    JOIN {SCHEMA}.executor_groups g ON g.id = m.group_id AND g.name ILIKE '3-я линия'
+                    WHERE h.field_name = 'assigned_to'
+                ) src
+                GROUP BY ticket_id
+            ) ev
+            JOIN {SCHEMA}.tickets t ON t.id = ev.ticket_id
+            WHERE ev.first_l3 >= {start_expr} AND ev.first_l3 < {end_expr}
+              AND ev.first_l3 > t.created_at
+            GROUP BY ev.first_l3::date
+            ORDER BY day
+        """, qp)
+        l3_by_day = {r['day']: r for r in cur.fetchall()}
+        l3_series = []
+        l3_total = 0
+        l3_avg_sum = 0.0
+        l3_avg_weight = 0
+        for p in performance:
+            match = None
+            for d, r in l3_by_day.items():
+                if d.strftime('%d.%m') == p['day']:
+                    match = r
+                    break
+            cnt = int(match['cnt']) if match else 0
+            avg_sec = float(match['avg_sec']) if match and match['avg_sec'] is not None else 0.0
+            l3_series.append({
+                'day': p['day'],
+                'date': p['date'],
+                'count': cnt,
+                'avg_minutes': round(avg_sec / 60.0, 1),
+            })
+            l3_total += cnt
+            if cnt:
+                l3_avg_sum += avg_sec * cnt
+                l3_avg_weight += cnt
+        time_to_l3 = {
+            'series': l3_series,
+            'total': l3_total,
+            'avg': _fmt_duration(l3_avg_sum / l3_avg_weight if l3_avg_weight else 0.0),
+        }
+
         return response(200, {
             'kpi': kpi,
             'engineers_rating': engineers_rating,
@@ -1291,6 +1353,7 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                 '1_3': esc_1_3,
                 '2_3': esc_2_3,
             },
+            'time_to_l3': time_to_l3,
         })
     finally:
         cur.close()
@@ -1314,15 +1377,6 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
     if not day:
         return response(400, {'error': 'Параметр day обязателен (YYYY-MM-DD)'})
 
-    lines = {
-        '1_2': ('1-я линия', '2-я линия'),
-        '1_3': ('1-я линия', '3-я линия'),
-        '2_3': ('2-я линия', '3-я линия'),
-    }
-    if direction not in lines:
-        return response(400, {'error': 'Некорректное направление'})
-    from_line, to_line = lines[direction]
-
     def work_seconds(start_col: str, end_col: str) -> str:
         return f"""(
             SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
@@ -1333,6 +1387,64 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
               AND EXTRACT(DOW FROM d) BETWEEN 1 AND 5
               AND LEAST(d + TIME '18:00', {end_col}) > GREATEST(d + TIME '09:00', {start_col})
         )"""
+
+    # Топ-10 заявок от создания до первого попадания на 3-ю линию за день
+    if direction == 'to_l3':
+        cur = conn.cursor()
+        try:
+            cur.execute(f"""
+                SELECT t.id, t.title,
+                       {work_seconds('t.created_at', 'ev.first_l3')} AS elapsed_sec,
+                       u.full_name AS executor,
+                       s.name AS status_name, s.color AS status_color
+                FROM (
+                    SELECT ticket_id, MIN(event_at) AS first_l3
+                    FROM (
+                        SELECT l.ticket_id, l.assigned_at AS event_at
+                        FROM {SCHEMA}.ticket_group_log l
+                        JOIN {SCHEMA}.executor_groups g ON g.id = l.executor_group_id
+                        WHERE g.name ILIKE '3-я линия'
+                        UNION ALL
+                        SELECT h.ticket_id, h.created_at AS event_at
+                        FROM {SCHEMA}.ticket_history h
+                        JOIN {SCHEMA}.users u ON u.full_name = h.new_value
+                        JOIN {SCHEMA}.executor_group_members m ON m.user_id = u.id
+                        JOIN {SCHEMA}.executor_groups g ON g.id = m.group_id AND g.name ILIKE '3-я линия'
+                        WHERE h.field_name = 'assigned_to'
+                    ) src
+                    GROUP BY ticket_id
+                ) ev
+                JOIN {SCHEMA}.tickets t ON t.id = ev.ticket_id
+                LEFT JOIN {SCHEMA}.users u ON u.id = t.assigned_to
+                LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
+                WHERE ev.first_l3::date = %(day)s::date
+                  AND ev.first_l3 > t.created_at
+                ORDER BY elapsed_sec DESC
+                LIMIT 10
+            """, {'day': day})
+            tickets = []
+            for r in cur.fetchall():
+                tickets.append({
+                    'id': r['id'],
+                    'title': r['title'],
+                    'wait': _fmt_duration(float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0),
+                    'wait_seconds': float(r['elapsed_sec']) if r['elapsed_sec'] is not None else 0.0,
+                    'executor': r['executor'] or 'Не назначен',
+                    'status': r['status_name'] or '—',
+                    'status_color': r['status_color'] or '#94a3b8',
+                })
+            return response(200, {'day': day, 'direction': direction, 'tickets': tickets})
+        finally:
+            cur.close()
+
+    lines = {
+        '1_2': ('1-я линия', '2-я линия'),
+        '1_3': ('1-я линия', '3-я линия'),
+        '2_3': ('2-я линия', '3-я линия'),
+    }
+    if direction not in lines:
+        return response(400, {'error': 'Некорректное направление'})
+    from_line, to_line = lines[direction]
 
     cur = conn.cursor()
     try:

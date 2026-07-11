@@ -5,6 +5,7 @@ import TeamKpiRow from './TeamKpiRow';
 import TeamMiddleRow from './TeamMiddleRow';
 import TeamBottomRow from './TeamBottomRow';
 import TeamEscalationRow from './TeamEscalationRow';
+import TeamTimeToL3Row from './TeamTimeToL3Row';
 import { useTeamDashboard } from './useTeamDashboard';
 
 const TeamDashboard = () => {
@@ -33,6 +34,7 @@ const TeamDashboard = () => {
       <TeamMiddleRow data={data} loading={loading} />
       <TeamBottomRow data={data} loading={loading} />
       <TeamEscalationRow data={data} loading={loading} />
+      <TeamTimeToL3Row data={data} loading={loading} />
     </div>
   );
 };
