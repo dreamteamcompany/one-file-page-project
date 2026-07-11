@@ -95,7 +95,9 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
         }
         const list: string[] = data.domains || [];
         setDomains(list);
-        if (list.length === 1) setDomain(list[0]);
+        const preferred = list.find((d) => d.toLowerCase() === 'dreamteamcompany.ru');
+        if (preferred) setDomain(preferred);
+        else if (list.length === 1) setDomain(list[0]);
         if (list.length === 0) setDomainsError('Список доменов пуст');
       })
       .catch(() => setDomainsError('Ошибка соединения при получении доменов'))
