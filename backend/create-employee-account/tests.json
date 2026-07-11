@@ -7,7 +7,7 @@
       "expectedStatus": 200
     },
     {
-      "name": "Создание учётки РФ — успех",
+      "name": "Создание учётки РФ (только почта) — структура",
       "method": "POST",
       "path": "/",
       "body": {
@@ -20,12 +20,11 @@
         "city": "Москва",
         "gender": "male",
         "phone": "+79000000000",
-        "targets": ["bitrix", "email"]
+        "targets": ["email"]
       },
       "expectedStatus": 200,
       "expectedBody": {
         "ok": true,
-        "demo": true,
         "portal": "ru"
       },
       "bodyMatcher": "partial"

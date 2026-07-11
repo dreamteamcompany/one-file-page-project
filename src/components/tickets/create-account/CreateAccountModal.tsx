@@ -24,6 +24,8 @@ interface AccountResult {
   login: string;
   password: string;
   url?: string;
+  status?: string;
+  error?: string;
 }
 
 interface CreateAccountModalProps {
@@ -398,38 +400,58 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 px-3 py-2 text-sm">
-              <Icon name="CircleCheck" size={18} />
-              Учётные записи созданы. Сохраните данные — пароли показываются один раз.
-            </div>
+            {results.some((a) => a.status === 'error') ? (
+              <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 px-3 py-2 text-sm">
+                <Icon name="TriangleAlert" size={18} />
+                Часть учётных записей не создана — смотрите детали ниже.
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 px-3 py-2 text-sm">
+                <Icon name="CircleCheck" size={18} />
+                Учётные записи созданы. Сохраните данные — пароли показываются один раз.
+              </div>
+            )}
 
             {results.map((acc) => (
               <div key={acc.system} className="rounded-lg border p-3 space-y-2">
                 <div className="flex items-center gap-2 font-semibold text-sm">
                   <Icon name={acc.system === 'bitrix' ? 'Building2' : 'Mail'} size={16} />
                   {acc.title}
+                  {acc.status === 'error' ? (
+                    <span className="ml-auto text-xs font-medium text-red-600 dark:text-red-400">Ошибка</span>
+                  ) : acc.status === 'created' ? (
+                    <span className="ml-auto text-xs font-medium text-green-600 dark:text-green-400">Создан</span>
+                  ) : null}
                 </div>
-                <CredRow
-                  label="Логин"
-                  value={acc.login}
-                  copied={copiedKey === `${acc.system}-login`}
-                  onCopy={() => copy(`${acc.system}-login`, acc.login)}
-                />
-                <CredRow
-                  label="Пароль"
-                  value={acc.password}
-                  copied={copiedKey === `${acc.system}-pass`}
-                  onCopy={() => copy(`${acc.system}-pass`, acc.password)}
-                  mono
-                />
-                {acc.url ? (
-                  <CredRow
-                    label="Адрес"
-                    value={acc.url}
-                    copied={copiedKey === `${acc.system}-url`}
-                    onCopy={() => copy(`${acc.system}-url`, acc.url || '')}
-                  />
-                ) : null}
+                {acc.status === 'error' ? (
+                  <div className="rounded-md bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 px-3 py-2 text-xs">
+                    {acc.error || 'Не удалось создать учётную запись'}
+                  </div>
+                ) : (
+                  <>
+                    <CredRow
+                      label="Логин"
+                      value={acc.login}
+                      copied={copiedKey === `${acc.system}-login`}
+                      onCopy={() => copy(`${acc.system}-login`, acc.login)}
+                    />
+                    <CredRow
+                      label="Пароль"
+                      value={acc.password}
+                      copied={copiedKey === `${acc.system}-pass`}
+                      onCopy={() => copy(`${acc.system}-pass`, acc.password)}
+                      mono
+                    />
+                    {acc.url ? (
+                      <CredRow
+                        label="Адрес"
+                        value={acc.url}
+                        copied={copiedKey === `${acc.system}-url`}
+                        onCopy={() => copy(`${acc.system}-url`, acc.url || '')}
+                      />
+                    ) : null}
+                  </>
+                )}
               </div>
             ))}
 

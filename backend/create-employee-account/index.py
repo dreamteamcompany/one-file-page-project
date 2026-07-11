@@ -257,23 +257,41 @@ def handle_create(body):
     email = f"{login}@{domain}"
     full_name = ' '.join(p for p in [last_name, first_name, middle_name] if p)
 
+    position = (body.get('position') or '').strip()
+    phone = (body.get('phone') or '').strip()
+
     accounts = []
     if 'email' in targets:
         accounts.append({
             'system': 'email', 'title': 'Корпоративная почта',
             'login': email, 'password': gen_password(),
             'url': f'https://mail.{domain}',
+            'status': 'demo',
+            'error': '',
         })
     if 'bitrix' in targets:
+        bx_password = gen_password()
+        portal_url = ''
+        if bitrix_url:
+            m = re.match(r'(https?://[^/]+)', bitrix_url)
+            portal_url = m.group(1) if m else bitrix_url
+        ok, message, bitrix_id = create_bitrix_user(
+            bitrix_url, email, bx_password, first_name, last_name,
+            middle_name=middle_name, position=position, phone=phone,
+        )
         accounts.append({
             'system': 'bitrix', 'title': 'Битрикс24',
-            'login': email, 'password': gen_password(),
-            'url': bitrix_url,
+            'login': email, 'password': bx_password,
+            'url': portal_url,
+            'status': 'created' if ok else 'error',
+            'error': '' if ok else message,
+            'bitrix_id': bitrix_id,
         })
 
+    bitrix_failed = any(a['system'] == 'bitrix' and a['status'] == 'error' for a in accounts)
+
     return response(200, {
-        'ok': True,
-        'demo': True,
+        'ok': not bitrix_failed,
         'portal': portal,
         'employee': {
             'full_name': full_name,
@@ -298,6 +316,62 @@ def _http_get(url, timeout=10, auth=None):
         req.add_header('Authorization', f'Basic {token}')
     with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
         return r.getcode(), r.read().decode('utf-8', 'replace')
+
+
+def _http_post(url, params: dict, timeout=15):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    data = urllib.parse.urlencode(params, doseq=True).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        'User-Agent': 'integration-create',
+        'Content-Type': 'application/x-www-form-urlencoded',
+    })
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        return r.getcode(), r.read().decode('utf-8', 'replace')
+
+
+def create_bitrix_user(webhook_url, email, password, first_name, last_name,
+                       middle_name='', position='', phone=''):
+    """Создаёт пользователя в Битрикс через user.add. Возвращает (ok, message, bitrix_id)."""
+    if not webhook_url:
+        return False, 'Вебхук Битрикс не задан', None
+    base = webhook_url.rstrip('/')
+    url = f"{base}/user.add.json"
+    params = {
+        'EMAIL': email,
+        'LOGIN': email,
+        'PASSWORD': password,
+        'CONFIRM_PASSWORD': password,
+        'NAME': first_name,
+        'LAST_NAME': last_name,
+        'SECOND_NAME': middle_name,
+        'WORK_POSITION': position,
+        'PERSONAL_MOBILE': phone,
+        'ACTIVE': 'Y',
+    }
+    try:
+        code, text = _http_post(url, params)
+        data = json.loads(text) if text else {}
+        if data.get('result'):
+            return True, 'Создан в Битрикс', data['result']
+        if data.get('error'):
+            desc = data.get('error_description') or data.get('error')
+            return False, f'Битрикс: {desc}', None
+        return False, f'Неожиданный ответ Битрикс (HTTP {code})', None
+    except urllib.error.HTTPError as e:
+        body = ''
+        try:
+            body = e.read().decode('utf-8', 'replace')
+            j = json.loads(body)
+            body = j.get('error_description') or j.get('error') or body
+        except Exception:
+            pass
+        return False, f'HTTP {e.code}: {body or "проверьте вебхук и права"}', None
+    except urllib.error.URLError as e:
+        return False, f'Не удалось подключиться: {e.reason}', None
+    except Exception as e:
+        return False, f'Ошибка создания: {e}', None
 
 
 def check_bitrix(webhook_url):
