@@ -372,6 +372,8 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
         'UF_DEPARTMENT[0]': dep_id,
+        'NOTIFY': 'N',
+        'MESSAGE_ID': '',
     }
     try:
         code, text = _http_post(url, params)
