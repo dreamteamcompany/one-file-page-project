@@ -877,7 +877,7 @@ def handle_test(payload, body):
 
 
 ROUTERAI_API_KEY = os.environ.get('ROUTERAI_API_KEY', '')
-ROUTERAI_URL = 'https://router.requesty.ai/v1/chat/completions'
+ROUTERAI_URL = 'https://openrouter.ai/api/v1/chat/completions'
 AI_MODEL = 'google/gemini-2.5-flash'
 
 AI_SYSTEM_PROMPT = (
@@ -1006,7 +1006,9 @@ def call_ai(prompt_text):
     req = urllib.request.Request(
         ROUTERAI_URL, data=payload,
         headers={'Content-Type': 'application/json',
-                 'Authorization': f'Bearer {ROUTERAI_API_KEY}'},
+                 'Authorization': f'Bearer {ROUTERAI_API_KEY}',
+                 'HTTP-Referer': 'https://help-km.ru',
+                 'X-Title': 'DreamDesk'},
         method='POST',
     )
     with urllib.request.urlopen(req, timeout=40) as r:
