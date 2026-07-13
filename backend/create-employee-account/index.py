@@ -711,25 +711,37 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
     full = f'{mailbox}@{domain}'
     authinfo = f'{login}:{password}'
 
+    # ISPmanager 6: создание ящика — функция emailbox.edit,
+    # имя ящика передаётся БЕЗ домена (name=mailbox), домен — отдельным параметром.
     variants = [
-        {'func': 'emailbox', 'name': full, 'domain': domain,
+        {'func': 'emailbox.edit', 'plid': domain, 'domain': domain, 'name': mailbox,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'emailbox.edit', 'elid': domain, 'domain': domain, 'name': mailbox,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'emailbox.edit', 'domain': domain, 'name': full,
          'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
         {'func': 'email.box.edit', 'elid': domain, 'domain': domain, 'name': mailbox,
          'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
-        {'func': 'emailbox.edit', 'name': full, 'domain': domain,
+        {'func': 'emailbox', 'name': full, 'domain': domain,
          'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
     ]
 
+    # ISPmanager 6 (в т.ч. shared-хостинг Reg.ru) отвечает по пути /manager/ispmgr,
+    # старые сборки — по /ispmgr. Перебираем оба.
+    api_paths = ['/manager/ispmgr', '/ispmgr']
     last_msg = 'Не удалось создать ящик'
-    for params in variants:
+    for api_path in api_paths:
+      path_missing = False
+      for params in variants:
         q = urllib.parse.urlencode(dict(params, out='json', authinfo=authinfo))
         try:
-            code, text = _http_get(f"{base}/ispmgr?{q}", timeout=20)
+            code, text = _http_get(f"{base}{api_path}?{q}", timeout=20)
         except urllib.error.HTTPError as e:
             try:
                 text = e.read().decode('utf-8', 'replace')
             except Exception:
-                return False, f'HTTP {e.code}: панель ISPmanager недоступна'
+                path_missing = True
+                break
         except urllib.error.URLError as e:
             return False, f'Панель ISPmanager недоступна: {getattr(e, "reason", e)}'
         except Exception as e:
@@ -740,9 +752,14 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
             return True, 'Ящик создан'
         last_msg = msg
         if status == 'missing':
-            continue  # эта функция недоступна на панели — пробуем следующую
+            continue  # эта функция недоступна — пробуем следующую
         return False, f'ISPmanager: {msg}'  # реальная ошибка (напр. ящик уже есть)
-    return False, f'ISPmanager: {last_msg}'
+      if path_missing:
+        continue  # этот путь API недоступен — пробуем следующий
+    return False, (
+        f'ISPmanager: {last_msg}. Проверьте, что в URL панели указан адрес с портом '
+        f'(например https://sm11.hosting.reg.ru:1500), а у пользователя есть доступ к почте.'
+    )
 
 
 def list_lancloud_domains(url, login, password):
