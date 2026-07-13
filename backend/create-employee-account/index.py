@@ -876,6 +876,196 @@ def handle_test(payload, body):
     return response(200, {'service': service, **result})
 
 
+ROUTERAI_API_KEY = os.environ.get('ROUTERAI_API_KEY', '')
+ROUTERAI_URL = 'https://router.requesty.ai/v1/chat/completions'
+AI_MODEL = 'google/gemini-2.5-flash'
+
+AI_SYSTEM_PROMPT = (
+    "Ты — ассистент ИТ-поддержки. Анализируй заявку целиком: тему, описание, дополнительные поля "
+    "и все комментарии. Твоя задача — определить, требуется ли по заявке СОЗДАТЬ НОВУЮ учётную "
+    "запись сотрудника (в корпоративном портале Битрикс24 и корпоративной почте), например при "
+    "приёме нового сотрудника, оформлении доступа новичку, заведении аккаунта. "
+    "Если заявка про другое (сброс пароля, блокировка, увольнение, техническая проблема, вопрос) — "
+    "учётку создавать НЕ нужно.\n\n"
+    "Извлеки данные НОВОГО сотрудника (для кого создаётся учётка), а НЕ данные автора заявки, "
+    "если это разные люди. Данные бери из текста заявки, полей и комментариев.\n\n"
+    "Верни СТРОГО JSON без пояснений и markdown, по схеме:\n"
+    "{\n"
+    '  "needs_account": true|false,\n'
+    '  "confidence": 0.0-1.0,\n'
+    '  "reason": "краткое обоснование на русском",\n'
+    '  "portal": "ru"|"kz"|"",\n'
+    '  "fields": {\n'
+    '    "last_name": "", "first_name": "", "middle_name": "",\n'
+    '    "position": "", "department": "", "city": "",\n'
+    '    "gender": "male"|"female"|"", "phone": "", "birth_date": "", "hire_date": ""\n'
+    "  }\n"
+    "}\n"
+    "Незаполненные поля оставляй пустой строкой. Даты в формате YYYY-MM-DD. "
+    "Телефон в исходном виде. Пол определи по имени/отчеству, если явно не указан. "
+    "portal='kz' только если явно упомянут Казахстан/КЗ, иначе 'ru'."
+)
+
+AI_ALLOWED_FIELDS = ['last_name', 'first_name', 'middle_name', 'position',
+                     'department', 'city', 'gender', 'phone', 'birth_date', 'hire_date']
+
+
+def load_ticket_context(ticket_id):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT t.title, t.description, u.full_name, u.position, d.name "
+            f"FROM {SCHEMA}.tickets t "
+            f"LEFT JOIN {SCHEMA}.users u ON u.id = t.created_by "
+            f"LEFT JOIN {SCHEMA}.departments d ON d.id = u.department_id "
+            f"WHERE t.id = {int(ticket_id)}"
+        )
+        row = cur.fetchone()
+        if not row:
+            return None
+        ticket = {
+            'title': row[0], 'description': row[1],
+            'creator_name': row[2], 'creator_position': row[3],
+            'creator_department': row[4],
+        }
+        cur.execute(
+            f"SELECT f.name, v.value "
+            f"FROM {SCHEMA}.ticket_custom_field_values v "
+            f"JOIN {SCHEMA}.ticket_custom_fields f ON f.id = v.field_id "
+            f"WHERE v.ticket_id = {int(ticket_id)} AND v.value IS NOT NULL AND v.value <> '' "
+            f"ORDER BY f.id"
+        )
+        custom_fields = [{'name': r[0], 'value': r[1]} for r in cur.fetchall()]
+        cur.execute(
+            f"SELECT c.comment, u.full_name "
+            f"FROM {SCHEMA}.ticket_comments c "
+            f"LEFT JOIN {SCHEMA}.users u ON u.id = c.user_id "
+            f"WHERE c.ticket_id = {int(ticket_id)} "
+            f"ORDER BY c.created_at ASC LIMIT 100"
+        )
+        comments = [{'comment': r[0], 'author': r[1]} for r in cur.fetchall()]
+        return {'ticket': ticket, 'custom_fields': custom_fields, 'comments': comments}
+    finally:
+        conn.close()
+
+
+def build_ai_prompt(ctx):
+    t = ctx['ticket']
+    lines = [
+        f"Тема заявки: {t.get('title') or ''}",
+        f"Описание: {t.get('description') or '(нет)'}",
+        "",
+        "Данные заявителя (кто создал заявку):",
+        f"  ФИО: {t.get('creator_name') or '(нет)'}",
+        f"  Должность: {t.get('creator_position') or '(нет)'}",
+        f"  Отдел: {t.get('creator_department') or '(нет)'}",
+        "",
+    ]
+    if ctx['custom_fields']:
+        lines.append("Дополнительные поля заявки:")
+        for f in ctx['custom_fields']:
+            lines.append(f"  - {f['name']}: {f['value']}")
+        lines.append("")
+    if ctx['comments']:
+        lines.append("Комментарии (в хронологическом порядке):")
+        for c in ctx['comments']:
+            text = (c.get('comment') or '').strip()
+            if text:
+                lines.append(f"  [{c.get('author') or 'Сотрудник'}]: {text}")
+    return '\n'.join(lines)
+
+
+def extract_ai_json(text):
+    text = (text or '').strip()
+    if text.startswith('```'):
+        text = re.sub(r'^```[a-zA-Z]*\n?', '', text)
+        text = re.sub(r'\n?```$', '', text).strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        m = re.search(r'\{.*\}', text, re.S)
+        if m:
+            try:
+                return json.loads(m.group(0))
+            except Exception:
+                return None
+    return None
+
+
+def call_ai(prompt_text):
+    payload = json.dumps({
+        'model': AI_MODEL,
+        'messages': [
+            {'role': 'system', 'content': AI_SYSTEM_PROMPT},
+            {'role': 'user', 'content': prompt_text},
+        ],
+        'temperature': 0.1,
+        'max_tokens': 700,
+    }).encode('utf-8')
+    req = urllib.request.Request(
+        ROUTERAI_URL, data=payload,
+        headers={'Content-Type': 'application/json',
+                 'Authorization': f'Bearer {ROUTERAI_API_KEY}'},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=40) as r:
+        data = json.loads(r.read().decode('utf-8'))
+    return extract_ai_json(data['choices'][0]['message']['content'])
+
+
+def normalize_ai_result(raw):
+    if not isinstance(raw, dict):
+        return {'needs_account': False, 'confidence': 0.0,
+                'reason': 'Не удалось разобрать ответ ИИ', 'portal': '', 'fields': {}}
+    fields_in = raw.get('fields') or {}
+    fields = {}
+    for k in AI_ALLOWED_FIELDS:
+        v = fields_in.get(k)
+        fields[k] = str(v).strip() if v is not None else ''
+    if fields.get('gender') not in ('male', 'female'):
+        fields['gender'] = ''
+    try:
+        conf = float(raw.get('confidence', 0))
+    except Exception:
+        conf = 0.0
+    return {
+        'needs_account': bool(raw.get('needs_account')),
+        'confidence': max(0.0, min(1.0, conf)),
+        'reason': str(raw.get('reason') or ''),
+        'portal': raw.get('portal') if raw.get('portal') in ('ru', 'kz') else '',
+        'fields': fields,
+    }
+
+
+def handle_analyze_ticket(payload, body):
+    if not ROUTERAI_API_KEY:
+        return response(500, {'error': 'Не задан ключ ROUTERAI_API_KEY'})
+    ticket_id = body.get('ticket_id')
+    if not ticket_id:
+        return response(400, {'error': 'Не указан ticket_id'})
+    try:
+        ctx = load_ticket_context(ticket_id)
+    except Exception as e:
+        return response(500, {'error': f'Ошибка чтения заявки: {e}'})
+    if not ctx:
+        return response(404, {'error': 'Заявка не найдена'})
+    try:
+        raw = call_ai(build_ai_prompt(ctx))
+    except urllib.error.HTTPError as e:
+        detail = ''
+        try:
+            detail = e.read().decode('utf-8', 'replace')[:200]
+        except Exception:
+            pass
+        return response(502, {'error': f'Ошибка ИИ (HTTP {e.code}): {detail}'})
+    except urllib.error.URLError as e:
+        return response(502, {'error': f'ИИ недоступен: {getattr(e, "reason", e)}'})
+    except Exception as e:
+        return response(502, {'error': f'Ошибка обращения к ИИ: {e}'})
+    return response(200, normalize_ai_result(raw))
+
+
 def handler(event: dict, context) -> dict:
     '''Учётные записи сотрудников и настройки интеграций (Битрикс/почта РФ и КЗ).
 
@@ -934,5 +1124,11 @@ def handler(event: dict, context) -> dict:
         if not payload:
             return response(401, {'error': 'Требуется авторизация'})
         return handle_list_domains(payload, body)
+
+    if body.get('action') == 'analyze_ticket':
+        payload = verify_token(event)
+        if not payload:
+            return response(401, {'error': 'Требуется авторизация'})
+        return handle_analyze_ticket(payload, body)
 
     return handle_create(body)

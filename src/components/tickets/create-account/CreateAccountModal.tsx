@@ -28,11 +28,26 @@ interface AccountResult {
   error?: string;
 }
 
+export interface AccountInitialValues {
+  lastName?: string;
+  firstName?: string;
+  middleName?: string;
+  position?: string;
+  department?: string;
+  city?: string;
+  gender?: 'male' | 'female' | '';
+  phone?: string;
+  birthDate?: string;
+  hireDate?: string;
+  portal?: 'ru' | 'kz' | '';
+}
+
 interface CreateAccountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   targets: AccountTarget[];
   ticketId?: number;
+  initialValues?: AccountInitialValues | null;
 }
 
 interface Dict {
@@ -40,7 +55,7 @@ interface Dict {
   name: string;
 }
 
-const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAccountModalProps) => {
+const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValues }: CreateAccountModalProps) => {
   const { toast } = useToast();
 
   const [lastName, setLastName] = useState('');
@@ -105,6 +120,40 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId }: CreateAcc
       .catch(() => setDomainsError('Ошибка соединения при получении доменов'))
       .finally(() => setDomainsLoading(false));
   }, [open, portal]);
+
+  useEffect(() => {
+    if (!open || !initialValues) return;
+    if (initialValues.lastName !== undefined) setLastName(initialValues.lastName);
+    if (initialValues.firstName !== undefined) setFirstName(initialValues.firstName);
+    if (initialValues.middleName !== undefined) setMiddleName(initialValues.middleName);
+    if (initialValues.city !== undefined) setCity(initialValues.city);
+    if (initialValues.gender !== undefined) setGender(initialValues.gender);
+    if (initialValues.phone !== undefined) setPhone(initialValues.phone);
+    if (initialValues.birthDate !== undefined) setBirthDate(initialValues.birthDate);
+    if (initialValues.hireDate !== undefined) setHireDate(initialValues.hireDate);
+    if (initialValues.portal) setPortal(initialValues.portal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues]);
+
+  useEffect(() => {
+    if (!open || !initialValues?.department || departments.length === 0) return;
+    const wanted = initialValues.department.trim().toLowerCase();
+    const found =
+      departments.find((d) => d.name.trim().toLowerCase() === wanted) ||
+      departments.find((d) => d.name.trim().toLowerCase().includes(wanted));
+    if (found) setDepartment(String(found.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues, departments]);
+
+  useEffect(() => {
+    if (!open || !initialValues?.position || positions.length === 0) return;
+    const wanted = initialValues.position.trim().toLowerCase();
+    const found =
+      positions.find((p) => p.name.trim().toLowerCase() === wanted) ||
+      positions.find((p) => p.name.trim().toLowerCase().includes(wanted));
+    if (found) setPosition(String(found.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues, positions]);
 
   const resetForm = () => {
     setLastName('');

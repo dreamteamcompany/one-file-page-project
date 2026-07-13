@@ -7,23 +7,94 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import CreateAccountModal, { AccountTarget } from './CreateAccountModal';
+import { apiFetch } from '@/utils/api';
+import { useToast } from '@/hooks/use-toast';
+import CreateAccountModal, { AccountTarget, AccountInitialValues } from './CreateAccountModal';
+
+const CREATE_ACCOUNT_URL = 'https://functions.poehali.dev/30868c2a-0677-4a5e-b668-e78c5d7f918a';
 
 interface CreateAccountButtonProps {
   ticketId?: number;
 }
 
 const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
+  const { toast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
   const [targets, setTargets] = useState<AccountTarget[]>(['bitrix', 'email']);
+  const [initialValues, setInitialValues] = useState<AccountInitialValues | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
 
-  const openWith = (t: AccountTarget[]) => {
+  const openWith = (t: AccountTarget[], values: AccountInitialValues | null = null) => {
     setTargets(t);
+    setInitialValues(values);
     setModalOpen(true);
   };
 
+  const handleAnalyze = async () => {
+    if (!ticketId) return;
+    setAnalyzing(true);
+    try {
+      const res = await apiFetch(CREATE_ACCOUNT_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'analyze_ticket', ticket_id: ticketId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data?.error || 'Не удалось проанализировать заявку', variant: 'destructive' });
+        return;
+      }
+      if (!data.needs_account) {
+        toast({
+          title: 'Учётная запись не требуется',
+          description: data.reason || 'ИИ не нашёл в заявке запрос на создание учётки.',
+        });
+        return;
+      }
+      const f = data.fields || {};
+      openWith(['bitrix', 'email'], {
+        lastName: f.last_name || '',
+        firstName: f.first_name || '',
+        middleName: f.middle_name || '',
+        position: f.position || '',
+        department: f.department || '',
+        city: f.city || '',
+        gender: f.gender || '',
+        phone: f.phone || '',
+        birthDate: f.birth_date || '',
+        hireDate: f.hire_date || '',
+        portal: data.portal || '',
+      });
+      toast({
+        title: 'ИИ заполнил форму',
+        description: data.reason || 'Проверьте данные и создайте учётную запись.',
+      });
+    } catch {
+      toast({ title: 'Ошибка соединения с ИИ', variant: 'destructive' });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   return (
-    <>
+    <div className="flex items-center gap-2">
+      {ticketId && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleAnalyze}
+          disabled={analyzing}
+          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 font-semibold"
+        >
+          <Icon
+            name={analyzing ? 'Loader2' : 'Sparkles'}
+            size={16}
+            className={analyzing ? 'mr-1.5 animate-spin' : 'mr-1.5'}
+          />
+          <span className="hidden sm:inline">Анализ ИИ</span>
+          <span className="sm:hidden">ИИ</span>
+        </Button>
+      )}
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -49,8 +120,9 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         onOpenChange={setModalOpen}
         targets={targets}
         ticketId={ticketId}
+        initialValues={initialValues}
       />
-    </>
+    </div>
   );
 };
 
