@@ -40,6 +40,9 @@ export interface AccountInitialValues {
   birthDate?: string;
   hireDate?: string;
   portal?: 'ru' | 'kz' | '';
+  departmentId?: string;
+  positionId?: string;
+  photoUrl?: string;
 }
 
 interface CreateAccountModalProps {
@@ -132,11 +135,15 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
     if (initialValues.birthDate !== undefined) setBirthDate(initialValues.birthDate);
     if (initialValues.hireDate !== undefined) setHireDate(initialValues.hireDate);
     if (initialValues.portal) setPortal(initialValues.portal);
+    if (initialValues.photoUrl) setPhotoPreview(initialValues.photoUrl);
+    if (initialValues.departmentId) setDepartment(String(initialValues.departmentId));
+    if (initialValues.positionId) setPosition(String(initialValues.positionId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialValues]);
 
   useEffect(() => {
-    if (!open || !initialValues?.department || departments.length === 0) return;
+    if (!open || initialValues?.departmentId) return;
+    if (!initialValues?.department || departments.length === 0) return;
     const wanted = initialValues.department.trim().toLowerCase();
     const found =
       departments.find((d) => d.name.trim().toLowerCase() === wanted) ||
@@ -146,7 +153,8 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
   }, [open, initialValues, departments]);
 
   useEffect(() => {
-    if (!open || !initialValues?.position || positions.length === 0) return;
+    if (!open || initialValues?.positionId) return;
+    if (!initialValues?.position || positions.length === 0) return;
     const wanted = initialValues.position.trim().toLowerCase();
     const found =
       positions.find((p) => p.name.trim().toLowerCase() === wanted) ||

@@ -55,6 +55,7 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         return;
       }
       const f = data.fields || {};
+      const direct = data.direct || {};
       openWith(['bitrix', 'email'], {
         lastName: f.last_name || '',
         firstName: f.first_name || '',
@@ -67,6 +68,9 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         birthDate: f.birth_date || '',
         hireDate: f.hire_date || '',
         portal: data.portal || '',
+        departmentId: direct.department_id || '',
+        positionId: direct.position_id || '',
+        photoUrl: direct.photo_url || '',
       });
       toast({
         title: 'ИИ заполнил форму',

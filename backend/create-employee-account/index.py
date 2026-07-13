@@ -930,13 +930,17 @@ def load_ticket_context(ticket_id):
             'creator_department': row[4],
         }
         cur.execute(
-            f"SELECT f.name, v.value "
+            f"SELECT f.name, v.value, f.field_type "
             f"FROM {SCHEMA}.ticket_custom_field_values v "
             f"JOIN {SCHEMA}.ticket_custom_fields f ON f.id = v.field_id "
             f"WHERE v.ticket_id = {int(ticket_id)} AND v.value IS NOT NULL AND v.value <> '' "
             f"ORDER BY f.id"
         )
-        custom_fields = [{'name': r[0], 'value': r[1]} for r in cur.fetchall()]
+        custom_fields = [{'name': r[0], 'value': r[1], 'field_type': r[2]} for r in cur.fetchall()]
+
+        # Точные данные из полей заявки (без участия ИИ): отдел/должность/фото
+        direct = extract_direct_fields(cur, custom_fields)
+
         cur.execute(
             f"SELECT c.comment, u.full_name "
             f"FROM {SCHEMA}.ticket_comments c "
@@ -945,9 +949,48 @@ def load_ticket_context(ticket_id):
             f"ORDER BY c.created_at ASC LIMIT 100"
         )
         comments = [{'comment': r[0], 'author': r[1]} for r in cur.fetchall()]
-        return {'ticket': ticket, 'custom_fields': custom_fields, 'comments': comments}
+        return {'ticket': ticket, 'custom_fields': custom_fields,
+                'comments': comments, 'direct': direct}
     finally:
         conn.close()
+
+
+def extract_direct_fields(cur, custom_fields):
+    """Извлекает точные значения из полей заявки: department_id/position_id (company_structure)
+    и URL фото (file). Возвращает dict, который подставляется в форму напрямую."""
+    direct = {}
+    for f in custom_fields:
+        ftype = f.get('field_type')
+        value = f.get('value') or ''
+        if ftype == 'company_structure':
+            try:
+                data = json.loads(value)
+            except Exception:
+                continue
+            dep_id = data.get('department_id')
+            pos_id = data.get('position_id')
+            if dep_id:
+                direct['department_id'] = str(dep_id)
+                try:
+                    cur.execute(f"SELECT name FROM {SCHEMA}.departments WHERE id = {int(dep_id)}")
+                    r = cur.fetchone()
+                    if r:
+                        direct['department_name'] = r[0]
+                except Exception:
+                    pass
+            if pos_id:
+                direct['position_id'] = str(pos_id)
+                try:
+                    cur.execute(f"SELECT name FROM {SCHEMA}.positions WHERE id = {int(pos_id)}")
+                    r = cur.fetchone()
+                    if r:
+                        direct['position_name'] = r[0]
+                except Exception:
+                    pass
+        elif ftype == 'file' and 'фото' in (f.get('name') or '').lower():
+            if value.startswith('http'):
+                direct['photo_url'] = value
+    return direct
 
 
 def build_ai_prompt(ctx):
@@ -962,10 +1005,22 @@ def build_ai_prompt(ctx):
         f"  Отдел: {t.get('creator_department') or '(нет)'}",
         "",
     ]
+    direct = ctx.get('direct') or {}
     if ctx['custom_fields']:
         lines.append("Дополнительные поля заявки:")
         for f in ctx['custom_fields']:
-            lines.append(f"  - {f['name']}: {f['value']}")
+            ftype = f.get('field_type')
+            if ftype == 'company_structure':
+                parts = []
+                if direct.get('department_name'):
+                    parts.append(f"отдел «{direct['department_name']}»")
+                if direct.get('position_name'):
+                    parts.append(f"должность «{direct['position_name']}»")
+                lines.append(f"  - {f['name']}: {', '.join(parts) if parts else f['value']}")
+            elif ftype == 'file':
+                lines.append(f"  - {f['name']}: (прикреплён файл)")
+            else:
+                lines.append(f"  - {f['name']}: {f['value']}")
         lines.append("")
     if ctx['comments']:
         lines.append("Комментарии (в хронологическом порядке):")
@@ -1063,7 +1118,9 @@ def handle_analyze_ticket(payload, body):
         return response(502, {'error': f'ИИ недоступен: {getattr(e, "reason", e)}'})
     except Exception as e:
         return response(502, {'error': f'Ошибка обращения к ИИ: {e}'})
-    return response(200, normalize_ai_result(raw))
+    result = normalize_ai_result(raw)
+    result['direct'] = ctx.get('direct') or {}
+    return response(200, result)
 
 
 def handler(event: dict, context) -> dict:
