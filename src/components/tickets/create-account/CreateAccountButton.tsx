@@ -69,7 +69,9 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         hireDate: f.hire_date || '',
         portal: data.portal || '',
         departmentId: direct.department_id || '',
+        departmentName: direct.department_name || '',
         positionId: direct.position_id || '',
+        positionName: direct.position_name || '',
         photoUrl: direct.photo_url || '',
       });
       toast({

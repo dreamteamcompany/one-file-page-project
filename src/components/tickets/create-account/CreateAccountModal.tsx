@@ -41,7 +41,9 @@ export interface AccountInitialValues {
   hireDate?: string;
   portal?: 'ru' | 'kz' | '';
   departmentId?: string;
+  departmentName?: string;
   positionId?: string;
+  positionName?: string;
   photoUrl?: string;
 }
 
@@ -85,17 +87,41 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
   const [results, setResults] = useState<AccountResult[] | null>(null);
   const [copiedKey, setCopiedKey] = useState('');
 
+  const ensureOption = (list: Dict[], id?: string, name?: string): Dict[] => {
+    if (!id || !name) return list;
+    const numId = Number(id);
+    if (list.some((x) => x.id === numId)) return list;
+    return [{ id: numId, name }, ...list];
+  };
+
   useEffect(() => {
     if (!open) return;
     apiFetch('/departments')
       .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setDepartments(Array.isArray(d) ? d : []))
+      .then((d) =>
+        setDepartments(
+          ensureOption(
+            Array.isArray(d) ? d : [],
+            initialValues?.departmentId,
+            initialValues?.departmentName,
+          ),
+        ),
+      )
       .catch(() => {});
     apiFetch('/positions')
       .then((r) => (r.ok ? r.json() : []))
-      .then((d) => setPositions(Array.isArray(d) ? d : []))
+      .then((d) =>
+        setPositions(
+          ensureOption(
+            Array.isArray(d) ? d : [],
+            initialValues?.positionId,
+            initialValues?.positionName,
+          ),
+        ),
+      )
       .catch(() => {});
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialValues]);
 
   useEffect(() => {
     setDomain('');
