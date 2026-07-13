@@ -1006,9 +1006,7 @@ def call_ai(prompt_text):
     req = urllib.request.Request(
         ROUTERAI_URL, data=payload,
         headers={'Content-Type': 'application/json',
-                 'Authorization': f'Bearer {ROUTERAI_API_KEY}',
-                 'HTTP-Referer': 'https://help-km.ru',
-                 'X-Title': 'DreamDesk'},
+                 'Authorization': f'Bearer {ROUTERAI_API_KEY}'},
         method='POST',
     )
     with urllib.request.urlopen(req, timeout=40) as r:
