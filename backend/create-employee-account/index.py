@@ -390,6 +390,7 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
         'UF_DEPARTMENT[0]': dep_id,
+        'EXTRANET': 'N',
         'NOTIFY': 'N',
         'MESSAGE_ID': '',
     }
