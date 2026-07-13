@@ -43,10 +43,14 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         toast({ title: data?.error || 'Не удалось проанализировать заявку', variant: 'destructive' });
         return;
       }
+      const confidencePct = Math.round((Number(data.confidence) || 0) * 100);
+      const withConfidence = (text: string) =>
+        confidencePct ? `${text} · уверенность ИИ: ${confidencePct}%` : text;
+
       if (!data.needs_account) {
         toast({
           title: 'Учётная запись не требуется',
-          description: data.reason || 'ИИ не нашёл в заявке запрос на создание учётки.',
+          description: withConfidence(data.reason || 'ИИ не нашёл в заявке запрос на создание учётки.'),
         });
         return;
       }
@@ -66,7 +70,7 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
       });
       toast({
         title: 'ИИ заполнил форму',
-        description: data.reason || 'Проверьте данные и создайте учётную запись.',
+        description: withConfidence(data.reason || 'Проверьте данные и создайте учётную запись.'),
       });
     } catch {
       toast({ title: 'Ошибка соединения с ИИ', variant: 'destructive' });
