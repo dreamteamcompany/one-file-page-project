@@ -877,7 +877,7 @@ def handle_test(payload, body):
 
 
 ROUTERAI_API_KEY = os.environ.get('ROUTERAI_API_KEY', '')
-ROUTERAI_URL = 'https://openrouter.ai/api/v1/chat/completions'
+ROUTERAI_URL = 'https://routerai.ru/api/v1/chat/completions'
 AI_MODEL = 'google/gemini-2.5-flash'
 
 AI_SYSTEM_PROMPT = (
