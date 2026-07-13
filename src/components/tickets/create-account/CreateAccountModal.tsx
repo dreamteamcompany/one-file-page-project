@@ -87,41 +87,17 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
   const [results, setResults] = useState<AccountResult[] | null>(null);
   const [copiedKey, setCopiedKey] = useState('');
 
-  const ensureOption = (list: Dict[], id?: string, name?: string): Dict[] => {
-    if (!id || !name) return list;
-    const numId = Number(id);
-    if (list.some((x) => x.id === numId)) return list;
-    return [{ id: numId, name }, ...list];
-  };
-
   useEffect(() => {
     if (!open) return;
     apiFetch('/departments')
       .then((r) => (r.ok ? r.json() : []))
-      .then((d) =>
-        setDepartments(
-          ensureOption(
-            Array.isArray(d) ? d : [],
-            initialValues?.departmentId,
-            initialValues?.departmentName,
-          ),
-        ),
-      )
+      .then((d) => setDepartments(Array.isArray(d) ? d : []))
       .catch(() => {});
     apiFetch('/positions')
       .then((r) => (r.ok ? r.json() : []))
-      .then((d) =>
-        setPositions(
-          ensureOption(
-            Array.isArray(d) ? d : [],
-            initialValues?.positionId,
-            initialValues?.positionName,
-          ),
-        ),
-      )
+      .then((d) => setPositions(Array.isArray(d) ? d : []))
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialValues]);
+  }, [open]);
 
   useEffect(() => {
     setDomain('');
@@ -162,32 +138,13 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
     if (initialValues.hireDate !== undefined) setHireDate(initialValues.hireDate);
     if (initialValues.portal) setPortal(initialValues.portal);
     if (initialValues.photoUrl) setPhotoPreview(initialValues.photoUrl);
-    if (initialValues.departmentId) setDepartment(String(initialValues.departmentId));
-    if (initialValues.positionId) setPosition(String(initialValues.positionId));
+    // FilterCombobox хранит значение по названию (label), поэтому кладём имена, а не ID
+    if (initialValues.departmentName) setDepartment(initialValues.departmentName);
+    else if (initialValues.department) setDepartment(initialValues.department);
+    if (initialValues.positionName) setPosition(initialValues.positionName);
+    else if (initialValues.position) setPosition(initialValues.position);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialValues]);
-
-  useEffect(() => {
-    if (!open || initialValues?.departmentId) return;
-    if (!initialValues?.department || departments.length === 0) return;
-    const wanted = initialValues.department.trim().toLowerCase();
-    const found =
-      departments.find((d) => d.name.trim().toLowerCase() === wanted) ||
-      departments.find((d) => d.name.trim().toLowerCase().includes(wanted));
-    if (found) setDepartment(String(found.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialValues, departments]);
-
-  useEffect(() => {
-    if (!open || initialValues?.positionId) return;
-    if (!initialValues?.position || positions.length === 0) return;
-    const wanted = initialValues.position.trim().toLowerCase();
-    const found =
-      positions.find((p) => p.name.trim().toLowerCase() === wanted) ||
-      positions.find((p) => p.name.trim().toLowerCase().includes(wanted));
-    if (found) setPosition(String(found.id));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialValues, positions]);
 
   const resetForm = () => {
     setLastName('');
