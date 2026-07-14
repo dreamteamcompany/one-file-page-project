@@ -32,6 +32,7 @@ export interface TrainingExample {
   service_ids: number[];
   ticket_service_name: string;
   service_names: string[];
+  clarifying_questions?: string[] | null;
   has_embedding?: boolean;
   is_auto?: boolean;
   created_at: string;
@@ -60,7 +61,7 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
 
   const [exampleDialog, setExampleDialog] = useState(false);
   const [editingExample, setEditingExample] = useState<TrainingExample | null>(null);
-  const [exampleForm, setExampleForm] = useState({ description: '', ticket_service_id: '', service_ids: [] as number[] });
+  const [exampleForm, setExampleForm] = useState({ description: '', ticket_service_id: '', service_ids: [] as number[], questions: [] as string[] });
 
   const selectedTs = ticketServices.find(ts => ts.id.toString() === exampleForm.ticket_service_id);
   const filteredServices = selectedTs?.service_ids
@@ -74,10 +75,11 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
         description: example.description,
         ticket_service_id: example.ticket_service_id.toString(),
         service_ids: example.service_ids || [],
+        questions: example.clarifying_questions || [],
       });
     } else {
       setEditingExample(null);
-      setExampleForm({ description: '', ticket_service_id: '', service_ids: [] });
+      setExampleForm({ description: '', ticket_service_id: '', service_ids: [], questions: [] });
     }
     setExampleDialog(true);
   };
@@ -93,6 +95,7 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
       description: exampleForm.description.trim(),
       ticket_service_id: parseInt(exampleForm.ticket_service_id),
       service_ids: exampleForm.service_ids,
+      clarifying_questions: exampleForm.questions.map(q => q.trim()).filter(Boolean),
     };
 
     const res = await apiFetch(AI_TRAINING_URL + '?endpoint=examples', {
@@ -127,6 +130,21 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
         ? prev.service_ids.filter(id => id !== serviceId)
         : [...prev.service_ids, serviceId],
     }));
+  };
+
+  const updateQuestion = (idx: number, value: string) => {
+    setExampleForm(prev => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => (i === idx ? value : q)),
+    }));
+  };
+
+  const removeQuestion = (idx: number) => {
+    setExampleForm(prev => ({ ...prev, questions: prev.questions.filter((_, i) => i !== idx) }));
+  };
+
+  const addQuestion = () => {
+    setExampleForm(prev => ({ ...prev, questions: [...prev.questions, ''] }));
   };
 
   return (
@@ -187,6 +205,16 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
                           </Badge>
                         )}
                       </div>
+                      {ex.clarifying_questions && ex.clarifying_questions.length > 0 && (
+                        <div className="mt-2 pl-2 border-l-2 border-primary/30">
+                          <p className="text-xs font-medium text-muted-foreground mb-0.5">Уточняющие вопросы:</p>
+                          <ul className="space-y-0.5">
+                            {ex.clarifying_questions.map((q, i) => (
+                              <li key={i} className="text-xs text-muted-foreground">— {q}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openExampleDialog(ex)}>
@@ -261,6 +289,41 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
                 </div>
               </div>
             )}
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Уточняющие вопросы</Label>
+                <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={addQuestion}>
+                  <Icon name="Plus" size={14} />
+                  Добавить вопрос
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Вопросы, которые стоит задать по таким заявкам. AI будет ориентироваться на них.
+              </p>
+              {exampleForm.questions.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  {exampleForm.questions.map((q, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Textarea
+                        value={q}
+                        onChange={e => updateQuestion(idx, e.target.value)}
+                        placeholder="Например: В какой базе возникла проблема?"
+                        rows={1}
+                        className="min-h-9 resize-none"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 flex-shrink-0 text-destructive"
+                        onClick={() => removeQuestion(idx)}
+                      >
+                        <Icon name="X" size={14} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setExampleDialog(false)}>Отмена</Button>
               <Button onClick={saveExample}>

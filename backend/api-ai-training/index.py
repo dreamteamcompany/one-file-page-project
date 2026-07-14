@@ -124,7 +124,7 @@ def handle_examples(method, event, cur, conn):
     if method == 'GET':
         cur.execute(f"""
             SELECT e.id, e.description, e.ticket_service_id, e.service_ids,
-                   e.created_at, e.updated_at, e.is_auto,
+                   e.created_at, e.updated_at, e.is_auto, e.clarifying_questions,
                    ts.name as ticket_service_name,
                    CASE WHEN e.embedding IS NOT NULL THEN true ELSE false END as has_embedding
             FROM {SCHEMA}.ai_training_examples e
@@ -155,6 +155,7 @@ def handle_examples(method, event, cur, conn):
         description = body.get('description', '').strip()
         ticket_service_id = body.get('ticket_service_id')
         service_ids = body.get('service_ids', [])
+        clarifying_questions = [str(q).strip() for q in (body.get('clarifying_questions') or []) if str(q).strip()]
 
         if not description or not ticket_service_id:
             return response(400, {'error': 'description и ticket_service_id обязательны'})
@@ -163,10 +164,10 @@ def handle_examples(method, event, cur, conn):
         embedding_json = json.dumps(embedding) if embedding else None
 
         cur.execute(f"""
-            INSERT INTO {SCHEMA}.ai_training_examples (description, ticket_service_id, service_ids, embedding)
-            VALUES (%s, %s, %s, %s::jsonb)
-            RETURNING id, description, ticket_service_id, service_ids, created_at
-        """, (description, ticket_service_id, service_ids, embedding_json))
+            INSERT INTO {SCHEMA}.ai_training_examples (description, ticket_service_id, service_ids, clarifying_questions, embedding)
+            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb)
+            RETURNING id, description, ticket_service_id, service_ids, clarifying_questions, created_at
+        """, (description, ticket_service_id, service_ids, json.dumps(clarifying_questions), embedding_json))
         conn.commit()
         result = dict(cur.fetchone())
         result['has_embedding'] = embedding is not None
@@ -194,6 +195,10 @@ def handle_examples(method, event, cur, conn):
         if 'service_ids' in body:
             fields.append('service_ids = %s')
             values.append(body['service_ids'])
+        if 'clarifying_questions' in body:
+            cq = [str(q).strip() for q in (body.get('clarifying_questions') or []) if str(q).strip()]
+            fields.append('clarifying_questions = %s::jsonb')
+            values.append(json.dumps(cq))
 
         if not fields:
             return response(400, {'error': 'Нет полей для обновления'})
@@ -212,7 +217,7 @@ def handle_examples(method, event, cur, conn):
             UPDATE {SCHEMA}.ai_training_examples
             SET {', '.join(fields)}
             WHERE id = %s
-            RETURNING id, description, ticket_service_id, service_ids, updated_at
+            RETURNING id, description, ticket_service_id, service_ids, clarifying_questions, updated_at
         """, values)
         conn.commit()
         row = cur.fetchone()

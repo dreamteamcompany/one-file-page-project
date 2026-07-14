@@ -171,7 +171,7 @@ def cosine_similarity(vec_a, vec_b):
 def find_similar_examples(cur, query_embedding, top_k=TOP_K_EXAMPLES):
     cur.execute(f"""
         SELECT e.description, e.ticket_service_id, e.service_ids, e.embedding,
-               ts.name as ts_name
+               e.clarifying_questions, ts.name as ts_name
         FROM {SCHEMA}.ai_training_examples e
         JOIN {SCHEMA}.ticket_services ts ON ts.id = e.ticket_service_id
         WHERE e.embedding IS NOT NULL
@@ -198,7 +198,7 @@ def find_similar_examples(cur, query_embedding, top_k=TOP_K_EXAMPLES):
 def find_similar_examples_keyword(cur, query_text, top_k=TOP_K_EXAMPLES):
     cur.execute(f"""
         SELECT e.description, e.ticket_service_id, e.service_ids,
-               ts.name as ts_name
+               e.clarifying_questions, ts.name as ts_name
         FROM {SCHEMA}.ai_training_examples e
         JOIN {SCHEMA}.ticket_services ts ON ts.id = e.ticket_service_id
     """)
@@ -274,6 +274,16 @@ def _format_examples_text(cur, similar):
     for sim_score, ex in similar:
         svc_list = ', '.join([svc_names.get(sid, '?') for sid in (ex['service_ids'] or [])])
         examples_text += f'- (схожесть {sim_score:.0%}) "{ex["description"]}" → услуга "{ex["ts_name"]}" (id={ex["ticket_service_id"]}), сервис: {svc_list} (ids={ex["service_ids"]})\n'
+        ex_questions = ex.get('clarifying_questions')
+        if isinstance(ex_questions, str):
+            try:
+                ex_questions = json.loads(ex_questions)
+            except (ValueError, TypeError):
+                ex_questions = []
+        if ex_questions:
+            q_list = '; '.join(str(q).strip() for q in ex_questions if str(q).strip())
+            if q_list:
+                examples_text += f'  уточняющие вопросы: {q_list}\n'
     return examples_text
 
 
@@ -327,7 +337,7 @@ def build_prompt(description, services_map, rules_text, examples_text):
 {services_text}
 ЗАЯВКА: "{description}"
 {rules_text}{examples_text}
-Также сформулируй 1-3 коротких уточняющих вопроса на русском, которые помогли бы точнее решить заявку (clarifying_questions). Если уточнять нечего — верни пустой массив.
+Также сформулируй 1-3 коротких уточняющих вопроса на русском, которые помогли бы точнее решить заявку (clarifying_questions). Если у похожих заявок выше указаны уточняющие вопросы — ориентируйся на них по смыслу и стилю, адаптируя под текущую заявку. Если уточнять нечего — верни пустой массив.
 JSON: {{"ticket_service_id": ЧИСЛО, "service_ids": [ЧИСЛО], "confidence": 0-100, "clarifying_questions": ["вопрос 1", "вопрос 2"]}}
 Допустимые ticket_service_id: {', '.join(valid_ts_ids)}
 Допустимые service_ids: {', '.join(valid_svc_ids)}"""
