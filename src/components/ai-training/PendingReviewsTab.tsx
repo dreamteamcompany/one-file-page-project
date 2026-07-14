@@ -195,20 +195,20 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
     <>
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">На проверку</CardTitle>
               <CardDescription className="text-xs mt-1">
                 Результаты автоматической классификации, ожидающие проверки оператором.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" className="gap-2" onClick={() => setAddDialog(true)}>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button size="sm" variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={() => setAddDialog(true)}>
                 <Icon name="FilePlus" size={16} />
                 Добавить заявки
               </Button>
               {pendingReviews.length > 0 && (
-                <Button size="sm" className="gap-2" onClick={handleApproveAll} disabled={loading}>
+                <Button size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleApproveAll} disabled={loading}>
                   <Icon name="CheckCheck" size={16} />
                   Подтвердить все
                 </Button>

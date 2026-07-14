@@ -257,8 +257,8 @@ const AiTraining = () => {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="default" size="sm" className="gap-2" onClick={enqueueTickets} disabled={enqueuing || clearing}>
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+          <Button variant="default" size="sm" className="gap-2 flex-1 sm:flex-none" onClick={enqueueTickets} disabled={enqueuing || clearing}>
             <Icon name={enqueuing ? 'Loader2' : 'Download'} size={16} className={enqueuing ? 'animate-spin' : ''} />
             {enqueuing
               ? enqueueProgress
@@ -266,7 +266,7 @@ const AiTraining = () => {
                 : 'Загрузка...'
               : 'Загрузить заявки на проверку'}
           </Button>
-          <Button variant="outline" size="sm" className="gap-2 text-destructive" onClick={clearAll} disabled={clearing || enqueuing}>
+          <Button variant="outline" size="sm" className="gap-2 text-destructive flex-1 sm:flex-none" onClick={clearAll} disabled={clearing || enqueuing}>
             <Icon name={clearing ? 'Loader2' : 'Trash2'} size={16} className={clearing ? 'animate-spin' : ''} />
             Очистить всё
           </Button>
@@ -370,7 +370,7 @@ const AiTraining = () => {
         )}
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1 -mx-1 px-1 [&>button]:flex-shrink-0">
         <Button
           variant={tab === 'pending_reviews' ? 'default' : 'outline'}
           size="sm"
