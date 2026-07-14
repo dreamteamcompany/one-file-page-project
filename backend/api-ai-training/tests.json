@@ -32,6 +32,12 @@
         "X-Auth-Token": "invalid"
       },
       "expectedStatus": 401
+    },
+    {
+      "name": "Bulk enqueue without auth",
+      "method": "GET",
+      "path": "/?endpoint=bulk_enqueue",
+      "expectedStatus": 401
     }
   ]
 }

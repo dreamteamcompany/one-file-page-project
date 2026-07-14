@@ -9,6 +9,7 @@ from shared_utils import response, get_db_connection, verify_token, handle_optio
 
 GIGACHAT_AUTH_KEY = os.environ.get('GIGACHAT_AUTH_KEY')
 USE_EMBEDDINGS = os.environ.get('USE_EMBEDDINGS', 'false').lower() == 'true'
+CLASSIFY_URL = os.environ.get('CLASSIFY_URL', 'https://functions.poehali.dev/b1d49417-fb02-4b11-9656-d30b68924b54')
 
 _token_cache = {'token': None, 'expires_at': 0}
 
@@ -115,6 +116,8 @@ def handler(event, context):
             return handle_reindex(cur, conn, event)
         elif endpoint == 'clear':
             return handle_clear(method, event, cur, conn)
+        elif endpoint == 'bulk_enqueue':
+            return handle_bulk_enqueue(method, event, cur, conn)
         else:
             return response(400, {'error': 'Укажите endpoint: examples, rules, stats, logs, pending_reviews, reindex или clear'})
     finally:
@@ -144,6 +147,76 @@ def handle_clear(method, event, cur, conn):
         cleared[section] = len(cur.fetchall())
     conn.commit()
     return response(200, {'cleared': cleared})
+
+
+def count_bulk_candidates(cur):
+    cur.execute(f"""
+        SELECT COUNT(*) AS cnt
+        FROM {SCHEMA}.tickets t
+        WHERE COALESCE(t.external_source, '') <> 'vsdesk'
+          AND NOT EXISTS (
+              SELECT 1 FROM {SCHEMA}.ai_pending_reviews pr WHERE pr.source_ticket_id = t.id
+          )
+    """)
+    return cur.fetchone()['cnt']
+
+
+def handle_bulk_enqueue(method, event, cur, conn):
+    if method == 'GET':
+        remaining = count_bulk_candidates(cur)
+        cur.execute(f"""
+            SELECT COUNT(*) AS total
+            FROM {SCHEMA}.tickets t
+            WHERE COALESCE(t.external_source, '') <> 'vsdesk'
+        """)
+        total = cur.fetchone()['total']
+        return response(200, {'remaining': remaining, 'total': total})
+
+    if method != 'POST':
+        return response(405, {'error': 'Только GET или POST'})
+
+    body = json.loads(event.get('body', '{}'))
+    batch_size = min(int(body.get('batch_size', 5)), 10)
+
+    cur.execute(f"""
+        SELECT t.id, t.title, t.description
+        FROM {SCHEMA}.tickets t
+        WHERE COALESCE(t.external_source, '') <> 'vsdesk'
+          AND NOT EXISTS (
+              SELECT 1 FROM {SCHEMA}.ai_pending_reviews pr WHERE pr.source_ticket_id = t.id
+          )
+        ORDER BY t.id ASC
+        LIMIT {batch_size}
+    """)
+    tickets = [dict(r) for r in cur.fetchall()]
+
+    enqueued = 0
+    errors = 0
+    for t in tickets:
+        parts = [p for p in [t.get('title'), t.get('description')] if p and str(p).strip()]
+        description = '. '.join(parts).strip() or (t.get('title') or f"Заявка №{t['id']}")
+        try:
+            resp = requests.post(
+                CLASSIFY_URL,
+                json={'description': description[:2000], 'source_ticket_id': t['id'], 'queue_only': True},
+                timeout=(5, 60),
+            )
+            if resp.status_code == 200:
+                enqueued += 1
+            else:
+                errors += 1
+                print(f"[bulk_enqueue] ticket {t['id']} status {resp.status_code}")
+        except Exception as e:
+            errors += 1
+            print(f"[bulk_enqueue] ticket {t['id']} error: {e}")
+
+    remaining = count_bulk_candidates(cur)
+    return response(200, {
+        'enqueued': enqueued,
+        'errors': errors,
+        'remaining': remaining,
+        'done': remaining == 0 or len(tickets) == 0,
+    })
 
 
 def handle_examples(method, event, cur, conn):
@@ -662,12 +735,21 @@ def handle_stats(cur):
     cur.execute(f"SELECT COUNT(*) as count FROM {SCHEMA}.ai_pending_reviews WHERE status = 'pending'")
     pending_reviews_count = cur.fetchone()['count']
 
+    cur.execute(f"SELECT COUNT(*) as count FROM {SCHEMA}.ai_pending_reviews")
+    total_reviews = cur.fetchone()['count']
+
+    reviewed_count = total_reviews - pending_reviews_count
+    training_progress = round(reviewed_count / total_reviews * 100) if total_reviews > 0 else 0
+
     return response(200, {
         'examples_count': examples_count,
         'active_rules_count': rules_count,
         'indexed_count': indexed_count,
         'auto_count': auto_count,
         'pending_reviews_count': pending_reviews_count,
+        'reviewed_count': reviewed_count,
+        'total_reviews': total_reviews,
+        'training_progress': training_progress,
     })
 
 

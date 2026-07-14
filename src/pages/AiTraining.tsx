@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import Icon from '@/components/ui/icon';
 import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,11 +32,13 @@ const AiTraining = () => {
   const [ticketServices, setTicketServices] = useState<TicketService[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
-  const [stats, setStats] = useState({ examples_count: 0, active_rules_count: 0, indexed_count: 0, pending_reviews_count: 0 });
+  const [stats, setStats] = useState({ examples_count: 0, active_rules_count: 0, indexed_count: 0, pending_reviews_count: 0, reviewed_count: 0, total_reviews: 0, training_progress: 0 });
   const [loading, setLoading] = useState(true);
   const [reindexing, setReindexing] = useState(false);
   const [reindexProgress, setReindexProgress] = useState<{ done: number; total: number } | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [enqueuing, setEnqueuing] = useState(false);
+  const [enqueueProgress, setEnqueueProgress] = useState<{ done: number; total: number } | null>(null);
 
   useEffect(() => {
     if (!hasPermission('settings', 'read')) {
@@ -97,6 +100,59 @@ const AiTraining = () => {
       toast({ title: 'Ошибка соединения', variant: 'destructive' });
     } finally {
       setClearing(false);
+    }
+  };
+
+  const enqueueTickets = async () => {
+    if (!window.confirm('Загрузить все заявки проекта (кроме перенесённых из vsDesk) в раздел «На проверку»? AI проанализирует каждую и предложит услугу и вопросы. Это может занять время.')) {
+      return;
+    }
+    setEnqueuing(true);
+    setEnqueueProgress(null);
+
+    let grandTotal = 0;
+    let safety = 0;
+    const MAX_BATCHES = 2000;
+
+    try {
+      const initRes = await apiFetch(`${AI_TRAINING_URL}?endpoint=bulk_enqueue`);
+      if (initRes.ok) {
+        const d = await initRes.json();
+        grandTotal = d.remaining || 0;
+        setEnqueueProgress({ done: 0, total: grandTotal });
+      }
+
+      while (safety < MAX_BATCHES) {
+        safety += 1;
+        const res = await apiFetch(`${AI_TRAINING_URL}?endpoint=bulk_enqueue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ batch_size: 5 }),
+        });
+
+        if (!res.ok) {
+          toast({ title: 'Ошибка загрузки заявок', description: 'Попробуйте позже.', variant: 'destructive' });
+          break;
+        }
+
+        const data = await res.json();
+        const remaining = data.remaining ?? 0;
+        const done = grandTotal > 0 ? Math.max(0, grandTotal - remaining) : 0;
+        setEnqueueProgress({ done, total: grandTotal });
+
+        if (data.done || remaining === 0 || data.enqueued === 0) {
+          break;
+        }
+        loadData(true);
+      }
+
+      toast({ title: 'Загрузка заявок завершена' });
+      loadData(true);
+    } catch {
+      toast({ title: 'Ошибка соединения', variant: 'destructive' });
+    } finally {
+      setEnqueuing(false);
+      setEnqueueProgress(null);
     }
   };
 
@@ -200,11 +256,41 @@ const AiTraining = () => {
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="gap-2 text-destructive" onClick={clearAll} disabled={clearing}>
-          <Icon name={clearing ? 'Loader2' : 'Trash2'} size={16} className={clearing ? 'animate-spin' : ''} />
-          Очистить всё
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="default" size="sm" className="gap-2" onClick={enqueueTickets} disabled={enqueuing || clearing}>
+            <Icon name={enqueuing ? 'Loader2' : 'Download'} size={16} className={enqueuing ? 'animate-spin' : ''} />
+            {enqueuing
+              ? enqueueProgress
+                ? `Загрузка ${enqueueProgress.done}/${enqueueProgress.total}`
+                : 'Загрузка...'
+              : 'Загрузить заявки на проверку'}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2 text-destructive" onClick={clearAll} disabled={clearing || enqueuing}>
+            <Icon name={clearing ? 'Loader2' : 'Trash2'} size={16} className={clearing ? 'animate-spin' : ''} />
+            Очистить всё
+          </Button>
+        </div>
       </header>
+
+      <Card className="mb-4">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <Icon name="GraduationCap" size={20} className="text-green-500" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Процент обучения</p>
+                <p className="text-xs text-muted-foreground">
+                  Разобрано {stats.reviewed_count} из {stats.total_reviews} заявок в очереди
+                </p>
+              </div>
+            </div>
+            <p className="text-2xl font-bold">{stats.training_progress}%</p>
+          </div>
+          <Progress value={stats.training_progress} className="h-2" />
+        </CardContent>
+      </Card>
 
       <div className={`grid ${USE_EMBEDDINGS_UI ? 'grid-cols-4' : 'grid-cols-3'} gap-4 mb-6`}>
         <Card>
