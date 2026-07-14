@@ -17,13 +17,13 @@ const TeamKpiRow = ({ kpi, loading }: TeamKpiRowProps) => {
     {
       label: 'Закрыто заявок',
       value: kpi ? kpi.closed.toLocaleString('ru-RU') : '—',
-      sub: kpi ? `${kpi.closed_delta >= 0 ? '+' : ''}${kpi.closed_delta} к прошлому месяцу` : '',
+      sub: kpi ? `${kpi.closed_delta >= 0 ? '+' : ''}${kpi.closed_delta} к прошлому периоду` : '',
       tone: kpi && kpi.closed_delta >= 0 ? ('up' as const) : ('down' as const),
     },
     {
       label: 'Среднее время решения',
       value: kpi ? kpi.avg_resolve : '—',
-      sub: kpi ? '−1 ч 02 мин' : '',
+      sub: '',
       tone: 'up' as const,
     },
     {

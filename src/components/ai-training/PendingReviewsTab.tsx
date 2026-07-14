@@ -229,7 +229,19 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                 <div key={rv.id} className="p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium mb-1.5 line-clamp-2">{rv.description}</p>
+                      {rv.source_ticket_id ? (
+                        <button
+                          type="button"
+                          onClick={() => window.open(`/tickets/${rv.source_ticket_id}`, '_blank')}
+                          className="text-sm font-medium mb-1.5 line-clamp-2 text-left hover:text-primary hover:underline flex items-start gap-1 group"
+                          title="Открыть заявку в новой вкладке"
+                        >
+                          <span className="line-clamp-2">{rv.description}</span>
+                          <Icon name="ExternalLink" size={13} className="mt-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ) : (
+                        <p className="text-sm font-medium mb-1.5 line-clamp-2">{rv.description}</p>
+                      )}
                       <div className="flex flex-wrap gap-1.5">
                         {getConfidenceBadge(rv.confidence)}
                         {rv.ticket_service_name && (

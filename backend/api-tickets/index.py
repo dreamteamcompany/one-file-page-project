@@ -1056,13 +1056,27 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
         cur.execute(f"SELECT COUNT(DISTINCT assigned_to) AS cnt FROM {SCHEMA}.tickets WHERE assigned_to IS NOT NULL")
         engineers = int(cur.fetchone()['cnt'] or 0)
 
+        # "Закрыто" = в архиве ИЛИ статус "Ожидает подтверждения" (is_pending_confirmation),
+        # дата закрытия = COALESCE(closed_at, updated_at).
         cur.execute(f"""
             SELECT
-                COUNT(*) FILTER (WHERE t.closed_at >= {start_expr} AND t.closed_at < {end_expr}) AS closed_cur,
-                COUNT(*) FILTER (WHERE t.closed_at >= {prev_start_expr} AND t.closed_at < {prev_end_expr}) AS closed_prev,
-                AVG(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)))
-                    FILTER (WHERE t.closed_at >= {start_expr} AND t.closed_at < {end_expr}) AS avg_resolve_sec
+                COUNT(*) FILTER (
+                    WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                      AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                      AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                ) AS closed_cur,
+                COUNT(*) FILTER (
+                    WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                      AND COALESCE(t.closed_at, t.updated_at) >= {prev_start_expr}
+                      AND COALESCE(t.closed_at, t.updated_at) < {prev_end_expr}
+                ) AS closed_prev,
+                AVG(EXTRACT(EPOCH FROM (COALESCE(t.closed_at, t.updated_at) - t.created_at))) FILTER (
+                    WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                      AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                      AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                ) AS avg_resolve_sec
             FROM {SCHEMA}.tickets t
+            LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
         """, qp)
         kr = cur.fetchone()
         closed_cur = int(kr['closed_cur'] or 0)
@@ -1090,21 +1104,53 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
             'csat_delta': 0.15,
         }
 
-        # Рейтинг инженеров
+        # Рейтинг инженеров и нагрузка.
+        # "Закрыто" = в архиве ИЛИ статус "Ожидает подтверждения" (is_pending_confirmation),
+        #   фильтр по дате закрытия COALESCE(closed_at, updated_at) в выбранном периоде.
+        # "Активные" = все статусы, КРОМЕ: закрытых (is_closed), "Ожидает подтверждения",
+        #   "Приостановлена" (is_paused) и архива — без фильтра по дате (текущие).
+        # Среднее время решения — только по закрытым в периоде.
         cur.execute(f"""
             SELECT u.id, u.full_name, u.photo_url,
-                   COUNT(*) FILTER (WHERE COALESCE(s.is_closed, false)) AS closed,
-                   AVG(EXTRACT(EPOCH FROM (t.closed_at - t.created_at)))
-                       FILTER (WHERE t.closed_at IS NOT NULL) AS avg_resolve_sec,
-                   AVG(t.rating)::numeric(10,2) AS avg_rating,
-                   COUNT(*) FILTER (WHERE NOT COALESCE(s.is_closed, false) AND NOT t.is_archived) AS active
+                   COUNT(*) FILTER (
+                       WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                         AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                         AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                   ) AS closed,
+                   AVG(EXTRACT(EPOCH FROM (COALESCE(t.closed_at, t.updated_at) - t.created_at))) FILTER (
+                       WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                         AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                         AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                   ) AS avg_resolve_sec,
+                   AVG(t.rating)::numeric(10,2) FILTER (
+                       WHERE t.rating IS NOT NULL
+                         AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                         AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                   ) AS avg_rating,
+                   COUNT(*) FILTER (
+                       WHERE NOT COALESCE(s.is_closed, false)
+                         AND NOT COALESCE(s.is_pending_confirmation, false)
+                         AND NOT COALESCE(s.is_paused, false)
+                         AND NOT t.is_archived
+                   ) AS active
             FROM {SCHEMA}.tickets t
             JOIN {SCHEMA}.users u ON u.id = t.assigned_to
             LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
             GROUP BY u.id, u.full_name, u.photo_url
+            HAVING COUNT(*) FILTER (
+                       WHERE (t.is_archived OR COALESCE(s.is_pending_confirmation, false))
+                         AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
+                         AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
+                   ) > 0
+                OR COUNT(*) FILTER (
+                       WHERE NOT COALESCE(s.is_closed, false)
+                         AND NOT COALESCE(s.is_pending_confirmation, false)
+                         AND NOT COALESCE(s.is_paused, false)
+                         AND NOT t.is_archived
+                   ) > 0
             ORDER BY closed DESC, active DESC
             LIMIT 8
-        """)
+        """, qp)
         engineers_rating = []
         workload = []
         for r in cur.fetchall():
