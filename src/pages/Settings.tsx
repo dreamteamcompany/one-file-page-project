@@ -10,14 +10,11 @@ import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
 
 const Settings = () => {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [syncLoading, setSyncLoading] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
   const [classificationMode, setClassificationMode] = useState<'ai' | 'manual'>('ai');
   const [classificationLoading, setClassificationLoading] = useState(false);
   const [dueDays, setDueDays] = useState('1');
@@ -112,49 +109,6 @@ const Settings = () => {
       toast({ title: 'Ошибка соединения с сервером', variant: 'destructive' });
     } finally {
       setClassificationLoading(false);
-    }
-  };
-
-  const handleVsdeskSync = async () => {
-    setSyncLoading(true);
-    setSyncResult(null);
-    let offset = 0;
-    const limit = 10;
-    let totals = { inserted: 0, skipped: 0, filtered: 0, errors: 0, processed: 0, total: 0 };
-    let safetyHops = 0;
-    try {
-      while (true) {
-        safetyHops += 1;
-        if (safetyHops > 1000) break;
-        const res = await fetch(`${func2url['vsdesk-sync']}?action=sync`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ offset, limit }),
-        });
-        const data = await res.json();
-        if (!data.success) {
-          setSyncResult({ success: false, message: data.error || 'Ошибка синхронизации' });
-          return;
-        }
-        totals = {
-          inserted: totals.inserted + (data.inserted || 0),
-          skipped: totals.skipped + (data.skipped || 0),
-          filtered: totals.filtered + (data.filtered || 0),
-          errors: totals.errors + (data.errors || 0),
-          processed: data.processed,
-          total: data.total,
-        };
-        if (data.done || data.batch_size === 0) break;
-        offset = data.next_offset;
-      }
-      setSyncResult({
-        success: true,
-        message: `Готово. Добавлено: ${totals.inserted}, пропущено: ${totals.skipped}, ошибок: ${totals.errors}`,
-      });
-    } catch {
-      setSyncResult({ success: false, message: 'Ошибка соединения с vsDesk' });
-    } finally {
-      setSyncLoading(false);
     }
   };
 
@@ -327,44 +281,6 @@ const Settings = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md bg-blue-500/10 flex items-center justify-center">
-                  <Icon name="Server" size={16} className="text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">vsDesk</p>
-                  <p className="text-xs text-muted-foreground">Заявки, комментарии, файлы, история, наблюдатели</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {syncResult && (
-                  <span className={`text-xs ${syncResult.success ? 'text-green-500' : 'text-red-500'}`}>
-                    {syncResult.message}
-                  </span>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate('/settings/vsdesk')}
-                  className="gap-2"
-                >
-                  <Icon name="Settings" size={14} />
-                  Настроить
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleVsdeskSync}
-                  disabled={syncLoading}
-                  className="gap-2"
-                >
-                  <Icon name={syncLoading ? 'Loader2' : 'RefreshCw'} size={14} className={syncLoading ? 'animate-spin' : ''} />
-                  {syncLoading ? 'Синхронизация...' : 'Синхронизировать'}
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border/50 mt-3">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-md bg-purple-500/10 flex items-center justify-center">
                   <Icon name="UserPlus" size={16} className="text-purple-500" />

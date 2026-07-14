@@ -16,7 +16,6 @@ import Roles from "./pages/Roles";
 import CustomFields from "./pages/CustomFields";
 import LogAnalyzer from "./pages/LogAnalyzer";
 import Settings from "./pages/Settings";
-import VsdeskSettings from "./pages/VsdeskSettings";
 import AutomationSettings from "./pages/AutomationSettings";
 import IntegrationsSettings from "./pages/IntegrationsSettings";
 import KnowledgeBase from "./pages/KnowledgeBase";
@@ -69,7 +68,6 @@ const App = () => {
             <Route path="/custom-fields" element={<ProtectedRoute requiredPermission={{ resource: 'custom_fields', action: 'read' }}><CustomFields /></ProtectedRoute>} />
             <Route path="/log-analyzer" element={<ProtectedRoute><LogAnalyzer /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-            <Route path="/settings/vsdesk" element={<ProtectedRoute><VsdeskSettings /></ProtectedRoute>} />
             <Route path="/settings/automation" element={<ProtectedRoute><AutomationSettings /></ProtectedRoute>} />
             <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationsSettings /></ProtectedRoute>} />
             <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />

@@ -21,7 +21,6 @@
   "bitrix-auth": "https://functions.poehali.dev/1ba4ba6c-50e0-4458-b7e4-4464ffcff093",
   "upload-file": "https://functions.poehali.dev/3d20e803-c39e-4d0f-84c2-6c5eb7bb1af7",
   "ticket-auto-close": "https://functions.poehali.dev/e496c2b6-0f8f-4c29-8c52-42f53899ec94",
-  "vsdesk-sync": "https://functions.poehali.dev/d5424609-0624-41e0-a4f2-97a16728d631",
   "api-executor-assignments": "https://functions.poehali.dev/bb7f3193-fa1a-4243-b236-08b2795bd696",
   "api-executor-groups": "https://functions.poehali.dev/a52eb50f-38cf-4887-aead-cc77f01ca416",
   "api-service-field-mappings": "https://functions.poehali.dev/bc96bbe3-687c-4427-86c7-6c6bb2b3e61b",
