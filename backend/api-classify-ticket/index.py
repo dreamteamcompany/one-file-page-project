@@ -323,7 +323,8 @@ def build_prompt(description, services_map, rules_text, examples_text):
 {services_text}
 ЗАЯВКА: "{description}"
 {rules_text}{examples_text}
-JSON: {{"ticket_service_id": ЧИСЛО, "service_ids": [ЧИСЛО], "confidence": 0-100}}
+Также сформулируй 1-3 коротких уточняющих вопроса на русском, которые помогли бы точнее решить заявку (clarifying_questions). Если уточнять нечего — верни пустой массив.
+JSON: {{"ticket_service_id": ЧИСЛО, "service_ids": [ЧИСЛО], "confidence": 0-100, "clarifying_questions": ["вопрос 1", "вопрос 2"]}}
 Допустимые ticket_service_id: {', '.join(valid_ts_ids)}
 Допустимые service_ids: {', '.join(valid_svc_ids)}"""
 
@@ -362,7 +363,7 @@ def call_gigachat_with_token(prompt, token):
                 {'role': 'user', 'content': prompt},
             ],
             'temperature': 0.1,
-            'max_tokens': 100,
+            'max_tokens': 400,
         },
         verify=False,
         timeout=GIGACHAT_TIMEOUT,
@@ -502,6 +503,11 @@ def validate_result(result, services_map):
         if ts_services:
             result['service_ids'] = [ts_services[0]['id']]
             result['confidence'] = min(result.get('confidence', 0), 30)
+
+    raw_questions = result.get('clarifying_questions', [])
+    if not isinstance(raw_questions, list):
+        raw_questions = []
+    result['clarifying_questions'] = [str(q).strip() for q in raw_questions if str(q).strip()][:3]
 
     return result
 
