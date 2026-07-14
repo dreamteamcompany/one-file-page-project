@@ -113,11 +113,37 @@ def handler(event, context):
             return handle_pending_reviews(method, event, cur, conn)
         elif endpoint == 'reindex':
             return handle_reindex(cur, conn, event)
+        elif endpoint == 'clear':
+            return handle_clear(method, event, cur, conn)
         else:
-            return response(400, {'error': 'Укажите endpoint: examples, rules, stats, logs, pending_reviews или reindex'})
+            return response(400, {'error': 'Укажите endpoint: examples, rules, stats, logs, pending_reviews, reindex или clear'})
     finally:
         cur.close()
         conn.close()
+
+
+def handle_clear(method, event, cur, conn):
+    if method != 'POST':
+        return response(405, {'error': 'Только POST'})
+    body = json.loads(event.get('body', '{}'))
+    sections = body.get('sections', [])
+    if not isinstance(sections, list) or not sections:
+        return response(400, {'error': 'Укажите sections: pending_reviews, examples, rules'})
+
+    table_map = {
+        'pending_reviews': 'ai_pending_reviews',
+        'examples': 'ai_training_examples',
+        'rules': 'ai_training_rules',
+    }
+    cleared = {}
+    for section in sections:
+        table = table_map.get(section)
+        if not table:
+            continue
+        cur.execute(f"DELETE FROM {SCHEMA}.{table} RETURNING id")
+        cleared[section] = len(cur.fetchall())
+    conn.commit()
+    return response(200, {'cleared': cleared})
 
 
 def handle_examples(method, event, cur, conn):

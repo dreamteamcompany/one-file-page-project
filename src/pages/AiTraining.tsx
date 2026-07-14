@@ -35,6 +35,7 @@ const AiTraining = () => {
   const [loading, setLoading] = useState(true);
   const [reindexing, setReindexing] = useState(false);
   const [reindexProgress, setReindexProgress] = useState<{ done: number; total: number } | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => {
     if (!hasPermission('settings', 'read')) {
@@ -72,6 +73,30 @@ const AiTraining = () => {
       console.error('Failed to load AI training data:', err);
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const clearAll = async () => {
+    if (!window.confirm('Удалить всё содержимое разделов «На проверку», «Примеры заявок» и «Правила»? Восстановить нельзя.')) {
+      return;
+    }
+    setClearing(true);
+    try {
+      const res = await apiFetch(`${AI_TRAINING_URL}?endpoint=clear`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sections: ['pending_reviews', 'examples', 'rules'] }),
+      });
+      if (res.ok) {
+        toast({ title: 'Разделы обучения очищены' });
+        loadData(true);
+      } else {
+        toast({ title: 'Не удалось очистить', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Ошибка соединения', variant: 'destructive' });
+    } finally {
+      setClearing(false);
     }
   };
 
@@ -175,6 +200,10 @@ const AiTraining = () => {
             </p>
           </div>
         </div>
+        <Button variant="outline" size="sm" className="gap-2 text-destructive" onClick={clearAll} disabled={clearing}>
+          <Icon name={clearing ? 'Loader2' : 'Trash2'} size={16} className={clearing ? 'animate-spin' : ''} />
+          Очистить всё
+        </Button>
       </header>
 
       <div className={`grid ${USE_EMBEDDINGS_UI ? 'grid-cols-4' : 'grid-cols-3'} gap-4 mb-6`}>
