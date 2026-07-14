@@ -301,7 +301,28 @@ def _fetch_rules_text(cur):
         rules_text = '\nПРАВИЛА:\n'
         for r in rules:
             rules_text += f'- {r["rule_text"]}\n'
+
+    rules_text += _fetch_definitions_text(cur)
     return rules_text
+
+
+def _fetch_definitions_text(cur):
+    defs_text = ''
+    try:
+        cur.execute(f"""
+            SELECT term, description FROM {SCHEMA}.ai_definitions
+            ORDER BY term ASC
+        """)
+        defs = [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        print(f'[classify] Failed to fetch definitions: {e}')
+        return ''
+
+    if defs:
+        defs_text = '\nОПРЕДЕЛЕНИЯ (расшифровка терминов, учитывай при классификации):\n'
+        for d in defs:
+            defs_text += f'- {d["term"]}: {d["description"]}\n'
+    return defs_text
 
 
 def build_training_context(cur, query_embedding):

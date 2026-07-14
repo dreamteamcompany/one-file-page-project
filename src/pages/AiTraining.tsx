@@ -11,6 +11,7 @@ import { apiFetch } from '@/utils/api';
 import func2url from '../../backend/func2url.json';
 import ExamplesTab from '@/components/ai-training/ExamplesTab';
 import RulesTab from '@/components/ai-training/RulesTab';
+import DefinitionsTab from '@/components/ai-training/DefinitionsTab';
 import TestTab from '@/components/ai-training/TestTab';
 import PendingReviewsTab from '@/components/ai-training/PendingReviewsTab';
 import type { TrainingExample, TicketService, Service } from '@/components/ai-training/ExamplesTab';
@@ -26,7 +27,7 @@ const AiTraining = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [tab, setTab] = useState<'pending_reviews' | 'examples' | 'rules' | 'test'>('pending_reviews');
+  const [tab, setTab] = useState<'pending_reviews' | 'examples' | 'rules' | 'definitions' | 'test'>('pending_reviews');
   const [examples, setExamples] = useState<TrainingExample[]>([]);
   const [rules, setRules] = useState<TrainingRule[]>([]);
   const [ticketServices, setTicketServices] = useState<TicketService[]>([]);
@@ -403,6 +404,15 @@ const AiTraining = () => {
           Правила
         </Button>
         <Button
+          variant={tab === 'definitions' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setTab('definitions')}
+          className="gap-2"
+        >
+          <Icon name="BookMarked" size={16} />
+          Определения
+        </Button>
+        <Button
           variant={tab === 'test' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setTab('test')}
@@ -436,6 +446,10 @@ const AiTraining = () => {
           rules={rules}
           onReload={loadData}
         />
+      )}
+
+      {tab === 'definitions' && (
+        <DefinitionsTab onReload={() => loadData(true)} />
       )}
 
       {tab === 'test' && (

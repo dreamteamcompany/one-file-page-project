@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS t_p67567221_one_file_page_projec.ai_definitions (
+    id SERIAL PRIMARY KEY,
+    term VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

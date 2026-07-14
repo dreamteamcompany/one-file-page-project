@@ -118,6 +118,8 @@ def handler(event, context):
             return handle_clear(method, event, cur, conn)
         elif endpoint == 'bulk_enqueue':
             return handle_bulk_enqueue(method, event, cur, conn)
+        elif endpoint == 'definitions':
+            return handle_definitions(method, event, cur, conn)
         else:
             return response(400, {'error': 'Укажите endpoint: examples, rules, stats, logs, pending_reviews, reindex или clear'})
     finally:
@@ -147,6 +149,65 @@ def handle_clear(method, event, cur, conn):
         cleared[section] = len(cur.fetchall())
     conn.commit()
     return response(200, {'cleared': cleared})
+
+
+def handle_definitions(method, event, cur, conn):
+    if method == 'GET':
+        cur.execute(f"""
+            SELECT id, term, description, created_at, updated_at
+            FROM {SCHEMA}.ai_definitions
+            ORDER BY term ASC
+        """)
+        return response(200, [dict(r) for r in cur.fetchall()])
+
+    if method == 'POST':
+        body = json.loads(event.get('body', '{}'))
+        term = (body.get('term') or '').strip()
+        description = (body.get('description') or '').strip()
+        if not term or not description:
+            return response(400, {'error': 'term и description обязательны'})
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.ai_definitions (term, description)
+            VALUES (%s, %s)
+            RETURNING id, term, description, created_at, updated_at
+        """, (term, description))
+        conn.commit()
+        return response(201, dict(cur.fetchone()))
+
+    if method == 'PUT':
+        body = json.loads(event.get('body', '{}'))
+        def_id = body.get('id')
+        term = (body.get('term') or '').strip()
+        description = (body.get('description') or '').strip()
+        if not def_id or not term or not description:
+            return response(400, {'error': 'id, term и description обязательны'})
+        cur.execute(f"""
+            UPDATE {SCHEMA}.ai_definitions
+            SET term = %s, description = %s, updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, term, description, created_at, updated_at
+        """, (term, description, def_id))
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            return response(404, {'error': 'Определение не найдено'})
+        return response(200, dict(row))
+
+    if method == 'DELETE':
+        def_id = get_query_param(event, 'id', '')
+        if not def_id:
+            body = json.loads(event.get('body', '{}'))
+            def_id = body.get('id')
+        if not def_id:
+            return response(400, {'error': 'id обязателен'})
+        cur.execute(f"DELETE FROM {SCHEMA}.ai_definitions WHERE id = %s RETURNING id", (int(def_id),))
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            return response(404, {'error': 'Определение не найдено'})
+        return response(200, {'ok': True, 'id': row['id']})
+
+    return response(405, {'error': 'Method not allowed'})
 
 
 def count_bulk_candidates(cur):
@@ -741,6 +802,9 @@ def handle_stats(cur):
     reviewed_count = total_reviews - pending_reviews_count
     training_progress = round(reviewed_count / total_reviews * 100) if total_reviews > 0 else 0
 
+    cur.execute(f"SELECT COUNT(*) as count FROM {SCHEMA}.ai_definitions")
+    definitions_count = cur.fetchone()['count']
+
     return response(200, {
         'examples_count': examples_count,
         'active_rules_count': rules_count,
@@ -750,6 +814,7 @@ def handle_stats(cur):
         'reviewed_count': reviewed_count,
         'total_reviews': total_reviews,
         'training_progress': training_progress,
+        'definitions_count': definitions_count,
     })
 
 
