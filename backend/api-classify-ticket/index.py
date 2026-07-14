@@ -1,4 +1,4 @@
-"""Классификация заявок через GigaChat с семантическим поиском похожих примеров (оптимизированная версия)"""
+"""Классификация заявок через RouterAI (Gemini) с поиском похожих примеров и генерацией уточняющих вопросов"""
 import json
 import math
 import os
@@ -64,8 +64,12 @@ GIGACHAT_TIMEOUT = (3, 15)
 GIGACHAT_MAX_RETRIES = 1
 TOKEN_TIMEOUT = (3, 10)
 
+ROUTERAI_API_KEY = os.environ.get('ROUTERAI_API_KEY', '')
+ROUTERAI_URL = 'https://routerai.ru/api/v1/chat/completions'
+ROUTERAI_MODEL = 'google/gemini-2.5-flash'
+
 USE_EMBEDDINGS = os.environ.get('USE_EMBEDDINGS', 'false').lower() == 'true'
-GIGACHAT_ENABLED = os.environ.get('GIGACHAT_ENABLED', 'false').lower() == 'true'
+GIGACHAT_ENABLED = bool(ROUTERAI_API_KEY)
 
 _STOP_WORDS = {
     'и', 'в', 'во', 'не', 'что', 'он', 'на', 'я', 'с', 'со', 'как', 'а', 'то',
@@ -350,23 +354,21 @@ def build_services_map(ticket_services, services, mappings):
 
 def call_gigachat_with_token(prompt, token):
     resp = requests.post(
-        'https://gigachat.devices.sberbank.ru/api/v1/chat/completions',
+        ROUTERAI_URL,
         headers={
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {token}',
+            'Authorization': f'Bearer {ROUTERAI_API_KEY}',
         },
         json={
-            'model': 'GigaChat',
+            'model': ROUTERAI_MODEL,
             'messages': [
                 {'role': 'system', 'content': 'Ты — классификатор IT-заявок. Отвечай только JSON без пояснений.'},
                 {'role': 'user', 'content': prompt},
             ],
             'temperature': 0.1,
-            'max_tokens': 400,
+            'max_tokens': 500,
         },
-        verify=False,
-        timeout=GIGACHAT_TIMEOUT,
+        timeout=(3, 40),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -396,16 +398,7 @@ def safe_call_gigachat(prompt, token):
         except requests.exceptions.HTTPError as e:
             status = e.response.status_code if e.response is not None else 0
             last_error = f'HTTP {status}'
-            print(f'[classify] GigaChat HTTP error (attempt {attempt}/{attempts}): {last_error}')
-            if status == 401:
-                _token_cache['token'] = None
-                _token_cache['expires_at'] = 0
-                try:
-                    current_token = get_gigachat_token()
-                except BaseException as te:
-                    print(f'[classify] Token refresh failed: {te}')
-                    return None, last_error
-                continue
+            print(f'[classify] RouterAI HTTP error (attempt {attempt}/{attempts}): {last_error}')
             return None, last_error
         except requests.exceptions.Timeout as e:
             last_error = str(e)
@@ -738,25 +731,17 @@ def handler(event, context):
             return response(200, {'queued': True})
         return response(200, result)
 
-    try:
-        token = get_gigachat_token()
-    except BaseException as e:
-        print(f'[classify] Token error: {e}. Using keyword-only fallback.')
-        token = None
+    token = ROUTERAI_API_KEY
 
     query_embedding = None
     emb_error = None
-    if token and USE_EMBEDDINGS:
-        query_embedding, emb_error = safe_get_embedding(description, token)
-
-    if not token:
-        print(f'[classify] No GigaChat token. Using keyword fallback.')
-        fallback = classify_by_keywords(description, services_map)
-        duration_ms = int((time.time() - start_time) * 1000)
-        save_log(description, fallback, False, 'No GigaChat token', None, 0, 0, duration_ms, test_mode)
-        if test_mode:
-            return response(200, {'result': fallback, 'debug': {'error': 'No GigaChat token'}})
-        return response(200, fallback)
+    if USE_EMBEDDINGS:
+        try:
+            gc_token = get_gigachat_token()
+            query_embedding, emb_error = safe_get_embedding(description, gc_token)
+        except BaseException as e:
+            emb_error = str(e)
+            print(f'[classify] Embedding token error: {e}. Falling back to keyword context.')
 
     if USE_EMBEDDINGS and query_embedding:
         conn = get_db_connection()
