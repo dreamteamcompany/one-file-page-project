@@ -120,6 +120,8 @@ def handler(event, context):
             return handle_bulk_enqueue(method, event, cur, conn)
         elif endpoint == 'definitions':
             return handle_definitions(method, event, cur, conn)
+        elif endpoint == 'recheck':
+            return handle_recheck(method, event, cur, conn)
         else:
             return response(400, {'error': 'Укажите endpoint: examples, rules, stats, logs, pending_reviews, reindex или clear'})
     finally:
@@ -149,6 +151,79 @@ def handle_clear(method, event, cur, conn):
         cleared[section] = len(cur.fetchall())
     conn.commit()
     return response(200, {'cleared': cleared})
+
+
+def handle_recheck(method, event, cur, conn):
+    if method != 'POST':
+        return response(405, {'error': 'Только POST'})
+
+    body = json.loads(event.get('body', '{}'))
+    scope = body.get('scope', 'pending')  # 'pending' | 'all' | 'one'
+    batch_size = min(int(body.get('batch_size', 3)), 10)
+    after_id = int(body.get('after_id', 0) or 0)
+
+    if scope == 'one':
+        review_id = body.get('review_id')
+        if not review_id:
+            return response(400, {'error': 'review_id обязателен для scope=one'})
+        cur.execute(f"""
+            SELECT id, description, source_ticket_id
+            FROM {SCHEMA}.ai_pending_reviews WHERE id = %s
+        """, (review_id,))
+        row = cur.fetchone()
+        if not row:
+            return response(404, {'error': 'Заявка не найдена'})
+        ok = _recheck_one(dict(row))
+        return response(200, {'rechecked': 1 if ok else 0, 'errors': 0 if ok else 1, 'done': True})
+
+    status_filter = "" if scope == 'all' else "AND status = 'pending'"
+    cur.execute(f"""
+        SELECT id, description, source_ticket_id
+        FROM {SCHEMA}.ai_pending_reviews
+        WHERE id > {after_id} {status_filter}
+        ORDER BY id ASC
+        LIMIT {batch_size}
+    """)
+    rows = [dict(r) for r in cur.fetchall()]
+
+    rechecked = 0
+    errors = 0
+    last_id = after_id
+    for r in rows:
+        last_id = r['id']
+        if _recheck_one(r):
+            rechecked += 1
+        else:
+            errors += 1
+
+    cur.execute(f"""
+        SELECT COUNT(*) AS cnt FROM {SCHEMA}.ai_pending_reviews
+        WHERE id > {last_id} {status_filter}
+    """)
+    remaining = cur.fetchone()['cnt']
+
+    return response(200, {
+        'rechecked': rechecked,
+        'errors': errors,
+        'last_id': last_id,
+        'remaining': remaining,
+        'done': len(rows) == 0 or remaining == 0,
+    })
+
+
+def _recheck_one(row):
+    description = (row.get('description') or '').strip()
+    if not description:
+        return False
+    payload = {'description': description[:2000], 'recheck': True, 'review_id': row['id']}
+    if row.get('source_ticket_id'):
+        payload['source_ticket_id'] = row['source_ticket_id']
+    try:
+        resp = requests.post(CLASSIFY_URL, json=payload, timeout=(5, 60))
+        return resp.status_code == 200
+    except Exception as e:
+        print(f"[recheck] review {row['id']} error: {e}")
+        return False
 
 
 def handle_definitions(method, event, cur, conn):

@@ -56,6 +56,8 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
   const [correctingReview, setCorrectingReview] = useState<PendingReview | null>(null);
   const [correctForm, setCorrectForm] = useState({ ticket_service_id: '', service_ids: [] as number[], questions: [] as string[] });
   const [loading, setLoading] = useState(false);
+  const [recheckingId, setRecheckingId] = useState<number | null>(null);
+  const [bulkRecheck, setBulkRecheck] = useState<{ scope: 'pending' | 'all'; done: number } | null>(null);
 
   const selectedTs = ticketServices.find(ts => ts.id.toString() === correctForm.ticket_service_id);
   const filteredServices = selectedTs?.service_ids
@@ -111,6 +113,63 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
       onReload();
     } else {
       toast({ title: 'Ошибка отклонения', variant: 'destructive' });
+    }
+  };
+
+  const recheckOne = async (id: number) => {
+    setRecheckingId(id);
+    try {
+      const res = await apiFetch(AI_TRAINING_URL + '?endpoint=recheck', {
+        method: 'POST',
+        body: JSON.stringify({ scope: 'one', review_id: id }),
+      });
+      if (res.ok) {
+        toast({ title: 'Заявка перепроверена' });
+        onReload();
+      } else {
+        toast({ title: 'Ошибка перепроверки', variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Ошибка соединения', variant: 'destructive' });
+    } finally {
+      setRecheckingId(null);
+    }
+  };
+
+  const recheckBulk = async (scope: 'pending' | 'all') => {
+    const label = scope === 'all' ? 'ВСЕ заявки в очереди (включая уже разобранные)' : 'непроверенные заявки';
+    if (!window.confirm(`Перепроверить ${label}? ИИ заново проанализирует их с учётом текущих определений и правил. Это может занять время.`)) {
+      return;
+    }
+    setBulkRecheck({ scope, done: 0 });
+    let afterId = 0;
+    let done = 0;
+    let safety = 0;
+    const MAX_BATCHES = 3000;
+    try {
+      while (safety < MAX_BATCHES) {
+        safety += 1;
+        const res = await apiFetch(AI_TRAINING_URL + '?endpoint=recheck', {
+          method: 'POST',
+          body: JSON.stringify({ scope, after_id: afterId, batch_size: 3 }),
+        });
+        if (!res.ok) {
+          toast({ title: 'Ошибка перепроверки', variant: 'destructive' });
+          break;
+        }
+        const data = await res.json();
+        done += (data.rechecked || 0) + (data.errors || 0);
+        afterId = data.last_id ?? afterId;
+        setBulkRecheck({ scope, done });
+        if (data.done) break;
+        onReload();
+      }
+      toast({ title: 'Перепроверка завершена' });
+      onReload();
+    } catch {
+      toast({ title: 'Ошибка соединения', variant: 'destructive' });
+    } finally {
+      setBulkRecheck(null);
     }
   };
 
@@ -202,10 +261,30 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                 Результаты автоматической классификации, ожидающие проверки оператором.
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
               <Button size="sm" variant="outline" className="gap-2 flex-1 sm:flex-none" onClick={() => setAddDialog(true)}>
                 <Icon name="FilePlus" size={16} />
                 Добавить заявки
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 flex-1 sm:flex-none"
+                onClick={() => recheckBulk('pending')}
+                disabled={!!bulkRecheck}
+              >
+                <Icon name={bulkRecheck?.scope === 'pending' ? 'Loader2' : 'RefreshCw'} size={16} className={bulkRecheck?.scope === 'pending' ? 'animate-spin' : ''} />
+                {bulkRecheck?.scope === 'pending' ? `Перепроверка ${bulkRecheck.done}` : 'Перепроверить непроверенные'}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 flex-1 sm:flex-none"
+                onClick={() => recheckBulk('all')}
+                disabled={!!bulkRecheck}
+              >
+                <Icon name={bulkRecheck?.scope === 'all' ? 'Loader2' : 'RefreshCcwDot'} size={16} className={bulkRecheck?.scope === 'all' ? 'animate-spin' : ''} />
+                {bulkRecheck?.scope === 'all' ? `Перепроверка ${bulkRecheck.done}` : 'Перепроверить всё'}
               </Button>
               {pendingReviews.length > 0 && (
                 <Button size="sm" className="gap-2 flex-1 sm:flex-none" onClick={handleApproveAll} disabled={loading}>
@@ -270,6 +349,16 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => recheckOne(rv.id)}
+                        disabled={loading || recheckingId === rv.id || !!bulkRecheck}
+                        title="Перепроверить (учесть определения и правила)"
+                      >
+                        <Icon name={recheckingId === rv.id ? 'Loader2' : 'RefreshCw'} size={14} className={recheckingId === rv.id ? 'animate-spin' : ''} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"

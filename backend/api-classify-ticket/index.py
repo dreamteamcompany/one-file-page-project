@@ -642,22 +642,64 @@ def save_log(description, result_data, success, error_message, raw_resp, example
         print(f'[classify] Failed to save log: {e}')
 
 
-def save_pending_review(description, result, source_ticket_id=None):
+def save_pending_review(description, result, source_ticket_id=None, recheck=False, review_id=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        questions = result.get('clarifying_questions', []) or []
+
+        # Перепроверка конкретной записи по её id — обновляем на месте.
+        if review_id:
+            cur.execute(f"""
+                UPDATE {SCHEMA}.ai_pending_reviews
+                SET ticket_service_id = %s, service_ids = %s, ticket_service_name = %s,
+                    service_names = %s, confidence = %s, clarifying_questions = %s::jsonb,
+                    status = 'pending', reviewed_at = NULL
+                WHERE id = %s
+            """, (
+                result.get('ticket_service_id'),
+                result.get('service_ids', []),
+                result.get('ticket_service_name', ''),
+                result.get('service_names', []),
+                result.get('confidence', 0),
+                json.dumps(questions),
+                review_id,
+            ))
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
 
         if source_ticket_id:
             cur.execute(f"""
                 SELECT id FROM {SCHEMA}.ai_pending_reviews
                 WHERE source_ticket_id = %s
             """, (source_ticket_id,))
-            if cur.fetchone():
+            existing = cur.fetchone()
+            if existing:
+                # При обычной классификации — не трогаем; при перепроверке — обновляем.
+                if recheck:
+                    cur.execute(f"""
+                        UPDATE {SCHEMA}.ai_pending_reviews
+                        SET description = %s, ticket_service_id = %s, service_ids = %s,
+                            ticket_service_name = %s, service_names = %s, confidence = %s,
+                            clarifying_questions = %s::jsonb, status = 'pending', reviewed_at = NULL
+                        WHERE id = %s
+                    """, (
+                        description[:500],
+                        result.get('ticket_service_id'),
+                        result.get('service_ids', []),
+                        result.get('ticket_service_name', ''),
+                        result.get('service_names', []),
+                        result.get('confidence', 0),
+                        json.dumps(questions),
+                        existing['id'],
+                    ))
+                    conn.commit()
                 cur.close()
                 conn.close()
                 return
-
-        questions = result.get('clarifying_questions', []) or []
         cur.execute(f"""
             INSERT INTO {SCHEMA}.ai_pending_reviews
             (description, ticket_service_id, service_ids, ticket_service_name,
@@ -711,6 +753,8 @@ def handler(event, context):
     test_mode = body.get('test_mode', False)
     source_ticket_id = body.get('source_ticket_id')
     queue_only = body.get('queue_only', False)
+    recheck = body.get('recheck', False)
+    review_id = body.get('review_id')
 
     if not description:
         return response(400, {'error': 'description обязателен'})
@@ -755,7 +799,7 @@ def handler(event, context):
         duration_ms = int((time.time() - start_time) * 1000)
         save_log(description, result, True, None, 'GigaChat disabled', examples_count, rules_text.count('\n- ') if rules_text else 0, duration_ms, test_mode)
         if not test_mode:
-            save_pending_review(description, result, source_ticket_id)
+            save_pending_review(description, result, source_ticket_id, recheck=recheck, review_id=review_id)
         if test_mode:
             return response(200, {'result': result, 'debug': {'mode': 'keyword_only', 'examples_count': examples_count, 'examples_text': examples_text.strip() if examples_text else '', 'rules_text': rules_text.strip() if rules_text else ''}})
         if queue_only:
@@ -809,7 +853,7 @@ def handler(event, context):
             result, error = classify_with_gigachat(description, ticket_services, services, mappings, examples_text, rules_text, examples_count, token)
             duration_ms = int((time.time() - start_time) * 1000)
             save_log(description, result, error is None, error, None, examples_count, rules_text.count('\n- ') if rules_text else 0, duration_ms, False)
-            save_pending_review(description, result, source_ticket_id)
+            save_pending_review(description, result, source_ticket_id, recheck=recheck, review_id=review_id)
             if queue_only:
                 return response(200, {'queued': True})
             return response(200, result)
