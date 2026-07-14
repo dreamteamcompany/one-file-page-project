@@ -1122,11 +1122,11 @@ def handle_dashboard_team(method: str, event: Dict[str, Any], conn) -> Dict[str,
                          AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
                          AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
                    ) AS avg_resolve_sec,
-                   AVG(t.rating)::numeric(10,2) FILTER (
+                   (AVG(t.rating) FILTER (
                        WHERE t.rating IS NOT NULL
                          AND COALESCE(t.closed_at, t.updated_at) >= {start_expr}
                          AND COALESCE(t.closed_at, t.updated_at) < {end_expr}
-                   ) AS avg_rating,
+                   ))::numeric(10,2) AS avg_rating,
                    COUNT(*) FILTER (
                        WHERE NOT COALESCE(s.is_closed, false)
                          AND NOT COALESCE(s.is_pending_confirmation, false)
