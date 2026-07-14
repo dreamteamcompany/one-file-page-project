@@ -4,6 +4,7 @@ import Icon from '@/components/ui/icon';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Service {
   id: number;
@@ -20,6 +21,7 @@ interface ClassificationResult {
   ticket_service_name: string;
   service_names: string[];
   confidence: number;
+  clarifying_questions?: string[];
 }
 
 interface TicketFormStepClassifyProps {
@@ -34,6 +36,8 @@ interface TicketFormStepClassifyProps {
   onBack: () => void;
   filteredServices: Service[];
   classificationMode?: 'ai' | 'manual';
+  clarifyingAnswers?: Record<number, string>;
+  onChangeClarifyingAnswer?: (index: number, value: string) => void;
 }
 
 const TicketFormStepClassify = ({
@@ -48,8 +52,15 @@ const TicketFormStepClassify = ({
   onBack,
   filteredServices,
   classificationMode = 'ai',
+  clarifyingAnswers = {},
+  onChangeClarifyingAnswer,
 }: TicketFormStepClassifyProps) => {
   const [manualMode, setManualMode] = useState(classificationMode === 'manual' || classification.confidence === 0);
+
+  const questions = classification.clarifying_questions || [];
+  const allQuestionsAnswered = questions.every(
+    (_, idx) => (clarifyingAnswers[idx] || '').trim().length > 0,
+  );
 
   const confidenceColor = classification.confidence >= 70
     ? 'text-green-600 bg-green-50 border-green-200'
@@ -205,6 +216,28 @@ const TicketFormStepClassify = ({
         </div>
       )}
 
+      {questions.length > 0 && (
+        <div className="p-4 rounded-lg border border-primary/30 bg-primary/5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Icon name="MessageCircleQuestion" size={18} className="text-primary" />
+            <span className="font-medium text-sm">Уточните детали — это ускорит решение</span>
+          </div>
+          {questions.map((q, idx) => (
+            <div key={idx} className="space-y-1.5">
+              <Label className="text-sm">
+                {q} <span className="text-red-500">*</span>
+              </Label>
+              <Textarea
+                value={clarifyingAnswers[idx] || ''}
+                onChange={(e) => onChangeClarifyingAnswer?.(idx, e.target.value)}
+                placeholder="Ваш ответ"
+                rows={2}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex gap-3 pt-4 border-t">
         <Button
           type="button"
@@ -218,7 +251,7 @@ const TicketFormStepClassify = ({
         <Button
           type="button"
           className="flex-1 gap-2"
-          disabled={!selectedTicketServiceId || selectedServices.length === 0}
+          disabled={!selectedTicketServiceId || selectedServices.length === 0 || !allQuestionsAnswered}
           onClick={onNext}
         >
           Далее

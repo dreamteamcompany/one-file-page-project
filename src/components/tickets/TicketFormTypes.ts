@@ -50,6 +50,7 @@ export interface ClassificationResult {
   ticket_service_name: string;
   service_names: string[];
   confidence: number;
+  clarifying_questions?: string[];
 }
 
 export interface FormData {

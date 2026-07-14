@@ -38,6 +38,7 @@ export const useTicketFormLogic = ({
   const [selectedServices, setSelectedServices] = useState<number[]>([]);
   const [classifying, setClassifying] = useState(false);
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
+  const [clarifyingAnswers, setClarifyingAnswers] = useState<Record<number, string>>({});
   const [visibleCustomFields, setVisibleCustomFields] = useState<CustomField[]>([]);
   const [classificationMode, setClassificationMode] = useState<'ai' | 'manual'>('ai');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +81,7 @@ export const useTicketFormLogic = ({
       setStep(1);
       setSelectedServices([]);
       setClassification(null);
+      setClarifyingAnswers({});
       setVisibleCustomFields([]);
       fileUploader.clear();
       if (onDialogOpen) {
@@ -124,6 +126,7 @@ export const useTicketFormLogic = ({
 
       if (resp.ok) {
         const result: ClassificationResult = await resp.json();
+        setClarifyingAnswers({});
         if (result.ticket_service_id && result.confidence > 0) {
           setClassification(result);
           setFormData({
@@ -248,8 +251,22 @@ export const useTicketFormLogic = ({
         || selectedTicketService?.ticket_title
         || formData.description.slice(0, 100)
         || 'Новая заявка';
+
+      const questions = classification?.clarifying_questions || [];
+      let finalDescription = formData.description;
+      const qaLines = questions
+        .map((q, idx) => {
+          const answer = (clarifyingAnswers[idx] || '').trim();
+          return answer ? `${q}\n— ${answer}` : '';
+        })
+        .filter(Boolean);
+      if (qaLines.length > 0) {
+        finalDescription = `${finalDescription}\n\nУточнения:\n${qaLines.join('\n\n')}`;
+      }
+
       const updatedFormData = {
         ...formData,
+        description: finalDescription,
         service_ids: selectedServices,
         title: finalTitle,
         category_id: '',
@@ -259,6 +276,7 @@ export const useTicketFormLogic = ({
       setStep(1);
       setSelectedServices([]);
       setClassification(null);
+      setClarifyingAnswers({});
       fileUploader.clear();
     } finally {
       setIsSubmitting(false);
@@ -364,6 +382,8 @@ export const useTicketFormLogic = ({
     hasServiceItems,
     classifying,
     classification,
+    clarifyingAnswers,
+    setClarifyingAnswers,
     visibleCustomFields,
     classificationMode,
     fileUploader,

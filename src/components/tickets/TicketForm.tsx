@@ -38,6 +38,8 @@ const TicketForm = ({
     displayStep,
     classifying,
     classification,
+    clarifyingAnswers,
+    setClarifyingAnswers,
     visibleCustomFields,
     classificationMode,
     fileUploader,
@@ -147,6 +149,10 @@ const TicketForm = ({
             onBack={handleBack}
             filteredServices={filteredServices}
             classificationMode={classificationMode}
+            clarifyingAnswers={clarifyingAnswers}
+            onChangeClarifyingAnswer={(idx, value) =>
+              setClarifyingAnswers((prev) => ({ ...prev, [idx]: value }))
+            }
           />
         )}
 
