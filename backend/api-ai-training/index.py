@@ -468,12 +468,12 @@ def handle_pending_reviews(method, event, cur, conn):
         cur.execute(f"""
             SELECT pr.id, pr.description, pr.ticket_service_id, pr.service_ids,
                    pr.ticket_service_name, pr.service_names, pr.confidence,
-                   pr.status, pr.created_at,
+                   pr.status, pr.created_at, pr.clarifying_questions, pr.source_ticket_id,
                    ts.name as ts_name_joined
             FROM {SCHEMA}.ai_pending_reviews pr
             LEFT JOIN {SCHEMA}.ticket_services ts ON ts.id = pr.ticket_service_id
             WHERE pr.status = 'pending'
-            ORDER BY pr.created_at DESC
+            ORDER BY (pr.confidence IS NULL), pr.confidence ASC, pr.created_at DESC
         """)
         reviews = [dict(r) for r in cur.fetchall()]
 
@@ -510,18 +510,22 @@ def handle_pending_reviews(method, event, cur, conn):
                 UPDATE {SCHEMA}.ai_pending_reviews
                 SET status = 'approved', reviewed_at = NOW()
                 WHERE id = %s AND status = 'pending'
-                RETURNING id, description, ticket_service_id, service_ids
+                RETURNING id, description, ticket_service_id, service_ids, clarifying_questions
             """, (review_id,))
             conn.commit()
             row = cur.fetchone()
             if not row:
                 return response(404, {'error': 'Запись не найдена или уже обработана'})
 
+            questions = body.get('clarifying_questions', row['clarifying_questions']) or []
+            embedding, _ = safe_generate_embedding(row['description'])
+            embedding_json = json.dumps(embedding) if embedding else None
             cur.execute(f"""
                 INSERT INTO {SCHEMA}.ai_training_examples
-                (description, ticket_service_id, service_ids, is_auto)
-                VALUES (%s, %s, %s, true)
-            """, (row['description'], row['ticket_service_id'], row['service_ids']))
+                (description, ticket_service_id, service_ids, is_auto, clarifying_questions, embedding)
+                VALUES (%s, %s, %s, true, %s::jsonb, %s::jsonb)
+            """, (row['description'], row['ticket_service_id'], row['service_ids'],
+                  json.dumps(questions), embedding_json))
             conn.commit()
 
             return response(200, {'ok': True, 'id': row['id']})
@@ -541,18 +545,22 @@ def handle_pending_reviews(method, event, cur, conn):
                 SET status = 'corrected', reviewed_at = NOW(),
                     ticket_service_id = %s, service_ids = %s
                 WHERE id = %s AND status = 'pending'
-                RETURNING id, description
+                RETURNING id, description, clarifying_questions
             """, (ticket_service_id, service_ids, review_id))
             conn.commit()
             row = cur.fetchone()
             if not row:
                 return response(404, {'error': 'Запись не найдена или уже обработана'})
 
+            questions = body.get('clarifying_questions', row['clarifying_questions']) or []
+            embedding, _ = safe_generate_embedding(row['description'])
+            embedding_json = json.dumps(embedding) if embedding else None
             cur.execute(f"""
                 INSERT INTO {SCHEMA}.ai_training_examples
-                (description, ticket_service_id, service_ids, is_auto)
-                VALUES (%s, %s, %s, true)
-            """, (row['description'], ticket_service_id, service_ids))
+                (description, ticket_service_id, service_ids, is_auto, clarifying_questions, embedding)
+                VALUES (%s, %s, %s, true, %s::jsonb, %s::jsonb)
+            """, (row['description'], ticket_service_id, service_ids,
+                  json.dumps(questions), embedding_json))
             conn.commit()
 
             return response(200, {'ok': True, 'id': row['id']})
@@ -576,7 +584,7 @@ def handle_pending_reviews(method, event, cur, conn):
 
         elif action == 'approve_all':
             cur.execute(f"""
-                SELECT id, description, ticket_service_id, service_ids
+                SELECT id, description, ticket_service_id, service_ids, clarifying_questions
                 FROM {SCHEMA}.ai_pending_reviews
                 WHERE status = 'pending'
             """)
@@ -588,9 +596,10 @@ def handle_pending_reviews(method, event, cur, conn):
             for rv in pending:
                 cur.execute(f"""
                     INSERT INTO {SCHEMA}.ai_training_examples
-                    (description, ticket_service_id, service_ids, is_auto)
-                    VALUES (%s, %s, %s, true)
-                """, (rv['description'], rv['ticket_service_id'], rv['service_ids']))
+                    (description, ticket_service_id, service_ids, is_auto, clarifying_questions)
+                    VALUES (%s, %s, %s, true, %s::jsonb)
+                """, (rv['description'], rv['ticket_service_id'], rv['service_ids'],
+                      json.dumps(rv['clarifying_questions'] or [])))
 
             cur.execute(f"""
                 UPDATE {SCHEMA}.ai_pending_reviews

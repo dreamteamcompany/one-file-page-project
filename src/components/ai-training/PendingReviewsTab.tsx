@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import func2url from '../../../backend/func2url.json';
 import type { TicketService, Service } from './ExamplesTab';
+import AddExistingTicketsDialog from './AddExistingTicketsDialog';
 
 const AI_TRAINING_URL = func2url['api-ai-training'];
 
@@ -35,6 +37,8 @@ export interface PendingReview {
   confidence: number;
   status: string;
   created_at: string;
+  clarifying_questions?: string[] | null;
+  source_ticket_id?: number | null;
 }
 
 interface PendingReviewsTabProps {
@@ -47,9 +51,10 @@ interface PendingReviewsTabProps {
 const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload }: PendingReviewsTabProps) => {
   const { toast } = useToast();
 
+  const [addDialog, setAddDialog] = useState(false);
   const [correctDialog, setCorrectDialog] = useState(false);
   const [correctingReview, setCorrectingReview] = useState<PendingReview | null>(null);
-  const [correctForm, setCorrectForm] = useState({ ticket_service_id: '', service_ids: [] as number[] });
+  const [correctForm, setCorrectForm] = useState({ ticket_service_id: '', service_ids: [] as number[], questions: [] as string[] });
   const [loading, setLoading] = useState(false);
 
   const selectedTs = ticketServices.find(ts => ts.id.toString() === correctForm.ticket_service_id);
@@ -114,6 +119,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
     setCorrectForm({
       ticket_service_id: review.ticket_service_id?.toString() || '',
       service_ids: review.service_ids || [],
+      questions: review.clarifying_questions || [],
     });
     setCorrectDialog(true);
   };
@@ -132,6 +138,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
         id: correctingReview.id,
         ticket_service_id: parseInt(correctForm.ticket_service_id),
         service_ids: correctForm.service_ids,
+        clarifying_questions: correctForm.questions.map(q => q.trim()).filter(Boolean),
       }),
     });
     setLoading(false);
@@ -160,6 +167,21 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
     }
   };
 
+  const updateQuestion = (idx: number, value: string) => {
+    setCorrectForm(prev => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => (i === idx ? value : q)),
+    }));
+  };
+
+  const removeQuestion = (idx: number) => {
+    setCorrectForm(prev => ({ ...prev, questions: prev.questions.filter((_, i) => i !== idx) }));
+  };
+
+  const addQuestion = () => {
+    setCorrectForm(prev => ({ ...prev, questions: [...prev.questions, ''] }));
+  };
+
   const toggleServiceId = (serviceId: number) => {
     setCorrectForm(prev => ({
       ...prev,
@@ -180,12 +202,18 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                 Результаты автоматической классификации, ожидающие проверки оператором.
               </CardDescription>
             </div>
-            {pendingReviews.length > 0 && (
-              <Button size="sm" className="gap-2" onClick={handleApproveAll} disabled={loading}>
-                <Icon name="CheckCheck" size={16} />
-                Подтвердить все
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => setAddDialog(true)}>
+                <Icon name="FilePlus" size={16} />
+                Добавить заявки
               </Button>
-            )}
+              {pendingReviews.length > 0 && (
+                <Button size="sm" className="gap-2" onClick={handleApproveAll} disabled={loading}>
+                  <Icon name="CheckCheck" size={16} />
+                  Подтвердить все
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -215,6 +243,19 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                           </Badge>
                         ))}
                       </div>
+                      {rv.clarifying_questions && rv.clarifying_questions.length > 0 && (
+                        <div className="mt-2 pl-2 border-l-2 border-primary/30">
+                          <p className="text-[11px] font-medium text-muted-foreground mb-0.5 flex items-center gap-1">
+                            <Icon name="MessageCircleQuestion" size={12} />
+                            Вопросы, которые задал бы ИИ:
+                          </p>
+                          <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                            {rv.clarifying_questions.map((q, i) => (
+                              <li key={i}>{q}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Button
@@ -310,6 +351,38 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                   </div>
                 </div>
               )}
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label>Уточняющие вопросы</Label>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={addQuestion}>
+                    <Icon name="Plus" size={12} />
+                    Добавить
+                  </Button>
+                </div>
+                <div className="space-y-2 mt-1.5">
+                  {correctForm.questions.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Вопросов нет</p>
+                  )}
+                  {correctForm.questions.map((q, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={q}
+                        onChange={e => updateQuestion(idx, e.target.value)}
+                        placeholder="Текст вопроса"
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive flex-shrink-0"
+                        onClick={() => removeQuestion(idx)}
+                      >
+                        <Icon name="Trash2" size={14} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setCorrectDialog(false)}>Отмена</Button>
                 <Button onClick={handleCorrect} disabled={loading}>
@@ -320,6 +393,12 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
           )}
         </DialogContent>
       </Dialog>
+
+      <AddExistingTicketsDialog
+        open={addDialog}
+        onOpenChange={setAddDialog}
+        onDone={onReload}
+      />
     </>
   );
 };

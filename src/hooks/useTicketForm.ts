@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { API_URL, apiFetch } from '@/utils/api';
+import { API_URL, apiFetch, CLASSIFY_TICKET_URL } from '@/utils/api';
 import func2url from '../../backend/func2url.json';
 import { UploadedAttachment } from '@/hooks/useFileUploader';
 
@@ -95,6 +95,19 @@ export const useTicketForm = (customFields: CustomField[], loadTickets: () => vo
           : '';
 
         const ticketId = result.id;
+
+        if (ticketId && CLASSIFY_TICKET_URL && dataToSubmit.description) {
+          apiFetch(CLASSIFY_TICKET_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              description: dataToSubmit.description,
+              source_ticket_id: ticketId,
+              queue_only: true,
+            }),
+          }).catch((e) => console.error('Shadow classify failed:', e));
+        }
+
         const readyAttachments = (attachments || []).filter((a) => a.status === 'done' && a.url);
         if (ticketId && readyAttachments.length > 0 && COMMENTS_URL) {
           try {
