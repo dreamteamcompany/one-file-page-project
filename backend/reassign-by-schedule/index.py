@@ -11,6 +11,11 @@
 - Балансировка по нагрузке: получатель — тот, у кого меньше всего активных заявок
   (по статусам с count_for_distribution = true).
 - Каждая передача фиксируется записью в ticket_history.
+
+Вторая ветка (бесхозные заявки):
+- Берём открытые заявки без исполнителя (assigned_to IS NULL), но с группой
+  типа 'working'. Если в группе сейчас кто-то на смене — назначаем наименее
+  загруженному. Так подхватываются заявки, созданные когда на смене никого не было.
 """
 import os
 import json
@@ -91,6 +96,48 @@ def handler(event: dict, context) -> dict:
             reassigned += 1
             details.append({'ticket_id': ticket_id, 'from': old_user, 'to': new_user})
 
+        cur.execute(f"""
+            SELECT t.id AS ticket_id, t.executor_group_id AS group_id
+            FROM {SCHEMA}.tickets t
+            JOIN {SCHEMA}.ticket_statuses st ON st.id = t.status_id
+            JOIN {SCHEMA}.executor_groups g ON g.id = t.executor_group_id
+                AND g.is_active = true
+                AND g.auto_assign_type = 'working'
+            WHERE t.assigned_to IS NULL
+              AND t.executor_group_id IS NOT NULL
+              AND COALESCE(t.is_archived, false) = false
+              AND COALESCE(st.is_closed, false) = false
+            ORDER BY t.id
+        """)
+        unassigned = cur.fetchall()
+
+        assigned = 0
+        for tk in unassigned:
+            ticket_id = tk['ticket_id']
+            group_id = tk['group_id']
+
+            new_user = _pick_working_member(
+                cur, group_id, current_day, current_time, exclude_user=0
+            )
+            if not new_user:
+                continue
+
+            cur.execute(f"""
+                UPDATE {SCHEMA}.tickets
+                SET assigned_to = %s, updated_at = NOW()
+                WHERE id = %s AND assigned_to IS NULL
+            """, (new_user, ticket_id))
+
+            new_name = _user_name(cur, new_user)
+            cur.execute(f"""
+                INSERT INTO {SCHEMA}.ticket_history
+                    (ticket_id, user_id, field_name, old_value, new_value, created_at)
+                VALUES (%s, NULL, 'assigned_to', %s, %s, NOW())
+            """, (ticket_id, 'Не назначен', f"{new_name} (назначено: выход на смену)"))
+
+            assigned += 1
+            details.append({'ticket_id': ticket_id, 'from': None, 'to': new_user})
+
         conn.commit()
         return {
             'statusCode': 200,
@@ -98,6 +145,8 @@ def handler(event: dict, context) -> dict:
             'body': json.dumps({
                 'checked': len(candidates),
                 'reassigned': reassigned,
+                'unassigned_checked': len(unassigned),
+                'assigned': assigned,
                 'details': details,
             })
         }
