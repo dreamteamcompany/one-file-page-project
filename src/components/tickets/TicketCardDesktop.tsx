@@ -99,6 +99,12 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
               )}
               <span className="truncate">{ticket.customer_name || ticket.creator_name}</span>
             </span>
+            {ticket.creator_department_name && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground max-w-full">
+                <Icon name="Building2" size={11} className="flex-shrink-0" />
+                <span className="truncate">{ticket.creator_department_name}</span>
+              </span>
+            )}
           </div>
         )}
         <div className="flex flex-col items-start gap-0.5 max-w-full">

@@ -38,6 +38,7 @@ export interface Ticket {
   customer_name?: string;
   creator_name?: string;
   creator_photo_url?: string;
+  creator_department_name?: string;
   assigned_to_name?: string;
   assignee_name?: string;
   assignee_photo_url?: string;
