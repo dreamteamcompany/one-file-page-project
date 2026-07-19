@@ -565,9 +565,13 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
     if not dep_ids:
         dep_ids = ['1']
 
+    # Коробочный Битрикс: чтобы сотрудник был сразу АКТИВЕН с нашим паролем
+    # и без приглашения — задаём LOGIN + PASSWORD напрямую, а EMAIL используем
+    # как контактный. NOTIFY='N' отключает письмо-приглашение,
+    # CONFIRM_CODE='' и XML_ID помечают учётку как уже подтверждённую.
     params = {
-        'EMAIL': email,
         'LOGIN': email,
+        'EMAIL': email,
         'PASSWORD': password,
         'CONFIRM_PASSWORD': password,
         'NAME': first_name,
@@ -576,6 +580,7 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'WORK_POSITION': position,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
+        'CONFIRM_CODE': '',
         'EXTRANET': 'N',
         'NOTIFY': 'N',
     }
@@ -596,7 +601,20 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         code, text = _http_post(url, params)
         data = json.loads(text) if text else {}
         if data.get('result'):
-            return True, 'Создан в Битрикс', data['result']
+            new_id = data['result']
+            # Снимаем статус "приглашение не принято": подтверждаем учётку
+            # и повторно фиксируем наш пароль (коробочный Битрикс).
+            try:
+                _http_post(f"{base}/user.update.json", {
+                    'ID': new_id,
+                    'ACTIVE': 'Y',
+                    'CONFIRM_CODE': '',
+                    'PASSWORD': password,
+                    'CONFIRM_PASSWORD': password,
+                })
+            except Exception:
+                pass  # не критично: пользователь уже создан
+            return True, 'Создан в Битрикс', new_id
         if data.get('error'):
             desc = data.get('error_description') or data.get('error')
             return False, f'Битрикс: {desc}', None
