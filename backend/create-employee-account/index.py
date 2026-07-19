@@ -599,21 +599,28 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         params['UF_EMPLOYMENT_DATE'] = bx_hire
     try:
         code, text = _http_post(url, params)
+        logger.info('Bitrix user.add resp: %s', (text or '')[:600])
         data = json.loads(text) if text else {}
         if data.get('result'):
             new_id = data['result']
             # Снимаем статус "приглашение не принято": подтверждаем учётку
             # и повторно фиксируем наш пароль (коробочный Битрикс).
             try:
-                _http_post(f"{base}/user.update.json", {
+                _, upd_text = _http_post(f"{base}/user.update.json", {
                     'ID': new_id,
                     'ACTIVE': 'Y',
                     'CONFIRM_CODE': '',
                     'PASSWORD': password,
                     'CONFIRM_PASSWORD': password,
                 })
-            except Exception:
-                pass  # не критично: пользователь уже создан
+                logger.info('Bitrix user.update resp: %s', (upd_text or '')[:600])
+                # Проверяем текущий статус пользователя (есть ли CONFIRM_CODE)
+                _, chk_text = _http_get(
+                    f"{base}/user.get.json?ID={new_id}", timeout=15
+                )
+                logger.info('Bitrix user.get resp: %s', (chk_text or '')[:800])
+            except Exception as e:
+                logger.info('Bitrix confirm step error: %s', e)
             return True, 'Создан в Битрикс', new_id
         if data.get('error'):
             desc = data.get('error_description') or data.get('error')
