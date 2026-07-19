@@ -26,6 +26,7 @@ export interface Ticket {
   creator_name?: string;
   creator_email?: string;
   creator_photo_url?: string;
+  creator_department_name?: string;
   assigned_to?: number;
   assignee_name?: string;
   assignee_email?: string;

@@ -2081,6 +2081,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                    p.name as priority_name, p.color as priority_color,
                    u1.username as assignee_email, u1.full_name as assignee_name, u1.photo_url as assignee_photo_url,
                    u2.username as creator_email, u2.full_name as creator_name, u2.photo_url as creator_photo_url,
+                   cdept.name as creator_department_name,
                    eg.name as executor_group_name,
                    (
                        SELECT EXISTS(
@@ -2133,6 +2134,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             LEFT JOIN {SCHEMA}.ticket_priorities p ON t.priority_id = p.id
             LEFT JOIN {SCHEMA}.users u1 ON t.assigned_to = u1.id
             LEFT JOIN {SCHEMA}.users u2 ON t.created_by = u2.id
+            LEFT JOIN {SCHEMA}.departments cdept ON cdept.id = u2.department_id
             LEFT JOIN {SCHEMA}.executor_groups eg ON t.executor_group_id = eg.id
             {where_clause}
             {order_by_clause}

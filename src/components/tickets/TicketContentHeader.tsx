@@ -73,6 +73,12 @@ const TicketContentHeader = ({
               )}
               <span className="font-medium text-foreground">{ticket.creator_name}</span>
             </div>
+            {ticket.creator_department_name && (
+              <div className="flex items-center gap-2 mt-0.5">
+                <Icon name="Building2" size={14} className="text-muted-foreground" />
+                <span className="text-muted-foreground">{ticket.creator_department_name}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
