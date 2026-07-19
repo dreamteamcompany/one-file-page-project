@@ -920,7 +920,10 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
         if status == 'missing':
             continue  # эта функция недоступна — пробуем следующую
         all_missing = False
-        return False, f'ISPmanager: {msg}'  # реальная ошибка (напр. ящик уже есть)
+        low = msg.lower()
+        if 'already exist' in low or 'уже сущест' in low:
+            return False, f'Почтовый ящик {full} уже существует — создавать не нужно'
+        return False, f'ISPmanager: {msg}'  # реальная ошибка
       if path_missing:
         continue  # этот путь API недоступен — пробуем следующий
 
