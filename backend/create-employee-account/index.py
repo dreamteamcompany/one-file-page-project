@@ -3,6 +3,7 @@ import hashlib
 import html as html_lib
 import http.cookiejar
 import json
+import logging
 import os
 import re
 import secrets
@@ -16,6 +17,9 @@ import jwt
 import psycopg2
 from cryptography.fernet import Fernet
 
+
+logger = logging.getLogger('create-employee-account')
+logger.setLevel(logging.INFO)
 
 JWT_SECRET = os.environ.get('JWT_SECRET', '')
 SCHEMA = os.environ.get('MAIN_DB_SCHEMA', 'public')
@@ -868,24 +872,27 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
     full = f'{mailbox}@{domain}'
     authinfo = f'{login}:{password}'
 
-    # ISPmanager 6: создание ящика — функция emailbox.edit,
-    # имя ящика передаётся БЕЗ домена (name=mailbox), домен — отдельным параметром.
+    # В ISPmanager 6 почтовый ящик — дочерний объект почтового домена.
+    # Список ящиков отдаётся функцией `email`, поэтому создание/редактирование —
+    # `email.edit`, где почтовый домен передаётся как plid (родитель),
+    # а имя ящика (без домена) — в поле name. Перебираем возможные имена полей/функций
+    # под разные сборки панели (в т.ч. shared-хостинг reg.ru).
     variants = [
-        {'func': 'emailbox.edit', 'plid': domain, 'domain': domain, 'name': mailbox,
+        {'func': 'email.edit', 'plid': domain, 'name': mailbox,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'email.edit', 'elid': domain, 'name': mailbox,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'email.edit', 'plid': domain, 'name': full,
+         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
+        {'func': 'emailbox.edit', 'plid': domain, 'name': mailbox,
          'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
         {'func': 'emailbox.edit', 'elid': domain, 'domain': domain, 'name': mailbox,
          'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
-        {'func': 'emailbox.edit', 'domain': domain, 'name': full,
-         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
-        {'func': 'email.box.edit', 'elid': domain, 'domain': domain, 'name': mailbox,
-         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
-        {'func': 'emailbox', 'name': full, 'domain': domain,
-         'passwd': mail_password, 'confirm': mail_password, 'sok': 'ok'},
     ]
 
-    # ISPmanager 6 (в т.ч. shared-хостинг Reg.ru) отвечает по пути /manager/ispmgr,
-    # старые сборки — по /ispmgr. Перебираем оба.
-    api_paths = ['/manager/ispmgr', '/ispmgr']
+    # На rest-панели reg.ru рабочий путь — /ispmgr (тот же, что для списка доменов).
+    # Старые/иные сборки — /manager/ispmgr. Сначала пробуем рабочий /ispmgr.
+    api_paths = ['/ispmgr', '/manager/ispmgr']
     last_msg = 'Не удалось создать ящик'
     all_missing = True  # ни один вариант функции не найден => модуль почты не подключён
     for api_path in api_paths:
@@ -906,6 +913,8 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
             return False, f'Ошибка соединения с ISPmanager: {e}'
 
         status, msg = _isp_parse_error(text)
+        logger.info('ISP mailbox try path=%s func=%s -> status=%s resp=%s',
+                    api_path, params.get('func'), status, (text or '')[:400])
         if status == 'ok':
             return True, 'Ящик создан'
         last_msg = msg
@@ -914,14 +923,14 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
         all_missing = False
         return False, f'ISPmanager: {msg}'  # реальная ошибка (напр. ящик уже есть)
       if path_missing:
-        continue  # этот путь API недоступно — пробуем следующий
+        continue  # этот путь API недоступен — пробуем следующий
 
     if all_missing:
         return False, (
-            'Панель ISPmanager сообщила, что модуль почты недоступен (функция «emailbox» '
-            'не найдена). Такое бывает на тарифах reg.ru без услуги почты. '
-            'Подключите почтовый модуль в панели хостинга или создайте ящик вручную, '
-            'а если почта есть — убедитесь, что у пользователя ISPmanager есть права на её управление.'
+            'Панель ISPmanager не приняла ни одну команду создания ящика. '
+            'Убедитесь, что у пользователя ISPmanager (доступы в Настройки → Интеграции) '
+            'есть права на управление почтой этого домена, и что домен '
+            f'«{domain}» существует в разделе «Почта» панели.'
         )
     return False, (
         f'ISPmanager: {last_msg}. Проверьте, что в URL панели указан адрес с портом '
