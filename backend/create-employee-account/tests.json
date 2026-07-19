@@ -30,6 +30,26 @@
       "bodyMatcher": "partial"
     },
     {
+      "name": "Создание с несколькими отделами (departments) — структура",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "portal": "ru",
+        "last_name": "Лалиев",
+        "first_name": "Роберт",
+        "position": "Менеджер",
+        "departments": ["Продажи", "Маркетинг"],
+        "heads": ["Иванов Иван"],
+        "targets": []
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "ok": true,
+        "portal": "ru"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
       "name": "Без портала — ошибка",
       "method": "POST",
       "path": "/",

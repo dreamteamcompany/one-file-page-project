@@ -266,6 +266,13 @@ def handle_create(body):
     birth_date = (body.get('birth_date') or '').strip()
     hire_date = (body.get('hire_date') or '').strip()
 
+    # Отделы: поддерживаем список departments[] и старое поле department.
+    departments = _normalize_str_list(body.get('departments'))
+    for d in _normalize_str_list(body.get('department')):
+        if d.lower() not in {x.lower() for x in departments}:
+            departments.append(d)
+    heads = _normalize_str_list(body.get('heads'))
+
     accounts = []
     if 'email' in targets:
         mail_password = gen_password()
@@ -300,7 +307,7 @@ def handle_create(body):
         ok, message, bitrix_id = create_bitrix_user(
             bitrix_url, email, bx_password, first_name, last_name,
             middle_name=middle_name, position=position, phone=phone,
-            department=(body.get('department') or '').strip(),
+            departments=departments, heads=heads,
             city=city, gender=gender, birth_date=birth_date, hire_date=hire_date,
         )
         accounts.append({
@@ -320,7 +327,9 @@ def handle_create(body):
         'employee': {
             'full_name': full_name,
             'position': body.get('position') or '',
-            'department': body.get('department') or '',
+            'department': ', '.join(departments),
+            'departments': departments,
+            'heads': heads,
             'city': body.get('city') or '',
             'gender': body.get('gender') or '',
             'phone': body.get('phone') or '',
@@ -394,6 +403,88 @@ def find_bitrix_department(webhook_url, name):
     return None
 
 
+def _fetch_bitrix_user_by_name(webhook_url, full_name):
+    """Ищет пользователя Битрикс по ФИО. Возвращает его ID или None.
+    ФИО может быть в любом порядке (Фамилия Имя / Имя Фамилия)."""
+    base = webhook_url.rstrip('/')
+    parts = [p for p in re.split(r'\s+', (full_name or '').strip()) if p]
+    if not parts:
+        return None
+    # Пробуем разные комбинации фамилии/имени
+    combos = []
+    if len(parts) >= 2:
+        combos.append((parts[0], parts[1]))  # Фамилия Имя
+        combos.append((parts[1], parts[0]))  # Имя Фамилия
+    for last_name, first_name in combos:
+        try:
+            q = urllib.parse.urlencode({'FILTER[LAST_NAME]': last_name,
+                                        'FILTER[NAME]': first_name})
+            code, text = _http_get(f"{base}/user.get.json?{q}", timeout=12)
+            data = json.loads(text) if text else {}
+            res = data.get('result') or []
+            if res:
+                return res[0].get('ID')
+        except Exception:
+            continue
+    # Запасной вариант: ищем по одной только фамилии
+    try:
+        q = urllib.parse.urlencode({'FILTER[LAST_NAME]': parts[0]})
+        code, text = _http_get(f"{base}/user.get.json?{q}", timeout=12)
+        data = json.loads(text) if text else {}
+        res = data.get('result') or []
+        if len(res) == 1:
+            return res[0].get('ID')
+    except Exception:
+        pass
+    return None
+
+
+def find_bitrix_department_by_head(webhook_url, head_name):
+    """Ищет ID отдела в Битрикс, руководителем (UF_HEAD) которого является
+    указанный по ФИО сотрудник. Возвращает ID отдела или None."""
+    if not head_name:
+        return None
+    user_id = _fetch_bitrix_user_by_name(webhook_url, head_name)
+    if not user_id:
+        return None
+    deps = _fetch_all_bitrix_departments(webhook_url)
+    for dep in deps:
+        if str(dep.get('UF_HEAD', '')).strip() == str(user_id).strip():
+            return dep.get('ID')
+    return None
+
+
+def resolve_bitrix_department_ids(webhook_url, departments, heads):
+    """Находит ID отделов Битрикс по названиям (departments) и по ФИО
+    руководителей (heads). Возвращает (dep_ids, errors).
+    dep_ids — список уникальных ID (строки), errors — список пояснений
+    по ненайденным отделам/руководителям."""
+    dep_ids = []
+    errors = []
+    seen = set()
+
+    def _add(dep_id):
+        if dep_id and str(dep_id) not in seen:
+            seen.add(str(dep_id))
+            dep_ids.append(str(dep_id))
+
+    for name in (departments or []):
+        dep_id = find_bitrix_department(webhook_url, name)
+        if dep_id:
+            _add(dep_id)
+        else:
+            errors.append(f'Отдел «{name}» не найден в Битрикс — проверьте название')
+
+    for head in (heads or []):
+        dep_id = find_bitrix_department_by_head(webhook_url, head)
+        if dep_id:
+            _add(dep_id)
+        else:
+            errors.append(f'Не найден отдел по руководителю «{head}» — проверьте ФИО и что он назначен руководителем отдела в Битрикс')
+
+    return dep_ids, errors
+
+
 def _to_bitrix_date(value):
     """Приводит дату к формату ДД.ММ.ГГГГ, который принимает Битрикс."""
     if not value:
@@ -416,19 +507,21 @@ def _to_bitrix_gender(value):
 
 
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
-                       middle_name='', position='', phone='', department='',
-                       city='', gender='', birth_date='', hire_date=''):
-    """Создаёт пользователя в Битрикс через user.add. Возвращает (ok, message, bitrix_id)."""
+                       middle_name='', position='', phone='', departments=None,
+                       heads=None, city='', gender='', birth_date='', hire_date=''):
+    """Создаёт пользователя в Битрикс через user.add. Пользователь может состоять
+    сразу в нескольких отделах (departments — названия, heads — ФИО руководителей).
+    Возвращает (ok, message, bitrix_id)."""
     if not webhook_url:
         return False, 'Вебхук Битрикс не задан', None
     base = webhook_url.rstrip('/')
     url = f"{base}/user.add.json"
 
-    dep_id = find_bitrix_department(webhook_url, department)
-    if department and not dep_id:
-        return False, f'Отдел «{department}» не найден в Битрикс — проверьте название', None
-    if not dep_id:
-        dep_id = '1'
+    dep_ids, errors = resolve_bitrix_department_ids(webhook_url, departments, heads)
+    if errors:
+        return False, '; '.join(errors), None
+    if not dep_ids:
+        dep_ids = ['1']
 
     params = {
         'EMAIL': email,
@@ -441,11 +534,12 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'WORK_POSITION': position,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
-        'UF_DEPARTMENT[0]': dep_id,
         'EXTRANET': 'N',
         'NOTIFY': 'N',
         'MESSAGE_ID': '',
     }
+    for i, dep_id in enumerate(dep_ids):
+        params[f'UF_DEPARTMENT[{i}]'] = dep_id
     if city:
         params['PERSONAL_CITY'] = city
     bx_gender = _to_bitrix_gender(gender)
@@ -978,17 +1072,48 @@ AI_SYSTEM_PROMPT = (
     '  "portal": "ru"|"kz"|"",\n'
     '  "fields": {\n'
     '    "last_name": "", "first_name": "", "middle_name": "",\n'
-    '    "position": "", "department": "", "city": "",\n'
-    '    "gender": "male"|"female"|"", "phone": "", "birth_date": "", "hire_date": ""\n'
+    '    "position": "", "city": "",\n'
+    '    "gender": "male"|"female"|"", "phone": "", "birth_date": "", "hire_date": "",\n'
+    '    "departments": [], "heads": []\n'
     "  }\n"
     "}\n"
-    "Незаполненные поля оставляй пустой строкой. Даты в формате YYYY-MM-DD. "
-    "Телефон в исходном виде. Пол определи по имени/отчеству, если явно не указан. "
-    "portal='kz' только если явно упомянут Казахстан/КЗ, иначе 'ru'."
+    "Незаполненные текстовые поля оставляй пустой строкой, списки — пустым массивом []. "
+    "Даты в формате YYYY-MM-DD. Телефон в исходном виде. Пол определи по имени/отчеству, если явно не указан. "
+    "portal='kz' только если явно упомянут Казахстан/КЗ, иначе 'ru'.\n"
+    "ВАЖНО про отделы: сотрудника могут добавлять сразу в несколько отделов "
+    "(например при подчинении нескольким руководителям). "
+    "В \"departments\" перечисли НАЗВАНИЯ всех отделов/подразделений, если они явно указаны в заявке. "
+    "В \"heads\" перечисли ФИО всех руководителей, которым подчиняется новый сотрудник, если они указаны "
+    "(по каждому руководителю сотрудника добавят в его отдел). "
+    "Если указано подчинение двум руководителям — в \"heads\" должно быть два ФИО."
 )
 
 AI_ALLOWED_FIELDS = ['last_name', 'first_name', 'middle_name', 'position',
-                     'department', 'city', 'gender', 'phone', 'birth_date', 'hire_date']
+                     'city', 'gender', 'phone', 'birth_date', 'hire_date']
+
+
+def _normalize_str_list(value):
+    """Приводит значение к списку непустых строк без дублей (сохраняя порядок)."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        items = [value]
+    elif isinstance(value, (list, tuple)):
+        items = list(value)
+    else:
+        items = [value]
+    result = []
+    seen = set()
+    for item in items:
+        s = str(item).strip()
+        if not s:
+            continue
+        key = s.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(s)
+    return result
 
 
 def load_ticket_context(ticket_id):
@@ -1161,6 +1286,15 @@ def normalize_ai_result(raw):
         fields[k] = str(v).strip() if v is not None else ''
     if fields.get('gender') not in ('male', 'female'):
         fields['gender'] = ''
+    # Отделы: множественный выбор. Поддерживаем и новый departments[], и старый department.
+    departments = _normalize_str_list(fields_in.get('departments'))
+    legacy_dep = fields_in.get('department')
+    for d in _normalize_str_list(legacy_dep):
+        if d.lower() not in {x.lower() for x in departments}:
+            departments.append(d)
+    fields['departments'] = departments
+    fields['department'] = departments[0] if departments else ''
+    fields['heads'] = _normalize_str_list(fields_in.get('heads'))
     try:
         conf = float(raw.get('confidence', 0))
     except Exception:

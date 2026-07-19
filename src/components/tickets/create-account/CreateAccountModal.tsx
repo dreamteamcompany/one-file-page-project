@@ -34,6 +34,8 @@ export interface AccountInitialValues {
   middleName?: string;
   position?: string;
   department?: string;
+  departments?: string[];
+  heads?: string[];
   city?: string;
   gender?: 'male' | 'female' | '';
   phone?: string;
@@ -70,7 +72,8 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
   const [birthDate, setBirthDate] = useState('');
   const [hireDate, setHireDate] = useState('');
   const [position, setPosition] = useState('');
-  const [department, setDepartment] = useState('');
+  const [departmentList, setDepartmentList] = useState<string[]>([]);
+  const [heads, setHeads] = useState<string[]>([]);
   const [city, setCity] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | ''>('');
   const [phone, setPhone] = useState('');
@@ -139,8 +142,16 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
     if (initialValues.portal) setPortal(initialValues.portal);
     if (initialValues.photoUrl) setPhotoPreview(initialValues.photoUrl);
     // FilterCombobox хранит значение по названию (label), поэтому кладём имена, а не ID
-    if (initialValues.departmentName) setDepartment(initialValues.departmentName);
-    else if (initialValues.department) setDepartment(initialValues.department);
+    const depNames: string[] = [];
+    const pushDep = (name?: string) => {
+      const n = (name || '').trim();
+      if (n && !depNames.some((x) => x.toLowerCase() === n.toLowerCase())) depNames.push(n);
+    };
+    pushDep(initialValues.departmentName);
+    (initialValues.departments || []).forEach(pushDep);
+    pushDep(initialValues.department);
+    setDepartmentList(depNames);
+    setHeads(initialValues.heads || []);
     if (initialValues.positionName) setPosition(initialValues.positionName);
     else if (initialValues.position) setPosition(initialValues.position);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -154,7 +165,8 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
     setBirthDate('');
     setHireDate('');
     setPosition('');
-    setDepartment('');
+    setDepartmentList([]);
+    setHeads([]);
     setCity('');
     setGender('');
     setPhone('');
@@ -204,7 +216,8 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
           birth_date: birthDate,
           hire_date: hireDate,
           position,
-          department,
+          departments: departmentList,
+          heads,
           city,
           gender,
           phone,
@@ -237,6 +250,20 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
 
   const positionOptions: FilterComboboxOption[] = positions.map((p) => ({ value: String(p.id), label: p.name }));
   const departmentOptions: FilterComboboxOption[] = departments.map((d) => ({ value: String(d.id), label: d.name }));
+
+  const addDepartment = (name: string) => {
+    const n = (name || '').trim();
+    if (!n) return;
+    setDepartmentList((prev) =>
+      prev.some((x) => x.toLowerCase() === n.toLowerCase()) ? prev : [...prev, n],
+    );
+  };
+  const removeDepartment = (name: string) => {
+    setDepartmentList((prev) => prev.filter((x) => x !== name));
+  };
+  const removeHead = (name: string) => {
+    setHeads((prev) => prev.filter((x) => x !== name));
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -343,15 +370,60 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
                 />
               </div>
               <div className="space-y-1">
-                <Label>Отдел</Label>
+                <Label>Отделы</Label>
                 <FilterCombobox
                   options={departmentOptions}
-                  value={department}
-                  onChange={setDepartment}
-                  placeholder="Выберите отдел"
+                  value=""
+                  onChange={addDepartment}
+                  placeholder="Добавить отдел"
                   searchPlaceholder="Поиск отдела..."
                   emptyText="Отдел не найден"
                 />
+                {departmentList.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1.5">
+                    {departmentList.map((d) => (
+                      <span
+                        key={d}
+                        className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 text-blue-600 px-2 py-1 text-xs"
+                      >
+                        {d}
+                        <button
+                          type="button"
+                          onClick={() => removeDepartment(d)}
+                          className="hover:text-red-500"
+                          aria-label={`Удалить отдел ${d}`}
+                        >
+                          <Icon name="X" size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {heads.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                    <span className="text-xs text-muted-foreground">По руководителям:</span>
+                    {heads.map((h) => (
+                      <span
+                        key={h}
+                        className="inline-flex items-center gap-1 rounded-md bg-muted text-muted-foreground px-2 py-1 text-xs"
+                      >
+                        <Icon name="UserCog" size={12} />
+                        {h}
+                        <button
+                          type="button"
+                          onClick={() => removeHead(h)}
+                          className="hover:text-red-500"
+                          aria-label={`Убрать руководителя ${h}`}
+                        >
+                          <Icon name="X" size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground pt-1">
+                  Сотрудник будет добавлен во все указанные отделы. По руководителям отдел определяется автоматически в Битрикс.
+                </p>
               </div>
             </div>
 

@@ -62,6 +62,8 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
         middleName: f.middle_name || '',
         position: f.position || '',
         department: f.department || '',
+        departments: Array.isArray(f.departments) ? f.departments : [],
+        heads: Array.isArray(f.heads) ? f.heads : [],
         city: f.city || '',
         gender: f.gender || '',
         phone: f.phone || '',
