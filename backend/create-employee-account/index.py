@@ -261,6 +261,10 @@ def handle_create(body):
 
     position = (body.get('position') or '').strip()
     phone = (body.get('phone') or '').strip()
+    city = (body.get('city') or '').strip()
+    gender = (body.get('gender') or '').strip()
+    birth_date = (body.get('birth_date') or '').strip()
+    hire_date = (body.get('hire_date') or '').strip()
 
     accounts = []
     if 'email' in targets:
@@ -297,6 +301,7 @@ def handle_create(body):
             bitrix_url, email, bx_password, first_name, last_name,
             middle_name=middle_name, position=position, phone=phone,
             department=(body.get('department') or '').strip(),
+            city=city, gender=gender, birth_date=birth_date, hire_date=hire_date,
         )
         accounts.append({
             'system': 'bitrix', 'title': 'Битрикс24',
@@ -350,34 +355,81 @@ def _http_post(url, params: dict, timeout=15):
         return r.getcode(), r.read().decode('utf-8', 'replace')
 
 
+def _fetch_all_bitrix_departments(webhook_url):
+    """Возвращает все отделы Битрикса, обходя постраничную выдачу (по 50)."""
+    base = webhook_url.rstrip('/')
+    all_deps = []
+    start = 0
+    for _ in range(100):  # предохранитель: до 5000 отделов
+        try:
+            code, text = _http_get(
+                f"{base}/department.get.json?ORDER[NAME]=ASC&start={start}", timeout=12
+            )
+            data = json.loads(text) if text else {}
+        except Exception:
+            break
+        chunk = data.get('result', []) or []
+        all_deps.extend(chunk)
+        nxt = data.get('next')
+        if nxt is None:
+            break
+        start = nxt
+    return all_deps
+
+
 def find_bitrix_department(webhook_url, name):
     """Ищет ID отдела в Битрикс по названию (без учёта регистра). None если не найден."""
     if not name:
         return None
-    base = webhook_url.rstrip('/')
     target = name.strip().lower()
-    try:
-        code, text = _http_get(f"{base}/department.get.json?ORDER[NAME]=ASC", timeout=12)
-        data = json.loads(text) if text else {}
-        for dep in data.get('result', []) or []:
-            if str(dep.get('NAME', '')).strip().lower() == target:
-                return dep.get('ID')
-        for dep in data.get('result', []) or []:
-            if target in str(dep.get('NAME', '')).strip().lower():
-                return dep.get('ID')
-    except Exception:
-        pass
+    deps = _fetch_all_bitrix_departments(webhook_url)
+    # 1) точное совпадение названия
+    for dep in deps:
+        if str(dep.get('NAME', '')).strip().lower() == target:
+            return dep.get('ID')
+    # 2) вхождение подстроки (запасной вариант)
+    for dep in deps:
+        if target in str(dep.get('NAME', '')).strip().lower():
+            return dep.get('ID')
     return None
 
 
+def _to_bitrix_date(value):
+    """Приводит дату к формату ДД.ММ.ГГГГ, который принимает Битрикс."""
+    if not value:
+        return ''
+    v = str(value).strip()
+    m = re.match(r'^(\d{4})-(\d{2})-(\d{2})', v)
+    if m:
+        return f"{m.group(3)}.{m.group(2)}.{m.group(1)}"
+    return v
+
+
+def _to_bitrix_gender(value):
+    """Приводит пол к формату Битрикса: M / F."""
+    v = str(value or '').strip().lower()
+    if v in ('m', 'male', 'м', 'муж', 'мужской'):
+        return 'M'
+    if v in ('f', 'female', 'ж', 'жен', 'женский'):
+        return 'F'
+    return ''
+
+
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
-                       middle_name='', position='', phone='', department=''):
+                       middle_name='', position='', phone='', department='',
+                       city='', gender='', birth_date='', hire_date=''):
     """Создаёт пользователя в Битрикс через user.add. Возвращает (ok, message, bitrix_id)."""
     if not webhook_url:
         return False, 'Вебхук Битрикс не задан', None
     base = webhook_url.rstrip('/')
     url = f"{base}/user.add.json"
-    dep_id = find_bitrix_department(webhook_url, department) or '1'
+
+    dep_id = find_bitrix_department(webhook_url, department)
+    if department and not dep_id:
+        return False, f'Отдел «{department}» не найден в Битрикс — проверьте название', None
+    if not dep_id:
+        dep_id = '1'
+
     params = {
         'EMAIL': email,
         'LOGIN': email,
@@ -394,6 +446,17 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'NOTIFY': 'N',
         'MESSAGE_ID': '',
     }
+    if city:
+        params['PERSONAL_CITY'] = city
+    bx_gender = _to_bitrix_gender(gender)
+    if bx_gender:
+        params['PERSONAL_GENDER'] = bx_gender
+    bx_birth = _to_bitrix_date(birth_date)
+    if bx_birth:
+        params['PERSONAL_BIRTHDAY'] = bx_birth
+    bx_hire = _to_bitrix_date(hire_date)
+    if bx_hire:
+        params['UF_EMPLOYMENT_DATE'] = bx_hire
     try:
         code, text = _http_post(url, params)
         data = json.loads(text) if text else {}
