@@ -540,7 +540,6 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'ACTIVE': 'Y',
         'EXTRANET': 'N',
         'NOTIFY': 'N',
-        'MESSAGE_ID': '',
     }
     for i, dep_id in enumerate(dep_ids):
         params[f'UF_DEPARTMENT[{i}]'] = dep_id
