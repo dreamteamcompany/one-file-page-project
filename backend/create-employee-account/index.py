@@ -294,8 +294,10 @@ def handle_create(body):
     heads = _normalize_str_list(body.get('heads'))
 
     accounts = []
+    # Единый пароль для всех учёток сотрудника (почта = Битрикс).
+    shared_password = gen_password()
     if 'email' in targets:
-        mail_password = gen_password()
+        mail_password = shared_password
         if portal == 'ru':
             isp_url = get_setting(fernet, stored, 'ispmgr_url', 'ISPMGR_URL')
             isp_login = get_setting(fernet, stored, 'ispmgr_login', 'ISPMGR_LOGIN')
@@ -339,7 +341,7 @@ def handle_create(body):
                 'error': '',
             })
     if 'bitrix' in targets:
-        bx_password = gen_password()
+        bx_password = shared_password
         portal_url = ''
         if bitrix_url:
             m = re.match(r'(https?://[^/]+)', bitrix_url)
