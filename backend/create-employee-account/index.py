@@ -887,6 +887,7 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
     # старые сборки — по /ispmgr. Перебираем оба.
     api_paths = ['/manager/ispmgr', '/ispmgr']
     last_msg = 'Не удалось создать ящик'
+    all_missing = True  # ни один вариант функции не найден => модуль почты не подключён
     for api_path in api_paths:
       path_missing = False
       for params in variants:
@@ -910,9 +911,18 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
         last_msg = msg
         if status == 'missing':
             continue  # эта функция недоступна — пробуем следующую
+        all_missing = False
         return False, f'ISPmanager: {msg}'  # реальная ошибка (напр. ящик уже есть)
       if path_missing:
-        continue  # этот путь API недоступен — пробуем следующий
+        continue  # этот путь API недоступно — пробуем следующий
+
+    if all_missing:
+        return False, (
+            'Панель ISPmanager сообщила, что модуль почты недоступен (функция «emailbox» '
+            'не найдена). Такое бывает на тарифах reg.ru без услуги почты. '
+            'Подключите почтовый модуль в панели хостинга или создайте ящик вручную, '
+            'а если почта есть — убедитесь, что у пользователя ISPmanager есть права на её управление.'
+        )
     return False, (
         f'ISPmanager: {last_msg}. Проверьте, что в URL панели указан адрес с портом '
         f'(например https://sm11.hosting.reg.ru:1500), а у пользователя есть доступ к почте.'
