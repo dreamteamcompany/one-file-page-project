@@ -88,6 +88,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
 
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<AccountResult[] | null>(null);
+  const [resultDepartments, setResultDepartments] = useState<string[]>([]);
   const [copiedKey, setCopiedKey] = useState('');
 
   useEffect(() => {
@@ -175,6 +176,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
     setDomainsError('');
     setPhotoPreview('');
     setResults(null);
+    setResultDepartments([]);
   };
 
   const handleClose = (next: boolean) => {
@@ -231,6 +233,9 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
         return;
       }
       setResults(data.accounts || []);
+      setResultDepartments(
+        Array.isArray(data.employee?.departments) ? data.employee.departments : [],
+      );
     } catch {
       toast({ title: 'Ошибка соединения', variant: 'destructive' });
     } finally {
@@ -521,6 +526,26 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
               <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 px-3 py-2 text-sm">
                 <Icon name="CircleCheck" size={18} />
                 Учётные записи созданы. Сохраните данные — пароли показываются один раз.
+              </div>
+            )}
+
+            {resultDepartments.length > 0 && (
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="flex items-center gap-2 font-semibold text-sm">
+                  <Icon name="Building2" size={16} />
+                  Отделы сотрудника
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {resultDepartments.map((d) => (
+                    <span
+                      key={d}
+                      className="inline-flex items-center gap-1 rounded-md bg-blue-500/10 text-blue-600 px-2 py-1 text-xs"
+                    >
+                      <Icon name="Check" size={12} />
+                      {d}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 
