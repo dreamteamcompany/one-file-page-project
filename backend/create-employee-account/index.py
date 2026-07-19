@@ -76,6 +76,21 @@ def build_login(first_name: str, last_name: str) -> str:
     return f"{initial}{ln}".strip('.') or 'user'
 
 
+def build_login_variants(first_name: str, last_name: str):
+    """Варианты логина по приоритету: ipetrov, затем i.petrov."""
+    fn = translit(first_name)
+    ln = translit(last_name)
+    initial = fn[0] if fn else ''
+    variants = []
+    primary = f"{initial}{ln}".strip('.') or 'user'
+    variants.append(primary)
+    if initial and ln:
+        alt = f"{initial}.{ln}"
+        if alt not in variants:
+            variants.append(alt)
+    return variants
+
+
 def gen_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + '!@#$%*'
     while True:
@@ -259,7 +274,8 @@ def handle_create(body):
                   or os.environ.get('CORP_MAIL_DOMAIN', 'company.ru'))
         bitrix_url = get_setting(fernet, stored, 'bitrix_webhook_ru', 'BITRIX24_WEBHOOK_URL')
 
-    login = build_login(first_name, last_name)
+    login_variants = build_login_variants(first_name, last_name)
+    login = login_variants[0]
     email = f"{login}@{domain}"
     full_name = ' '.join(p for p in [last_name, first_name, middle_name] if p)
 
@@ -284,9 +300,29 @@ def handle_create(body):
             isp_url = get_setting(fernet, stored, 'ispmgr_url', 'ISPMGR_URL')
             isp_login = get_setting(fernet, stored, 'ispmgr_login', 'ISPMGR_LOGIN')
             isp_password = get_setting(fernet, stored, 'ispmgr_password', 'ISPMGR_PASSWORD')
-            m_ok, m_msg = create_ispmanager_mailbox(
-                isp_url, isp_login, isp_password, domain, login, mail_password,
-            )
+            # Подбираем свободный логин: ipetrov -> i.petrov. Если оба заняты — ошибка.
+            m_ok, m_msg = False, 'Не удалось создать ящик'
+            all_taken = True
+            for candidate in login_variants:
+                c_ok, c_msg, c_code = create_ispmanager_mailbox(
+                    isp_url, isp_login, isp_password, domain, candidate, mail_password,
+                )
+                if c_ok:
+                    login = candidate
+                    email = f"{login}@{domain}"
+                    m_ok, m_msg = True, c_msg
+                    all_taken = False
+                    break
+                m_msg = c_msg
+                if c_code == 'exists':
+                    continue  # логин занят — пробуем следующий вариант
+                all_taken = False  # это не "занято", а другая ошибка
+                break
+            if not m_ok and all_taken:
+                m_msg = (
+                    f'Все варианты логина заняты (пробовали: '
+                    f'{", ".join(login_variants)}). Укажите логин вручную.'
+                )
             accounts.append({
                 'system': 'email', 'title': 'Корпоративная почта',
                 'login': email, 'password': mail_password,
@@ -862,11 +898,14 @@ def _isp_parse_error(text):
 
 
 def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_password):
-    """Создаёт почтовый ящик в ISPmanager. Перебирает возможные имена функции. Возвращает (ok, message)."""
+    """Создаёт почтовый ящик в ISPmanager. Перебирает возможные имена функции.
+    Возвращает (ok, message, code), где code:
+    'ok' — создан, 'exists' — ящик уже занят, 'missing_module' — нет модуля почты,
+    'error' — прочая ошибка, 'unavailable' — панель недоступна."""
     if not url or not login or not password:
-        return False, 'Не заполнены доступы ISPmanager в настройках'
+        return False, 'Не заполнены доступы ISPmanager в настройках', 'error'
     if not domain:
-        return False, 'Не указан домен почты'
+        return False, 'Не указан домен почты', 'error'
     base = url.rstrip('/')
     full = f'{mailbox}@{domain}'
     authinfo = f'{login}:{password}'
@@ -907,23 +946,23 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
                 path_missing = True
                 break
         except urllib.error.URLError as e:
-            return False, f'Панель ISPmanager недоступна: {getattr(e, "reason", e)}'
+            return False, f'Панель ISPmanager недоступна: {getattr(e, "reason", e)}', 'unavailable'
         except Exception as e:
-            return False, f'Ошибка соединения с ISPmanager: {e}'
+            return False, f'Ошибка соединения с ISPmanager: {e}', 'unavailable'
 
         status, msg = _isp_parse_error(text)
         logger.info('ISP mailbox try path=%s func=%s -> status=%s resp=%s',
                     api_path, params.get('func'), status, (text or '')[:400])
         if status == 'ok':
-            return True, 'Ящик создан'
+            return True, 'Ящик создан', 'ok'
         last_msg = msg
         if status == 'missing':
             continue  # эта функция недоступна — пробуем следующую
         all_missing = False
         low = msg.lower()
         if 'already exist' in low or 'уже сущест' in low:
-            return False, f'Почтовый ящик {full} уже существует — создавать не нужно'
-        return False, f'ISPmanager: {msg}'  # реальная ошибка
+            return False, f'Почтовый ящик {full} уже существует', 'exists'
+        return False, f'ISPmanager: {msg}', 'error'  # реальная ошибка
       if path_missing:
         continue  # этот путь API недоступен — пробуем следующий
 
@@ -933,11 +972,11 @@ def create_ispmanager_mailbox(url, login, password, domain, mailbox, mail_passwo
             'Убедитесь, что у пользователя ISPmanager (доступы в Настройки → Интеграции) '
             'есть права на управление почтой этого домена, и что домен '
             f'«{domain}» существует в разделе «Почта» панели.'
-        )
+        ), 'missing_module'
     return False, (
         f'ISPmanager: {last_msg}. Проверьте, что в URL панели указан адрес с портом '
         f'(например https://sm11.hosting.reg.ru:1500), а у пользователя есть доступ к почте.'
-    )
+    ), 'error'
 
 
 def list_lancloud_domains(url, login, password):
