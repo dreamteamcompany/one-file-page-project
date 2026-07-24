@@ -25,3 +25,6 @@ bun.lockb
 *.sln
 *.sw?
 builds
+
+# warmup/handoff артефакты
+tmp/
