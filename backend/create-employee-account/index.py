@@ -568,12 +568,13 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
     # ВАЖНО (коробочный Битрикс24): пользователь создаётся сразу АКТИВНЫМ, с нашим
     # сгенерированным паролем и БЕЗ письма-приглашения.
     #
-    # Почему прошлые версии слали приглашение:
-    #   Наличие ключа CONFIRM_CODE в запросе user.add (даже пустого '') —
-    #   это признак «пользователь ещё не подтвердил учётку»: Битрикс генерирует
-    #   код подтверждения и переводит юзера в статус «приглашение не принято»,
-    #   после чего на EMAIL уходит письмо-приглашение. Поэтому CONFIRM_CODE здесь
-    #   НЕ передаётся вообще. Пароль задаём напрямую (PASSWORD/CONFIRM_PASSWORD),
+    # Почему прошлые версии слали письмо-приглашение:
+    #   1) SEND_INFO. Метод user.add при добавлении сотрудника с EMAIL по умолчанию
+    #      отправляет письмо с данными для входа. Триггер письма — именно это поле.
+    #      Явно ставим SEND_INFO='N' — письмо НЕ отправляется.
+    #   2) CONFIRM_CODE. Передача этого ключа (даже пустым '') переводит учётку
+    #      в режим «регистрация не подтверждена». Поэтому его здесь НЕТ вообще.
+    #   Пароль задаём напрямую в открытом виде (PASSWORD/CONFIRM_PASSWORD),
     #   ACTIVE='Y' — учётка активна, LOGIN=email, EMAIL — контактный адрес.
     params = {
         'LOGIN': email,
@@ -587,6 +588,7 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         'PERSONAL_MOBILE': phone,
         'ACTIVE': 'Y',
         'EXTRANET': 'N',
+        'SEND_INFO': 'N',
     }
     for i, dep_id in enumerate(dep_ids):
         params[f'UF_DEPARTMENT[{i}]'] = dep_id
@@ -607,23 +609,16 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         data = json.loads(text) if text else {}
         if data.get('result'):
             new_id = data['result']
-            # Страховка для коробки: повторно фиксируем ACTIVE='Y' и наш пароль.
-            # CONFIRM_CODE здесь НЕ трогаем — передача этого поля и есть то,
-            # что переводит учётку в режим «приглашение не принято».
+            # П.3 (диагностика): сразу читаем созданного пользователя и логируем
+            # ВСЕ поля. Никаких записей (user.update) здесь НЕ делаем, чтобы не
+            # инициировать событий, которые могли бы отправить письмо.
             try:
-                _, upd_text = _http_post(f"{base}/user.update.json", {
-                    'ID': new_id,
-                    'ACTIVE': 'Y',
-                    'PASSWORD': password,
-                    'CONFIRM_PASSWORD': password,
-                })
-                logger.info('Bitrix user.update resp: %s', (upd_text or '')[:600])
                 _, chk_text = _http_get(
                     f"{base}/user.get.json?ID={new_id}", timeout=15
                 )
-                logger.info('Bitrix user.get resp: %s', (chk_text or '')[:800])
+                logger.info('Bitrix user.get resp: %s', (chk_text or '')[:1500])
             except Exception as e:
-                logger.info('Bitrix confirm step error: %s', e)
+                logger.info('Bitrix user.get error: %s', e)
             return True, 'Создан в Битрикс', new_id
         if data.get('error'):
             desc = data.get('error_description') or data.get('error')
