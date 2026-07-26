@@ -285,6 +285,7 @@ def handle_create(body):
     gender = (body.get('gender') or '').strip()
     birth_date = (body.get('birth_date') or '').strip()
     hire_date = (body.get('hire_date') or '').strip()
+    photo_url = (body.get('photo_url') or '').strip()
 
     # Отделы: поддерживаем список departments[] и старое поле department.
     departments = _normalize_str_list(body.get('departments'))
@@ -351,6 +352,7 @@ def handle_create(body):
             middle_name=middle_name, position=position, phone=phone,
             departments=departments, heads=heads,
             city=city, gender=gender, birth_date=birth_date, hire_date=hire_date,
+            photo_url=photo_url,
         )
         accounts.append({
             'system': 'bitrix', 'title': 'Битрикс24',
@@ -548,9 +550,33 @@ def _to_bitrix_gender(value):
     return ''
 
 
+def _photo_to_bitrix(photo_url: str):
+    """Готовит фото для user.add: возвращает base64-строку (без префикса
+    data:...;base64,). Принимает как data-URL, так и обычную http-ссылку —
+    во втором случае скачивает файл. При ошибке возвращает ''."""
+    if not photo_url:
+        return ''
+    try:
+        if photo_url.startswith('data:'):
+            # data:image/png;base64,XXXX
+            return photo_url.split(',', 1)[1] if ',' in photo_url else ''
+        if photo_url.startswith('http'):
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            req = urllib.request.Request(photo_url, headers={'User-Agent': 'integration-photo'})
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
+                data = r.read()
+            return base64.b64encode(data).decode('ascii')
+    except Exception as e:
+        logger.info('photo prepare error: %s', e)
+    return ''
+
+
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
                        middle_name='', position='', phone='', departments=None,
-                       heads=None, city='', gender='', birth_date='', hire_date=''):
+                       heads=None, city='', gender='', birth_date='', hire_date='',
+                       photo_url=''):
     """Создаёт пользователя в Битрикс через user.add. Пользователь может состоять
     сразу в нескольких отделах (departments — названия, heads — ФИО руководителей).
     Возвращает (ok, message, bitrix_id)."""
@@ -603,6 +629,9 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
     bx_hire = _to_bitrix_date(hire_date)
     if bx_hire:
         params['UF_EMPLOYMENT_DATE'] = bx_hire
+    bx_photo = _photo_to_bitrix(photo_url)
+    if bx_photo:
+        params['PERSONAL_PHOTO'] = bx_photo
     try:
         code, text = _http_post(url, params)
         logger.info('Bitrix user.add resp: %s', (text or '')[:600])

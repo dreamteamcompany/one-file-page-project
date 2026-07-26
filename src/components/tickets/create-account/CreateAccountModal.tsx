@@ -223,6 +223,7 @@ const CreateAccountModal = ({ open, onOpenChange, targets, ticketId, initialValu
           city,
           gender,
           phone,
+          photo_url: photoPreview,
           targets,
           ticket_id: ticketId,
         }),
