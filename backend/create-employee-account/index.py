@@ -551,15 +551,21 @@ def _to_bitrix_gender(value):
 
 
 def _photo_to_bitrix(photo_url: str):
-    """Готовит фото для user.add: возвращает base64-строку (без префикса
-    data:...;base64,). Принимает как data-URL, так и обычную http-ссылку —
-    во втором случае скачивает файл. При ошибке возвращает ''."""
+    """Готовит фото для user.add/update. Битрикс REST принимает файл как
+    массив [имя_файла, base64], иначе отвечает «Неверный тип файла».
+    Возвращает кортеж (filename, base64) или ('', '') при ошибке.
+    Принимает data-URL или http-ссылку (во втором случае скачивает файл)."""
     if not photo_url:
-        return ''
+        return '', ''
+    ext_by_mime = {'jpeg': 'jpg', 'jpg': 'jpg', 'png': 'png', 'gif': 'gif', 'webp': 'webp'}
     try:
         if photo_url.startswith('data:'):
-            # data:image/png;base64,XXXX
-            return photo_url.split(',', 1)[1] if ',' in photo_url else ''
+            header, b64 = photo_url.split(',', 1) if ',' in photo_url else ('', '')
+            if not b64:
+                return '', ''
+            mime = header.split(';')[0].replace('data:image/', '') if 'image/' in header else 'jpeg'
+            ext = ext_by_mime.get(mime.lower(), 'jpg')
+            return f'photo.{ext}', b64
         if photo_url.startswith('http'):
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
@@ -567,10 +573,12 @@ def _photo_to_bitrix(photo_url: str):
             req = urllib.request.Request(photo_url, headers={'User-Agent': 'integration-photo'})
             with urllib.request.urlopen(req, timeout=15, context=ctx) as r:
                 data = r.read()
-            return base64.b64encode(data).decode('ascii')
+            m = re.search(r'\.(jpe?g|png|gif|webp)(?:\?|$)', photo_url, re.I)
+            ext = ext_by_mime.get((m.group(1).lower() if m else 'jpg'), 'jpg')
+            return f'photo.{ext}', base64.b64encode(data).decode('ascii')
     except Exception as e:
         logger.info('photo prepare error: %s', e)
-    return ''
+    return '', ''
 
 
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
@@ -629,13 +637,24 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
     bx_hire = _to_bitrix_date(hire_date)
     if bx_hire:
         params['UF_EMPLOYMENT_DATE'] = bx_hire
-    bx_photo = _photo_to_bitrix(photo_url)
-    if bx_photo:
-        params['PERSONAL_PHOTO'] = bx_photo
+    photo_name, photo_b64 = _photo_to_bitrix(photo_url)
+    if photo_b64:
+        # Битрикс REST: файл = массив [имя, base64] → PERSONAL_PHOTO[0], [1]
+        params['PERSONAL_PHOTO[0]'] = photo_name
+        params['PERSONAL_PHOTO[1]'] = photo_b64
     try:
         code, text = _http_post(url, params)
         logger.info('Bitrix user.add resp: %s', (text or '')[:600])
         data = json.loads(text) if text else {}
+        # Фото не критично: если Битрикс отверг файл — создаём учётку без фото,
+        # чтобы сотрудник всё равно был заведён.
+        if not data.get('result') and ('PERSONAL_PHOTO[1]' in params):
+            logger.info('Bitrix add failed with photo, retry without photo')
+            params.pop('PERSONAL_PHOTO[0]', None)
+            params.pop('PERSONAL_PHOTO[1]', None)
+            code, text = _http_post(url, params)
+            logger.info('Bitrix user.add (no photo) resp: %s', (text or '')[:600])
+            data = json.loads(text) if text else {}
         if data.get('result'):
             new_id = data['result']
             # ПОДТВЕРЖДЕНИЕ УЧЁТКИ (снимаем статус «Приглашение не принято»).
