@@ -40,6 +40,7 @@ export const useTicketFormLogic = ({
   const [classification, setClassification] = useState<ClassificationResult | null>(null);
   const [clarifyingAnswers, setClarifyingAnswers] = useState<Record<number, string>>({});
   const [visibleCustomFields, setVisibleCustomFields] = useState<CustomField[]>([]);
+  const [loadingFields, setLoadingFields] = useState(false);
   const [classificationMode, setClassificationMode] = useState<'ai' | 'manual'>('ai');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileUploader = useFileUploader('uploads/attachments');
@@ -187,8 +188,9 @@ export const useTicketFormLogic = ({
 
   const MANUAL_DESCRIPTION_STEP = 4;
 
-  const handleNextFromClassify = () => {
-    if (visibleCustomFields.length > 0) {
+  const handleNextFromClassify = async () => {
+    const fields = await loadVisibleFields();
+    if (fields.length > 0) {
       setStep(getCustomFieldsStep());
     } else {
       const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
@@ -196,24 +198,28 @@ export const useTicketFormLogic = ({
     }
   };
 
-  const goToCustomFieldsOrDescription = () => {
-    if (visibleCustomFields.length > 0) {
+  const goToCustomFieldsOrDescription = async () => {
+    // Дожидаемся загрузки доп.полей выбранной услуги, прежде чем решать,
+    // показывать ли шаг доп.полей. Иначе (race condition) переход мог
+    // произойти раньше загрузки — и шаг с полями ошибочно проматывался.
+    const fields = await loadVisibleFields();
+    if (fields.length > 0) {
       setStep(3);
     } else {
       setStep(MANUAL_DESCRIPTION_STEP);
     }
   };
 
-  const handleNextFromManualService = () => {
+  const handleNextFromManualService = async () => {
     if (!hasServiceItems) {
-      goToCustomFieldsOrDescription();
+      await goToCustomFieldsOrDescription();
     } else {
       setStep(2);
     }
   };
 
-  const handleNextFromManualServiceItems = () => {
-    goToCustomFieldsOrDescription();
+  const handleNextFromManualServiceItems = async () => {
+    await goToCustomFieldsOrDescription();
   };
 
   const handleNextFromManualCustomFields = () => {
@@ -283,12 +289,13 @@ export const useTicketFormLogic = ({
     }
   };
 
-  const loadVisibleFields = useCallback(async () => {
+  const loadVisibleFields = useCallback(async (): Promise<CustomField[]> => {
     if (!formData.service_id || selectedServices.length === 0) {
       setVisibleCustomFields([]);
-      return;
+      return [];
     }
 
+    setLoadingFields(true);
     try {
       const [mappingsResponse, groupsResponse] = await Promise.all([
         apiFetch(SERVICE_FIELD_MAPPINGS_URL),
@@ -297,7 +304,7 @@ export const useTicketFormLogic = ({
 
       if (!mappingsResponse.ok || !groupsResponse.ok) {
         setVisibleCustomFields([]);
-        return;
+        return [];
       }
 
       const [mappings, fieldGroups] = await Promise.all([
@@ -319,7 +326,7 @@ export const useTicketFormLogic = ({
 
       if (relevantGroupIds.size === 0) {
         setVisibleCustomFields([]);
-        return;
+        return [];
       }
 
       const allFields: CustomField[] = [];
@@ -334,9 +341,13 @@ export const useTicketFormLogic = ({
       });
 
       setVisibleCustomFields(allFields);
+      return allFields;
     } catch (error) {
       console.error('[TicketForm] Error loading custom fields:', error);
       setVisibleCustomFields([]);
+      return [];
+    } finally {
+      setLoadingFields(false);
     }
   }, [formData.service_id, selectedServices]);
 
@@ -385,6 +396,7 @@ export const useTicketFormLogic = ({
     clarifyingAnswers,
     setClarifyingAnswers,
     visibleCustomFields,
+    loadingFields,
     classificationMode,
     fileUploader,
     selectedServices,
