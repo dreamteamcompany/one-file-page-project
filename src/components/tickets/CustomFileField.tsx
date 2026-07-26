@@ -1,6 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import Icon from '@/components/ui/icon';
 import { useFileUploader } from '@/hooks/useFileUploader';
+import { useToast } from '@/hooks/use-toast';
 
 interface CustomFileFieldProps {
   value: string;
@@ -12,16 +13,80 @@ interface CustomFileFieldProps {
 const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attachments, isUploading, upload, remove } = useFileUploader('uploads/photos');
+  const { toast } = useToast();
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const acceptsImageOnly = (accept || 'image/*').includes('image');
 
   const handlePick = () => inputRef.current?.click();
 
-  const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const result = await upload(files[0]);
+  const uploadFile = async (file: File) => {
+    const result = await upload(file);
     if (result?.url) {
       onChange(result.url);
     }
     if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    await uploadFile(files[0]);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (isUploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) await uploadFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const pasteFromClipboard = async () => {
+    if (isUploading) return;
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith('image/'));
+        if (type) {
+          const blob = await item.getType(type);
+          const ext = type.split('/')[1] || 'png';
+          await uploadFile(new File([blob], `clipboard.${ext}`, { type }));
+          return;
+        }
+      }
+      toast({
+        title: 'В буфере обмена нет изображения',
+        description: 'Скопируйте картинку и попробуйте снова',
+        variant: 'destructive',
+      });
+    } catch {
+      toast({
+        title: 'Не удалось получить доступ к буферу обмена',
+        description: 'Разрешите доступ или вставьте фото сочетанием Ctrl+V',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    if (isUploading) return;
+    const file = Array.from(e.clipboardData.items)
+      .find((it) => it.type.startsWith('image/'))
+      ?.getAsFile();
+    if (file) {
+      e.preventDefault();
+      await uploadFile(file);
+    }
   };
 
   const current = attachments[attachments.length - 1];
@@ -33,7 +98,14 @@ const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
   };
 
   return (
-    <div className="space-y-2">
+    <div
+      className="group space-y-2"
+      tabIndex={-1}
+      onPaste={handlePaste}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
       <input
         ref={inputRef}
         type="file"
@@ -43,14 +115,32 @@ const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
       />
 
       {!value && !isUploading && (
-        <button
-          type="button"
-          onClick={handlePick}
-          className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
-        >
-          <Icon name="Upload" size={18} />
-          Прикрепить файл
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={handlePick}
+            className={`w-full flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-4 py-6 text-sm transition-colors ${
+              isDragOver
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+            }`}
+          >
+            <Icon name={isDragOver ? 'ImageDown' : 'Upload'} size={18} />
+            {isDragOver ? 'Отпустите файл' : 'Прикрепить или перетащить файл'}
+          </button>
+
+          {acceptsImageOnly && (
+            <button
+              type="button"
+              onClick={pasteFromClipboard}
+              title="Вставить фото из буфера обмена"
+              className="absolute right-2 top-2 hidden items-center gap-1.5 rounded-lg border border-border bg-background/90 px-2.5 py-1.5 text-xs text-foreground shadow-sm transition-colors hover:bg-muted group-hover:flex"
+            >
+              <Icon name="ClipboardPaste" size={14} />
+              Вставить фото
+            </button>
+          )}
+        </div>
       )}
 
       {isUploading && current && (
