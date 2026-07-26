@@ -581,6 +581,58 @@ def _photo_to_bitrix(photo_url: str):
     return '', ''
 
 
+def _http_post_form(url, params: dict, timeout=15):
+    """POST формы на обычную (не REST) страницу портала. Возвращает (code, text)."""
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    data = urllib.parse.urlencode(params, doseq=True).encode()
+    req = urllib.request.Request(url, data=data, headers={
+        'User-Agent': 'Mozilla/5.0 integration-invite',
+        'Content-Type': 'application/x-www-form-urlencoded',
+    })
+    with urllib.request.urlopen(req, timeout=timeout, context=ctx) as r:
+        return r.getcode(), r.read().decode('utf-8', 'replace')
+
+
+def _accept_bitrix_invite(base, portal_url, user_id, login, password):
+    """Принимает приглашение за пользователя на коробочном Битриксе.
+
+    1) Достаём CONFIRM_CODE через user.get (запрашиваем поле явно).
+    2) Отправляем POST на публичную страницу /auth/ со сценарием
+       confirm_registration: LOGIN + CONFIRM_CODE + наш пароль.
+    После этого статус «Приглашение не принято» снимается, а вход работает
+    по сгенерированному системой паролю."""
+    try:
+        _, gt = _http_get(
+            f"{base}/user.get.json?ID={user_id}&ADMIN_MODE=Y", timeout=15
+        )
+        gj = json.loads(gt) if gt else {}
+        res = gj.get('result') or []
+        rec = res[0] if res else {}
+        confirm_code = rec.get('CONFIRM_CODE') or ''
+        logger.info('Bitrix invite: confirm_code present=%s', bool(confirm_code))
+        if not confirm_code:
+            # REST не отдал код — снять статус программно нельзя.
+            logger.info('Bitrix invite: no CONFIRM_CODE via REST, skip auto-accept')
+            return False
+        auth_url = f"{portal_url}/auth/"
+        form = {
+            'AUTH_FORM': 'Y',
+            'TYPE': 'CONFIRM_REGISTRATION',
+            'USER_LOGIN': login,
+            'USER_CONFIRM_CODE': confirm_code,
+            'USER_PASSWORD': password,
+            'USER_CONFIRM_PASSWORD': password,
+        }
+        c, t = _http_post_form(auth_url, form, timeout=15)
+        logger.info('Bitrix invite confirm resp: HTTP %s / %s', c, (t or '')[:300])
+        return True
+    except Exception as e:
+        logger.info('Bitrix invite accept error: %s', e)
+        return False
+
+
 def create_bitrix_user(webhook_url, email, password, first_name, last_name,
                        middle_name='', position='', phone='', departments=None,
                        heads=None, city='', gender='', birth_date='', hire_date='',
@@ -592,6 +644,8 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         return False, 'Вебхук Битрикс не задан', None
     base = webhook_url.rstrip('/')
     url = f"{base}/user.add.json"
+    _pm = re.match(r'(https?://[^/]+)', webhook_url)
+    portal_url = _pm.group(1) if _pm else base
 
     dep_ids, errors = resolve_bitrix_department_ids(webhook_url, departments, heads)
     if errors:
@@ -636,6 +690,10 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         params['PERSONAL_BIRTHDAY'] = bx_birth
     bx_hire = _to_bitrix_date(hire_date)
     if bx_hire:
+        # UF_USR_1766483156001 — пользовательское поле «Дата приема на работу»
+        # в этой коробке. UF_EMPLOYMENT_DATE — служебное, в профиле не видно,
+        # поэтому пишем дату именно в UF_USR_..., иначе поле остаётся пустым.
+        params['UF_USR_1766483156001'] = bx_hire
         params['UF_EMPLOYMENT_DATE'] = bx_hire
     photo_name, photo_b64 = _photo_to_bitrix(photo_url)
     if photo_b64:
@@ -657,22 +715,14 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
             data = json.loads(text) if text else {}
         if data.get('result'):
             new_id = data['result']
-            # ПОДТВЕРЖДЕНИЕ УЧЁТКИ (снимаем статус «Приглашение не принято»).
-            # В коробке этот статус = непустое поле CONFIRM_CODE в записи юзера
-            # (Битрикс проставляет его сам при user.add). Через user.update
-            # передаём CONFIRM_CODE='' — поле очищается, регистрация считается
-            # подтверждённой, и пользователь входит сразу по логину/паролю.
-            # На add так делать нельзя (add с CONFIRM_CODE усиливает приглашение),
-            # а на update пустой CONFIRM_CODE именно СБРАСЫВАЕТ статус.
-            try:
-                _, upd_text = _http_post(f"{base}/user.update.json", {
-                    'ID': new_id,
-                    'ACTIVE': 'Y',
-                    'CONFIRM_CODE': '',
-                })
-                logger.info('Bitrix confirm(update) resp: %s', (upd_text or '')[:600])
-            except Exception as e:
-                logger.info('Bitrix confirm(update) error: %s', e)
+            # ПРИНИМАЕМ ПРИГЛАШЕНИЕ ЗА ПОЛЬЗОВАТЕЛЯ.
+            # На «Коробке» статус «Приглашение не принято» через REST не снимается.
+            # Рабочий путь — сыграть за юзера сценарий подтверждения регистрации:
+            # у него есть CONFIRM_CODE, а на портале есть публичная страница
+            # /auth/, которая принимает LOGIN + CONFIRM_CODE + новый пароль,
+            # активирует учётку и задаёт пароль. После этого «приглашение принято»
+            # и вход работает по нашему сгенерированному паролю.
+            _accept_bitrix_invite(base, portal_url, new_id, email, password)
             try:
                 _, chk_text = _http_get(
                     f"{base}/user.get.json?ID={new_id}", timeout=15
