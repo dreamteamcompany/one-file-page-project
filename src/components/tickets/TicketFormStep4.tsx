@@ -15,6 +15,7 @@ import CompanyStructureInput from '@/components/field-registry/CompanyStructureI
 import DateMaskedInput from '@/components/ui/date-masked-input';
 import PhoneMaskedInput from '@/components/ui/phone-masked-input';
 import CustomFileField from '@/components/tickets/CustomFileField';
+import { useToast } from '@/hooks/use-toast';
 
 interface CustomField {
   id: number;
@@ -253,8 +254,26 @@ const TicketFormStep4 = ({
   onBack,
   isSubmitting = false,
 }: TicketFormStep4Props) => {
+  const { toast } = useToast();
+
+  const validateRequired = (): boolean => {
+    const missing = customFields.filter(
+      (f) => f.is_required && !(formData.custom_fields[f.id] || '').trim()
+    );
+    if (missing.length > 0) {
+      toast({
+        title: 'Заполните обязательные поля',
+        description: missing.map((f) => f.label || f.name).join(', '),
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateRequired()) return;
     if (onNext) {
       onNext();
       return;

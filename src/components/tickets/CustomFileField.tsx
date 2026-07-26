@@ -9,7 +9,7 @@ interface CustomFileFieldProps {
   accept?: string;
 }
 
-const CustomFileField = ({ value, onChange, isRequired, accept }: CustomFileFieldProps) => {
+const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const { attachments, isUploading, upload, remove } = useFileUploader('uploads/photos');
 
@@ -106,19 +106,6 @@ const CustomFileField = ({ value, onChange, isRequired, accept }: CustomFileFiel
 
       {current?.status === 'error' && (
         <p className="text-xs text-destructive">{current.errorMessage || 'Не удалось загрузить файл'}</p>
-      )}
-
-      {/* Скрытое поле для нативной HTML-валидации обязательности */}
-      {isRequired && (
-        <input
-          tabIndex={-1}
-          autoComplete="off"
-          required
-          value={value}
-          onChange={() => {}}
-          className="sr-only h-0 w-0 border-0 p-0"
-          aria-hidden="true"
-        />
       )}
     </div>
   );
