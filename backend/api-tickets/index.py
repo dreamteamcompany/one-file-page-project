@@ -2415,6 +2415,8 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         # Сохраняем кастомные поля
         if data.custom_fields:
             for field_id, value in data.custom_fields.items():
+                if not str(field_id).isdigit():
+                    continue
                 try:
                     cur.execute(f"""
                         INSERT INTO {SCHEMA}.ticket_custom_field_values (ticket_id, field_id, value)
@@ -2910,6 +2912,11 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         if 'custom_fields' in body:
             cur.execute("DELETE FROM ticket_custom_field_values WHERE ticket_id = %s", (ticket_id,))
             for field_id, value in body['custom_fields'].items():
+                # Пропускаем виртуальные поля (например "1_position") — это
+                # производные поля для отображения, у них нет числового id и
+                # своей строки в БД. int() на них падал с ValueError.
+                if not str(field_id).isdigit():
+                    continue
                 cur.execute(f"""
                     INSERT INTO {SCHEMA}.ticket_custom_field_values (ticket_id, field_id, value)
                     VALUES (%s, %s, %s)
