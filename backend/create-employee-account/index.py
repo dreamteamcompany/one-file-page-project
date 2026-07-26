@@ -638,9 +638,22 @@ def create_bitrix_user(webhook_url, email, password, first_name, last_name,
         data = json.loads(text) if text else {}
         if data.get('result'):
             new_id = data['result']
-            # П.3 (диагностика): сразу читаем созданного пользователя и логируем
-            # ВСЕ поля. Никаких записей (user.update) здесь НЕ делаем, чтобы не
-            # инициировать событий, которые могли бы отправить письмо.
+            # ПОДТВЕРЖДЕНИЕ УЧЁТКИ (снимаем статус «Приглашение не принято»).
+            # В коробке этот статус = непустое поле CONFIRM_CODE в записи юзера
+            # (Битрикс проставляет его сам при user.add). Через user.update
+            # передаём CONFIRM_CODE='' — поле очищается, регистрация считается
+            # подтверждённой, и пользователь входит сразу по логину/паролю.
+            # На add так делать нельзя (add с CONFIRM_CODE усиливает приглашение),
+            # а на update пустой CONFIRM_CODE именно СБРАСЫВАЕТ статус.
+            try:
+                _, upd_text = _http_post(f"{base}/user.update.json", {
+                    'ID': new_id,
+                    'ACTIVE': 'Y',
+                    'CONFIRM_CODE': '',
+                })
+                logger.info('Bitrix confirm(update) resp: %s', (upd_text or '')[:600])
+            except Exception as e:
+                logger.info('Bitrix confirm(update) error: %s', e)
             try:
                 _, chk_text = _http_get(
                     f"{base}/user.get.json?ID={new_id}", timeout=15
