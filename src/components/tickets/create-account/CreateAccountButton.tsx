@@ -95,7 +95,7 @@ const CreateAccountButton = ({ ticketId }: CreateAccountButtonProps) => {
           variant="outline"
           onClick={handleAnalyze}
           disabled={analyzing}
-          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 font-semibold"
+          className="border-indigo-300 text-indigo-700 hover:bg-indigo-50 font-semibold dark:border-indigo-400/60 dark:text-indigo-200 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20"
         >
           <Icon
             name={analyzing ? 'Loader2' : 'Sparkles'}
