@@ -133,21 +133,36 @@ export const useTicketsData = () => {
           url += '&hide_waiting=true';
         }
       }
-      const response = await apiFetch(url, { headers: { 'X-Auth-Token': token } });
+      // Ретраи на случай rate-limit БД (500/502/503/504): пробуем несколько
+      // раз с нарастающей паузой, чтобы список не пропадал из-за временной
+      // перегрузки базы.
+      let response: Response | null = null;
+      let data: { tickets?: Ticket[]; pages?: number; total?: number } | null = null;
+      const MAX_ATTEMPTS = 4;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        response = await apiFetch(url, { headers: { 'X-Auth-Token': token } });
+        if (response.ok) {
+          data = await response.json();
+          break;
+        }
+        if (![500, 502, 503, 504].includes(response.status) || attempt === MAX_ATTEMPTS - 1) {
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
 
-      if (response.ok) {
-        const data = await response.json();
+      if (data) {
         setTickets(data.tickets || []);
         setTotalPages(data.pages || 1);
         setTotalTickets(data.total || 0);
         setPage(targetPage);
       } else {
-        console.error('Tickets response not OK:', response.status, await response.text());
-        setTickets([]);
+        // Не затираем уже показанный список — просто логируем, чтобы у
+        // пользователя не появлялось «Нет заявок» из-за сбоя загрузки.
+        console.error('Tickets response not OK:', response?.status);
       }
     } catch (err) {
       console.error('Failed to load tickets:', err);
-      setTickets([]);
     } finally {
       setLoading(false);
     }
@@ -223,9 +238,20 @@ export const useTicketsData = () => {
       let url = `${API_URL}?endpoint=tickets-bootstrap&page=1&limit=${pageSize}&sort_by=${encodeURIComponent(sortBy)}&sort_dir=${sortDir}&is_archived=false`;
       if (skipWaiting) url += '&hide_waiting=true';
 
-      const res = await apiFetch(url, { headers: { 'X-Auth-Token': token } });
-      if (!res.ok) {
-        throw new Error(`bootstrap ${res.status}`);
+      // Ретраи bootstrap при rate-limit БД, чтобы не срываться в фолбэк
+      // (который шлёт лавину отдельных запросов и ещё сильнее грузит базу).
+      let res: Response | null = null;
+      const MAX_ATTEMPTS = 4;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        res = await apiFetch(url, { headers: { 'X-Auth-Token': token } });
+        if (res.ok) break;
+        if (![500, 502, 503, 504].includes(res.status) || attempt === MAX_ATTEMPTS - 1) {
+          throw new Error(`bootstrap ${res.status}`);
+        }
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      }
+      if (!res || !res.ok) {
+        throw new Error('bootstrap failed');
       }
       const data = await res.json();
 

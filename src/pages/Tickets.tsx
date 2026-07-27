@@ -110,6 +110,11 @@ const Tickets = () => {
 
   const { viewMode, setViewMode, bulkMode, toggleBulkMode, disableBulkMode } = useTicketsView();
   const { ui: ticketsInterface, setInterface } = useTicketsInterface();
+
+  // Актуальное кол-во статусов для отложенных проверок внутри setTimeout
+  // (иначе замыкание видит пустой массив и шлёт лишний запрос).
+  const statusesCountRef = useRef(0);
+  useEffect(() => { statusesCountRef.current = statuses.length; }, [statuses.length]);
   // Поиск выполняется на сервере (по теме, описанию, доп. полям, комментариям,
   // участникам, номеру, дате, сервису и услуге) — см. эффект ниже.
   const searchedTickets = tickets;
@@ -199,42 +204,53 @@ const Tickets = () => {
   // В новом интерфейсе справочники статусов/приоритетов нужны сразу
   // (для панели массовых действий и селектов в деталях).
   useEffect(() => {
-    if (ticketsInterface === 'workspace' && statuses.length === 0) {
-      loadDictionaries();
-    }
+    if (ticketsInterface !== 'workspace') return;
+    // Даём bootstrap шанс заполнить справочники сам. Догружаем только если
+    // через 1.5с их всё ещё нет (bootstrap не отработал).
+    const timer = setTimeout(() => {
+      if (statusesCountRef.current === 0) loadDictionaries();
+    }, 1500);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketsInterface]);
 
   // Справочники для выпадающих фильтров: подгружаем один раз.
+  // Откладываем их на ~1.2с, чтобы не конкурировать с основным bootstrap-
+  // запросом (заявки + справочники) за лимит запросов БД. Фильтры —
+  // второстепенные данные, их не страшно подгрузить чуть позже.
   const filterDictsLoaded = useRef(false);
   useEffect(() => {
     if (!token || filterDictsLoaded.current) return;
     filterDictsLoaded.current = true;
 
-    if (statuses.length === 0) loadDictionaries();
-    if (services.length === 0 || ticketServices.length === 0) loadServices();
+    const timer = setTimeout(() => {
+      if (statusesCountRef.current === 0) loadDictionaries();
+      if (services.length === 0 || ticketServices.length === 0) loadServices();
 
-    apiFetch(`${API_URL}?endpoint=users&system_roles=executor`, { headers: { 'X-Auth-Token': token } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setFilterAssignees(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
-      })
-      .catch(() => {});
+      apiFetch(`${API_URL}?endpoint=users&system_roles=executor`, { headers: { 'X-Auth-Token': token } })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (Array.isArray(data)) setFilterAssignees(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+        })
+        .catch(() => {});
 
-    apiFetch(`${API_URL}?endpoint=users&system_roles=user`, { headers: { 'X-Auth-Token': token } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setFilterCreators(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
-      })
-      .catch(() => {});
+      apiFetch(`${API_URL}?endpoint=users&system_roles=user`, { headers: { 'X-Auth-Token': token } })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          if (Array.isArray(data)) setFilterCreators(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+        })
+        .catch(() => {});
 
-    apiFetch(EXECUTOR_GROUPS_URL, { headers: { 'X-Auth-Token': token } })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.groups || [];
-        setFilterGroups(list);
-      })
-      .catch(() => {});
+      apiFetch(EXECUTOR_GROUPS_URL, { headers: { 'X-Auth-Token': token } })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => {
+          const list = Array.isArray(data) ? data : data?.groups || [];
+          setFilterGroups(list);
+        })
+        .catch(() => {});
+    }, 1200);
+
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
