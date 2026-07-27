@@ -2,7 +2,7 @@ import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import Icon from '@/components/ui/icon';
 import { useAuth } from '@/contexts/AuthContext';
-import { Ticket, TicketsListProps } from './TicketsListTypes';
+import { TicketsListProps } from './TicketsListTypes';
 import TicketCard from './TicketCard';
 import TicketsListPagination from './TicketsListPagination';
 
@@ -55,15 +55,7 @@ const TicketsList = ({
     );
   }
 
-  const sortedTickets = [...tickets].sort((a: Ticket, b: Ticket) => {
-    const aIsCritical = a.priority_name?.toLowerCase().includes('критич');
-    const bIsCritical = b.priority_name?.toLowerCase().includes('критич');
-
-    if (aIsCritical && !bIsCritical) return -1;
-    if (!aIsCritical && bIsCritical) return 1;
-
-    return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime();
-  });
+  const sortedTickets = tickets;
 
   const allSelected = bulkMode && sortedTickets.length > 0 && sortedTickets.every(t => selectedTicketIds.includes(t.id));
 
