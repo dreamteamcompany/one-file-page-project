@@ -394,6 +394,12 @@ const Tickets = () => {
             assignedCount={assignedToMeCount}
             canCreate={hasPermission('tickets', 'create')}
             onCreateTicket={handleCreateTicket}
+            page={page}
+            totalPages={totalPages}
+            totalTickets={totalTickets}
+            pageSize={pageSize}
+            onPageChange={(p) => loadTickets(p)}
+            onPageSizeChange={changePageSize}
             filtersSlot={
               <TicketsFilters
                 value={searchFilters as TicketsFiltersValue}

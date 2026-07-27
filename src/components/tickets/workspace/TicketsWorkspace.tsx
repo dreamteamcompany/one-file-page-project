@@ -3,7 +3,7 @@
  * KPI-карточки + тулбар (чипсы фильтров, сортировка, режим) + таблица + правая панель деталей.
  * Работает на реальных данных, детали открываются справа без перехода на новую страницу.
  */
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import Icon from '@/components/ui/icon';
 import type { Ticket } from '@/types';
 import type { TicketsFiltersValue } from '@/components/tickets/TicketsFilters';
@@ -50,6 +50,13 @@ interface TicketsWorkspaceProps {
   filterPanelSlot?: ReactNode;
   onCreateTicket?: () => void;
   canCreate: boolean;
+  // Серверная пагинация (сортировка тоже серверная — применяется ко всему списку)
+  page: number;
+  totalPages: number;
+  totalTickets: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
 }
 
 const isClosed = (t: Ticket): boolean => !!t.status_is_closed;
@@ -88,24 +95,19 @@ const TicketsWorkspace = ({
   filterPanelSlot,
   onCreateTicket,
   canCreate,
+  page,
+  totalPages,
+  totalTickets,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
 }: TicketsWorkspaceProps) => {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [gridMode, setGridMode] = useState(false);
-  const [localPage, setLocalPage] = useState(1);
-  const [pageSize, setPageSize] = useState(7);
 
-  // Клиентская пагинация (по умолчанию 7, выбирается пользователем).
-  const localTotalPages = Math.max(1, Math.ceil(tickets.length / pageSize));
-
-  // Сброс на первую страницу при изменении набора заявок или размера страницы.
-  useEffect(() => {
-    setLocalPage(1);
-  }, [tickets, searchQuery, pageSize]);
-
-  const pagedTickets = useMemo(
-    () => tickets.slice((localPage - 1) * pageSize, localPage * pageSize),
-    [tickets, localPage, pageSize]
-  );
+  // Пагинация и сортировка — серверные: таблица показывает заявки ровно в том
+  // порядке и на той странице, что вернул сервер, без повторной сортировки/нарезки.
+  const pagedTickets = tickets;
 
   const kpi: WorkspaceKpi = useMemo(() => {
     let overdue = overdueCount;
@@ -198,16 +200,16 @@ const TicketsWorkspace = ({
             loading={loading}
             selectedTicketId={selectedTicket?.id ?? null}
             onSelectTicket={setSelectedTicket}
-            page={localPage}
-            totalPages={localTotalPages}
-            totalTickets={tickets.length}
-            onPageChange={(p) => setLocalPage(p)}
+            page={page}
+            totalPages={totalPages}
+            totalTickets={totalTickets}
+            onPageChange={onPageChange}
             bulkMode={bulkMode}
             selectedTicketIds={selectedTicketIds}
             onToggleTicket={onToggleTicket}
             onToggleAll={onToggleAll}
             pageSize={pageSize}
-            onPageSizeChange={setPageSize}
+            onPageSizeChange={onPageSizeChange}
           />
         )}
       </div>
