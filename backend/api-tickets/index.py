@@ -3449,22 +3449,34 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                 ORDER BY ts.name
             ''')
             rows = cur.fetchall()
+
+            # Без N+1: одним запросом собираем связи для ВСЕХ услуг сразу,
+            # затем группируем в памяти. Это резко снижает число обращений
+            # к БД (раньше на каждую услугу шло по 2 запроса — упирались
+            # в rate limit БД, отсюда были 502 «через раз»).
+            mappings_by_service: Dict[Any, list] = {}
+            visible_by_service: Dict[Any, list] = {}
+            if rows:
+                cur.execute(f'''
+                    SELECT m.ticket_service_id, m.service_id
+                    FROM {SCHEMA}.ticket_service_mappings m
+                    JOIN {SCHEMA}.ticket_services ts ON ts.id = m.ticket_service_id
+                    WHERE ts.is_active = true
+                ''')
+                for r in cur.fetchall():
+                    mappings_by_service.setdefault(r['ticket_service_id'], []).append(r['service_id'])
+
+                cur.execute(f'''
+                    SELECT v.ticket_service_id, v.user_id
+                    FROM {SCHEMA}.ticket_service_visible_users v
+                    JOIN {SCHEMA}.ticket_services ts ON ts.id = v.ticket_service_id
+                    WHERE ts.is_active = true
+                ''')
+                for r in cur.fetchall():
+                    visible_by_service.setdefault(r['ticket_service_id'], []).append(r['user_id'])
+
             ticket_services = []
             for row in rows:
-                cur.execute(f'''
-                    SELECT service_id 
-                    FROM {SCHEMA}.ticket_service_mappings 
-                    WHERE ticket_service_id = %s
-                ''', (row['id'],))
-                service_ids = [r['service_id'] for r in cur.fetchall()]
-                
-                cur.execute(f'''
-                    SELECT user_id 
-                    FROM {SCHEMA}.ticket_service_visible_users 
-                    WHERE ticket_service_id = %s
-                ''', (row['id'],))
-                visible_to_user_ids = [r['user_id'] for r in cur.fetchall()]
-                
                 ticket_services.append({
                     'id': row['id'],
                     'name': row['name'],
@@ -3473,8 +3485,8 @@ def handle_ticket_services(method: str, event: Dict[str, Any], conn) -> Dict[str
                     'category_id': row['category_id'],
                     'category_name': row['category_name'],
                     'created_at': row['created_at'].isoformat() if row['created_at'] else None,
-                    'service_ids': service_ids,
-                    'visible_to_user_ids': visible_to_user_ids
+                    'service_ids': mappings_by_service.get(row['id'], []),
+                    'visible_to_user_ids': visible_by_service.get(row['id'], [])
                 })
             return response(200, ticket_services)
         
@@ -4110,7 +4122,18 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
     def _call(handler_fn, extra_params=None):
         ev = dict(event)
         ev['queryStringParameters'] = {**base_params, **(extra_params or {})}
-        return handler_fn('GET', ev, conn)
+        try:
+            return handler_fn('GET', ev, conn)
+        except Exception as e:
+            # Второстепенный запрос упал (например, rate limit БД) — не роняем
+            # весь bootstrap в 502. Откатываем транзакцию, чтобы соединение
+            # осталось рабочим для следующих запросов, и отдаём заглушку.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[TICKETS] bootstrap sub-call failed: {e}")
+            return response(500, {'error': 'sub-call failed'})
 
     def _parse(resp, default):
         if resp.get('statusCode') == 200:
@@ -4121,7 +4144,7 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
         return default
 
     # 1. Основной список заявок (с текущими фильтрами/сортировкой)
-    tickets_resp = handle_tickets('GET', event, conn)
+    tickets_resp = _call(handle_tickets)
     if tickets_resp.get('statusCode') in (401, 403):
         return tickets_resp
     tickets_data = _parse(tickets_resp, {'tickets': [], 'total': 0, 'pages': 1})
