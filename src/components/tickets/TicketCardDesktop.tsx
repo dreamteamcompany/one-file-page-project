@@ -109,13 +109,13 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
         )}
         <div className="flex flex-col items-start gap-0.5 max-w-full">
           <span className="text-xs text-muted-foreground">Исполнитель</span>
-          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs max-w-full ${(ticket.assigned_to_name || ticket.assignee_name) ? 'bg-muted/60 text-muted-foreground' : 'bg-orange-500/10 text-orange-500'}`}>
+          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs leading-none max-w-full ${(ticket.assigned_to_name || ticket.assignee_name) ? 'bg-muted/60 text-muted-foreground' : 'bg-orange-500/10 text-orange-500'}`}>
             {ticket.assignee_photo_url ? (
               <img src={ticket.assignee_photo_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
             ) : (
-              <Icon name={(ticket.assigned_to_name || ticket.assignee_name) ? "UserCheck" : "UserX"} size={11} className="flex-shrink-0" />
+              <Icon name={(ticket.assigned_to_name || ticket.assignee_name) ? "UserCheck" : "UserX"} size={11} className="block flex-shrink-0" />
             )}
-            <span className="truncate">{ticket.assigned_to_name || ticket.assignee_name || 'Не назначен'}</span>
+            <span className="truncate leading-none">{ticket.assigned_to_name || ticket.assignee_name || 'Не назначен'}</span>
           </span>
         </div>
       </div>
