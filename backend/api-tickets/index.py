@@ -1906,8 +1906,8 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             if is_hidden == 'true':
                 where_clause += f" AND t.is_archived = false AND EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true)"
                 if not is_admin:
-                    where_clause += " AND t.assigned_to = %s"
-                    params.append(user_id)
+                    where_clause += f" AND (t.assigned_to = %s OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_watchers twh WHERE twh.ticket_id = t.id AND twh.user_id = %s))"
+                    params.extend([user_id, user_id])
             elif is_archived == 'true':
                 where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses ps WHERE ps.id = t.status_id AND ps.is_pending_confirmation = true) AND (t.is_archived = true OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses cs WHERE cs.id = t.status_id AND cs.is_closed = true))"
             else:
@@ -1915,8 +1915,8 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 if is_admin or is_subordinates == 'true':
                     where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true)"
                 else:
-                    where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true AND t.assigned_to = %s)"
-                    params.append(user_id)
+                    where_clause += f" AND NOT EXISTS (SELECT 1 FROM {SCHEMA}.ticket_statuses hs WHERE hs.id = t.status_id AND hs.is_pending_confirmation = true AND (t.assigned_to = %s OR EXISTS (SELECT 1 FROM {SCHEMA}.ticket_watchers twh2 WHERE twh2.ticket_id = t.id AND twh2.user_id = %s)))"
+                    params.extend([user_id, user_id])
         if from_date:
             where_clause += " AND t.created_at >= %s"
             params.append(from_date)
