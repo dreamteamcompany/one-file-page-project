@@ -19,6 +19,8 @@ interface KBArticleListProps {
   filterTag: number | null;
   setFilterTag: Dispatch<SetStateAction<number | null>>;
   setShowFavorites: Dispatch<SetStateAction<boolean>>;
+  showAllArticles: boolean;
+  setShowAllArticles: Dispatch<SetStateAction<boolean>>;
   categories: Category[];
   categoryTree: (Category & { children: Category[] })[];
   tags: Tag[];
@@ -129,6 +131,8 @@ const KBArticleList = ({
   filterTag,
   setFilterTag,
   setShowFavorites,
+  showAllArticles,
+  setShowAllArticles,
   categories,
   categoryTree,
   tags,
@@ -291,7 +295,13 @@ const KBArticleList = ({
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">Популярные статьи</h2>
             <button
-              onClick={() => setSortBy('popular')}
+              onClick={() => {
+                setSortBy('popular');
+                setFilterCategory(null);
+                setFilterTag(null);
+                setShowFavorites(false);
+                setShowAllArticles(true);
+              }}
               className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               Смотреть все
@@ -338,6 +348,8 @@ const KBArticleList = ({
     ? categories.find((c) => c.id === filterCategory)?.name
     : filterTag
     ? `#${tags.find((t) => t.id === filterTag)?.name}`
+    : showAllArticles
+    ? 'Все статьи'
     : 'Статьи';
 
   return (
@@ -349,6 +361,7 @@ const KBArticleList = ({
               setFilterCategory(null);
               setFilterTag(null);
               setShowFavorites(false);
+              setShowAllArticles(false);
             }}
             className="mb-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
           >

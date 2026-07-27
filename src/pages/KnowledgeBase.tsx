@@ -49,6 +49,7 @@ const KnowledgeBase = () => {
   const [filterCategory, setFilterCategory] = useState<number | null>(null);
   const [filterTag, setFilterTag] = useState<number | null>(null);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [showAllArticles, setShowAllArticles] = useState(false);
   const [sortBy, setSortBy] = useState<'new' | 'popular'>('new');
 
   const [mode, setMode] = useState<Mode>('list');
@@ -376,7 +377,7 @@ const KnowledgeBase = () => {
     return list;
   }, [articles, sortBy]);
 
-  const isHome = !search.trim() && !filterCategory && !filterTag && !showFavorites && mode === 'list';
+  const isHome = !search.trim() && !filterCategory && !filterTag && !showFavorites && !showAllArticles && mode === 'list';
 
   if (!canRead) return null;
 
@@ -399,6 +400,8 @@ const KnowledgeBase = () => {
               filterTag={filterTag}
               setFilterTag={setFilterTag}
               setShowFavorites={setShowFavorites}
+              showAllArticles={showAllArticles}
+              setShowAllArticles={setShowAllArticles}
               categories={categories}
               categoryTree={categoryTree}
               tags={tags}
