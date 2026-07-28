@@ -1,6 +1,6 @@
 import { formatDateTimeMSK } from '@/utils/dateFormat';
 
-export type SchedulePreset = 'off' | 'hourly' | 'every_6h' | 'every_12h' | 'daily' | 'weekly';
+export type SchedulePreset = 'off' | 'every_5min' | 'hourly' | 'every_6h' | 'every_12h' | 'daily' | 'weekly';
 
 export interface AutomationJob {
   job_key: string;
@@ -36,6 +36,7 @@ export interface Company {
 
 export const PRESET_OPTIONS: { value: SchedulePreset; label: string }[] = [
   { value: 'off', label: 'Выключено' },
+  { value: 'every_5min', label: 'Каждые 5 минут' },
   { value: 'hourly', label: 'Каждый час' },
   { value: 'every_6h', label: 'Каждые 6 часов' },
   { value: 'every_12h', label: 'Каждые 12 часов' },

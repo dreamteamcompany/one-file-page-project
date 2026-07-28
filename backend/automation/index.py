@@ -25,6 +25,7 @@ CORS_HEADERS = {
 
 PRESET_INTERVALS = {
     'off': None,
+    'every_5min': timedelta(minutes=5),
     'hourly': timedelta(hours=1),
     'every_6h': timedelta(hours=6),
     'every_12h': timedelta(hours=12),
