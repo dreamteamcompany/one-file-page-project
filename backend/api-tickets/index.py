@@ -1734,26 +1734,22 @@ def _validate_required_custom_fields(cur, ticket_service_id, service_ids, custom
     обязательных полей — вернётся пустой список (поведение не меняется).
     """
     service_ids = service_ids or []
-    if not ticket_service_id and not service_ids:
+    # Поля привязаны к ПАРЕ услуга + сервис (строгое AND), как на фронтенде.
+    # Если услуга или сервис не выбраны — обязательных полей быть не может.
+    if not ticket_service_id or not service_ids:
         return []
 
-    conditions = []
-    params = []
-    if ticket_service_id:
-        conditions.append("m.ticket_service_id = %s")
-        params.append(int(ticket_service_id))
-    if service_ids:
-        placeholders = ','.join(['%s'] * len(service_ids))
-        conditions.append(f"m.service_id IN ({placeholders})")
-        params.extend([int(s) for s in service_ids])
-    where = ' AND '.join([f"({' OR '.join(conditions)})"])
+    placeholders = ','.join(['%s'] * len(service_ids))
+    params = [int(ticket_service_id)] + [int(s) for s in service_ids]
 
     cur.execute(f"""
         SELECT DISTINCT f.id, f.name
         FROM {SCHEMA}.ticket_custom_fields f
         JOIN {SCHEMA}.ticket_custom_field_group_fields gf ON gf.field_id = f.id
         JOIN {SCHEMA}.ticket_service_field_mappings m ON m.field_group_id = gf.group_id
-        WHERE {where} AND f.is_required = true
+        WHERE m.ticket_service_id = %s
+          AND m.service_id IN ({placeholders})
+          AND f.is_required = true
     """, tuple(params))
     required = cur.fetchall()
     if not required:
