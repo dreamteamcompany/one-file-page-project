@@ -1725,6 +1725,54 @@ def resolve_custom_field_values(fields: list, cur, org_cache: dict = None) -> li
     return resolved
 
 
+def _validate_required_custom_fields(cur, ticket_service_id, service_ids, custom_fields):
+    """Возвращает список названий незаполненных ОБЯЗАТЕЛЬНЫХ доп. полей.
+
+    Обязательные поля привязаны к паре услуга (ticket_service_id) + сервис
+    (service_id) через ticket_service_field_mappings → группы полей →
+    ticket_custom_fields.is_required. Если для выбранной услуги/сервиса нет
+    обязательных полей — вернётся пустой список (поведение не меняется).
+    """
+    service_ids = service_ids or []
+    if not ticket_service_id and not service_ids:
+        return []
+
+    conditions = []
+    params = []
+    if ticket_service_id:
+        conditions.append("m.ticket_service_id = %s")
+        params.append(int(ticket_service_id))
+    if service_ids:
+        placeholders = ','.join(['%s'] * len(service_ids))
+        conditions.append(f"m.service_id IN ({placeholders})")
+        params.extend([int(s) for s in service_ids])
+    where = ' AND '.join([f"({' OR '.join(conditions)})"])
+
+    cur.execute(f"""
+        SELECT DISTINCT f.id, f.name
+        FROM {SCHEMA}.ticket_custom_fields f
+        JOIN {SCHEMA}.ticket_custom_field_group_fields gf ON gf.field_id = f.id
+        JOIN {SCHEMA}.ticket_service_field_mappings m ON m.field_group_id = gf.group_id
+        WHERE {where} AND f.is_required = true
+    """, tuple(params))
+    required = cur.fetchall()
+    if not required:
+        return []
+
+    provided = {}
+    for k, v in (custom_fields or {}).items():
+        if str(k).isdigit():
+            provided[int(k)] = v
+
+    missing = []
+    for row in required:
+        fid = row['id']
+        val = provided.get(fid)
+        if val is None or (isinstance(val, str) and val.strip() == '') or val == []:
+            missing.append(row['name'])
+    return missing
+
+
 def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     payload = verify_token(event)
     if not payload:
@@ -2275,6 +2323,21 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             """, (data.service_ids[0],))
             ts_row = cur.fetchone()
             resolved_ts_id = ts_row['ticket_service_id'] if ts_row else None
+
+        # Проверка обязательных доп. полей ДО создания заявки.
+        # Обязательные поля привязываются к паре услуга (ticket_service_id) +
+        # сервис (service_id) через ticket_service_field_mappings → группы полей.
+        # Если хотя бы одно обязательное поле не заполнено — заявку не создаём.
+        missing_required = _validate_required_custom_fields(
+            cur, resolved_ts_id, data.service_ids, data.custom_fields or {}
+        )
+        if missing_required:
+            cur.close()
+            names = ', '.join(missing_required)
+            return response(400, {
+                'error': f'Заполните обязательные поля: {names}',
+                'missing_required_fields': missing_required,
+            })
 
         assigned_to = data.assigned_to
         executor_group_id = None
