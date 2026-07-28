@@ -2082,53 +2082,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                    u1.username as assignee_email, u1.full_name as assignee_name, u1.photo_url as assignee_photo_url,
                    u2.username as creator_email, u2.full_name as creator_name, u2.photo_url as creator_photo_url,
                    cdept.name as creator_department_name,
-                   eg.name as executor_group_name,
-                   (
-                       SELECT EXISTS(
-                           SELECT 1 FROM {SCHEMA}.ticket_comments tccr
-                           WHERE tccr.ticket_id = t.id
-                             AND tccr.user_id <> {int(user_id)}
-                             {_internal_filter.format(alias='tccr')}
-                             AND tccr.created_at > COALESCE(
-                                 (SELECT tv2.last_seen_at FROM {SCHEMA}.ticket_views tv2
-                                  WHERE tv2.user_id = {int(user_id)} AND tv2.ticket_id = t.id),
-                                 'epoch'::timestamp
-                             )
-                       )
-                   ) AS client_replied,
-                   (
-                       SELECT MAX(tccrt.created_at) FROM {SCHEMA}.ticket_comments tccrt
-                       WHERE tccrt.ticket_id = t.id
-                         AND tccrt.user_id <> {int(user_id)}
-                         {_internal_filter.format(alias='tccrt')}
-                         AND tccrt.created_at > COALESCE(
-                             (SELECT tv3.last_seen_at FROM {SCHEMA}.ticket_views tv3
-                              WHERE tv3.user_id = {int(user_id)} AND tv3.ticket_id = t.id),
-                             'epoch'::timestamp
-                         )
-                   ) AS client_replied_at,
-                   (
-                       SELECT COUNT(*) FROM {SCHEMA}.notifications nu
-                       WHERE nu.ticket_id = t.id AND nu.user_id = {int(user_id)} AND nu.is_read = false
-                   ) AS unread_count,
-                   (
-                       SELECT COUNT(*) FROM {SCHEMA}.notifications nu2
-                       WHERE nu2.ticket_id = t.id AND nu2.user_id = {int(user_id)}
-                         AND nu2.is_read = false AND nu2.event_type = 'mention'
-                   ) AS unread_mentions,
-                   (
-                       SELECT EXISTS(
-                           SELECT 1 FROM {SCHEMA}.ticket_comments tcnew
-                           WHERE tcnew.ticket_id = t.id
-                             AND tcnew.user_id <> {int(user_id)}
-                             {_internal_filter.format(alias='tcnew')}
-                             AND tcnew.created_at > COALESCE(
-                                 (SELECT tv.last_seen_at FROM {SCHEMA}.ticket_views tv
-                                  WHERE tv.user_id = {int(user_id)} AND tv.ticket_id = t.id),
-                                 'epoch'::timestamp
-                             )
-                       )
-                   ) AS has_new
+                   eg.name as executor_group_name
             FROM {SCHEMA}.tickets t
             LEFT JOIN {SCHEMA}.ticket_statuses s ON t.status_id = s.id
             LEFT JOIN {SCHEMA}.ticket_priorities p ON t.priority_id = p.id
@@ -2151,9 +2105,56 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 t['ticket_service'] = None
                 t['custom_fields'] = []
                 t['sla_violation_count'] = 0
+                t['client_replied'] = False
+                t['client_replied_at'] = None
+                t['unread_count'] = 0
+                t['unread_mentions'] = 0
+                t['has_new'] = False
             
             ids_str = ','.join(str(int(i)) for i in ticket_ids)
-            
+            uid = int(user_id)
+
+            # Пакетно: новые ответы клиента / has_new / время последнего ответа.
+            # Вынесено из основного запроса (было 3 коррелированных подзапроса на
+            # каждую строку) в один агрегирующий запрос по списку id.
+            new_replies_filter = _internal_filter.format(alias='nrc')
+            cur.execute(f"""
+                SELECT nrc.ticket_id, MAX(nrc.created_at) AS last_at
+                FROM {SCHEMA}.ticket_comments nrc
+                LEFT JOIN {SCHEMA}.ticket_views nrv
+                    ON nrv.ticket_id = nrc.ticket_id AND nrv.user_id = {uid}
+                WHERE nrc.ticket_id IN ({ids_str})
+                  AND nrc.user_id <> {uid}
+                  {new_replies_filter}
+                  AND nrc.created_at > COALESCE(nrv.last_seen_at, 'epoch'::timestamp)
+                GROUP BY nrc.ticket_id
+            """)
+            for row in cur.fetchall():
+                r = dict(row)
+                tid = r['ticket_id']
+                if tid in ticket_id_map:
+                    t = ticket_id_map[tid]
+                    t['client_replied'] = True
+                    t['has_new'] = True
+                    t['client_replied_at'] = str(r['last_at']) if r['last_at'] else None
+
+            # Пакетно: непрочитанные уведомления и упоминания по заявке.
+            cur.execute(f"""
+                SELECT nu.ticket_id,
+                       COUNT(*) AS unread_count,
+                       COUNT(*) FILTER (WHERE nu.event_type = 'mention') AS unread_mentions
+                FROM {SCHEMA}.notifications nu
+                WHERE nu.ticket_id IN ({ids_str})
+                  AND nu.user_id = {uid} AND nu.is_read = false
+                GROUP BY nu.ticket_id
+            """)
+            for row in cur.fetchall():
+                r = dict(row)
+                tid = r['ticket_id']
+                if tid in ticket_id_map:
+                    ticket_id_map[tid]['unread_count'] = r['unread_count']
+                    ticket_id_map[tid]['unread_mentions'] = r['unread_mentions']
+
             cur.execute(f"""
                 SELECT tsm.ticket_id, s.id, s.name, sc.name as category_name
                 FROM {SCHEMA}.ticket_to_service_mappings tsm
