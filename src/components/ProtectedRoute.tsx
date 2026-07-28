@@ -12,10 +12,10 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f1729] to-[#1b254b]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Icon name="Loader2" size={48} className="text-primary animate-spin" />
-          <div className="text-white text-lg">Загрузка...</div>
+          <div className="text-foreground text-lg">Загрузка...</div>
         </div>
       </div>
     );
