@@ -107,13 +107,23 @@ export const usePendingApprovals = () => {
     loadPendingApprovals();
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let jitterId: ReturnType<typeof setTimeout> | null = null;
 
     const start = () => {
-      if (intervalId !== null) return;
-      intervalId = setInterval(loadPendingApprovals, 240000);
+      if (intervalId !== null || jitterId !== null) return;
+      const jitter = Math.floor(Math.random() * 30000);
+      jitterId = setTimeout(() => {
+        jitterId = null;
+        loadPendingApprovals();
+        intervalId = setInterval(loadPendingApprovals, 480000);
+      }, jitter);
     };
 
     const stop = () => {
+      if (jitterId !== null) {
+        clearTimeout(jitterId);
+        jitterId = null;
+      }
       if (intervalId !== null) {
         clearInterval(intervalId);
         intervalId = null;

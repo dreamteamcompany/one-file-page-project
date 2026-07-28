@@ -60,7 +60,7 @@ const NotificationBell = () => {
     };
   }, [token, user]);
 
-  useVisiblePolling(loadNotifications, 120000, !!token && !!user);
+  useVisiblePolling(loadNotifications, 300000, !!token && !!user);
 
   const handleMarkAsRead = async (notificationId: number) => {
     if (!token || !user) return;
