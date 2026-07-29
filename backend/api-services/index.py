@@ -47,14 +47,19 @@ def handler(event, context):
                 ORDER BY s.name
             """)
             
-            services = []
-            for row in cur.fetchall():
-                svc = dict(row)
-                cur.execute(f"SELECT user_id FROM {SCHEMA}.service_visible_users WHERE service_id = %s", (svc['id'],))
-                svc['visible_to_user_ids'] = [r['user_id'] for r in cur.fetchall()]
-                services.append(svc)
+            services = [dict(row) for row in cur.fetchall()]
+
+            # Видимость сервисов забираем ОДНИМ запросом (было N+1: отдельный
+            # запрос на каждый сервис — под нагрузкой это давало всплеск
+            # запросов к БД и упор в rate-limit → ошибки 500).
+            visible_map: Dict[int, list] = {}
+            cur.execute(f"SELECT service_id, user_id FROM {SCHEMA}.service_visible_users")
+            for r in cur.fetchall():
+                visible_map.setdefault(r['service_id'], []).append(r['user_id'])
+            for svc in services:
+                svc['visible_to_user_ids'] = visible_map.get(svc['id'], [])
             cur.close()
-            
+
             return response(200, services)
         
         elif method == 'POST':
