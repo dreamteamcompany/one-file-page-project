@@ -24,7 +24,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
   return (
     <div className="hidden md:flex flex-shrink-0 w-1/2 self-stretch text-xs">
       {/* Колонка: Статус / Заказчик / Исполнитель */}
-      <div className="flex flex-col justify-center gap-2 px-4 min-w-0 flex-[1.3] border-l border-border">
+      <div className="flex flex-col justify-start gap-2 px-4 min-w-0 flex-[1.3] border-l border-border">
         {ticket.status_name && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Статус</span>
@@ -74,7 +74,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
       </div>
 
       {/* Колонка: Дата создания / Дедлайн */}
-      <div className="flex flex-col justify-center gap-2 px-4 min-w-0 flex-1 border-l border-border">
+      <div className="flex flex-col justify-start gap-2 px-4 min-w-0 flex-1 border-l border-border">
         {ticket.created_at && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Дата создания</span>
@@ -101,7 +101,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
 
       {/* Колонка: Прогресс дедлайна */}
       {ticket.due_date && deadline && (
-        <div className="flex flex-col justify-center gap-1.5 px-4 min-w-0 flex-1 border-l border-border">
+        <div className="flex flex-col justify-start gap-1.5 px-4 min-w-0 flex-1 border-l border-border">
           <span className="text-sm font-semibold break-words max-w-full" style={{ color: deadline.color }}>
             {deadline.label}
           </span>
