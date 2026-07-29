@@ -90,7 +90,7 @@ const TicketCard = ({
                 </div>
               )}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex flex-col">
               <div className="flex items-center gap-2 mb-1 flex-wrap">
                 {ticket.has_new && (
                   <span
@@ -148,6 +148,82 @@ const TicketCard = ({
                   {ticket.description.replace(/<[^>]*>/g, '')}
                 </p>
               )}
+
+              <div className="hidden md:block mt-auto pt-3">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  {(() => {
+                    const phone = getPhoneFromTicket(ticket);
+                    if (!canCallPhone || !phone) return null;
+                    return (
+                      <a
+                        href={`tel:+${phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title={phoneDisplay(`+${phone}`) || phone}
+                        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15 hover:bg-green-500/25 active:bg-green-500/35 transition-colors"
+                      >
+                        <Icon name="Phone" size={11} className="text-green-600" />
+                      </a>
+                    );
+                  })()}
+                  {ticket.department_name && (
+                    <span className="inline-flex items-center gap-1.5 bg-muted/60 text-muted-foreground rounded-md px-2 py-1">
+                      <Icon name="Building" size={11} />
+                      {ticket.department_name}
+                    </span>
+                  )}
+                  {ticket.ticket_service && (
+                    <span className="inline-flex items-center gap-1.5 bg-muted/60 text-muted-foreground rounded-md px-2 py-1">
+                      <Icon name="Tag" size={11} />
+                      {ticket.ticket_service.name}
+                    </span>
+                  )}
+                  {ticket.services && ticket.services.length > 0 && (
+                    <span className="inline-flex items-center gap-1.5 bg-muted/60 text-muted-foreground rounded-md px-2 py-1">
+                      <Icon name="Wrench" size={11} />
+                      {ticket.services.map(s => s.name).join(', ')}
+                    </span>
+                  )}
+                  {ticket.priority_name && (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-medium"
+                      style={{
+                        backgroundColor: `${ticket.priority_color}15`,
+                        color: ticket.priority_color,
+                      }}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ticket.priority_color }} />
+                      {ticket.priority_name}
+                    </span>
+                  )}
+                  {ticket.created_at && (
+                    <span className={`inline-flex items-center gap-1.5 text-muted-foreground/70 text-[11px] ${lastComment ? '' : 'ml-auto'}`}>
+                      <Icon name="Clock" size={11} />
+                      {(parseServerDate(ticket.created_at) ?? new Date()).toLocaleString('ru-RU', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Europe/Moscow',
+                      })}
+                    </span>
+                  )}
+                  {lastComment && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowLastComment((v) => !v);
+                      }}
+                      title="Последний комментарий"
+                      aria-label="Показать последний комментарий"
+                      className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Icon name="MessageSquare" size={11} />
+                      <Icon name={showLastComment ? 'ChevronUp' : 'ChevronDown'} size={11} />
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <TicketCardDesktop ticket={ticket} />
@@ -241,7 +317,7 @@ const TicketCard = ({
           </div>
         </div>
 
-        <div className="pt-1 space-y-2 -mt-1">
+        <div className="md:hidden pt-1 space-y-2 -mt-1">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             {(() => {
               const phone = getPhoneFromTicket(ticket);
