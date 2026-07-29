@@ -63,14 +63,8 @@ const TicketCard = ({
         />
       )}
       <div className="relative">
-      <div className="pointer-events-none hidden md:block absolute inset-y-3 left-1/2 w-0.5 bg-white/10 z-0" aria-hidden="true" />
-      <div className="pointer-events-none hidden md:block absolute inset-y-3 left-[63%] w-0.5 bg-white/10 z-0" aria-hidden="true" />
-      <div className="pointer-events-none hidden md:block absolute inset-y-3 right-[24%] w-0.5 bg-white/10 z-0" aria-hidden="true" />
-
-      <TicketCardDesktop ticket={ticket} />
-
       <div className="space-y-2 relative z-10">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-stretch justify-between gap-3">
           <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
             {bulkMode && onToggleTicket && (
               <Checkbox
@@ -143,19 +137,20 @@ const TicketCard = ({
                   </Badge>
                 )}
               </div>
-              <h3 className="font-semibold text-base line-clamp-2 md:line-clamp-1 md:max-w-[calc(50%-1.5rem)] break-all">
+              <h3 className="font-semibold text-base line-clamp-2 md:line-clamp-1 break-all">
                 {ticket.status_name === 'На согласовании' && '🔔 '}
                 {ticket.status_name === 'Отклонена' && '❌ '}
                 {ticket.status_name === 'Одобрена' && '✅ '}
                 {ticket.title}
               </h3>
               {ticket.description && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2 md:max-w-[calc(50%-1.5rem)] break-all">
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2 break-all">
                   {ticket.description.replace(/<[^>]*>/g, '')}
                 </p>
               )}
             </div>
           </div>
+          <TicketCardDesktop ticket={ticket} />
         </div>
 
         <div className="md:hidden pt-2.5 mt-1 space-y-2 border-t border-border">

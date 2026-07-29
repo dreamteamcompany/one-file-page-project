@@ -22,56 +22,9 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
   const leftLabel = getDeadlineLeftLabel(ticket.due_date);
 
   return (
-    <>
-      {ticket.due_date && deadline && (
-        <div className="hidden md:flex absolute inset-y-3 left-[76%] right-0 z-20 flex-col items-start justify-center gap-1.5 px-4 pointer-events-none border-l border-border">
-          <span className="text-sm font-semibold break-words max-w-full" style={{ color: deadline.color }}>
-            {deadline.label}
-          </span>
-          <div className="h-3 w-full flex gap-1">
-            {Array.from({ length: 5 }).map((_, i) => {
-              const filled = i < Math.round((deadline.percent / 100) * 5);
-              return (
-                <div
-                  key={i}
-                  className="flex-1 h-full rounded-sm transition-colors duration-300"
-                  style={{ backgroundColor: filled ? deadline.color : 'hsl(var(--muted))' }}
-                />
-              );
-            })}
-          </div>
-          <span className="text-xs text-muted-foreground break-words max-w-full">
-            {leftLabel}
-          </span>
-        </div>
-      )}
-
-      <div className="hidden md:flex absolute inset-y-3 left-[63%] right-[24%] z-20 flex-col items-start justify-center gap-2 px-4 pointer-events-none border-l border-border">
-        {ticket.created_at && (
-          <div className="flex flex-col items-start gap-0.5 max-w-full">
-            <span className="text-xs text-muted-foreground">Дата создания</span>
-            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
-              <Icon name="Clock" size={11} className="flex-shrink-0 mt-0.5" />
-              <span className="break-words min-w-0">
-                {(parseServerDate(ticket.created_at) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
-              </span>
-            </span>
-          </div>
-        )}
-        {ticket.due_date && (
-          <div className="flex flex-col items-start gap-0.5 max-w-full">
-            <span className="text-xs text-muted-foreground">Дедлайн</span>
-            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
-              <Icon name="Calendar" size={11} className="flex-shrink-0 mt-0.5" />
-              <span className="break-words min-w-0">
-                {(parseServerDate(ticket.due_date) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
-              </span>
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="hidden md:flex absolute inset-y-3 left-[50%] right-[37%] z-20 flex-col items-start justify-center gap-2 px-4 pointer-events-none border-l border-border">
+    <div className="hidden md:flex flex-shrink-0 w-1/2 self-stretch text-xs">
+      {/* Колонка: Статус / Заказчик / Исполнитель */}
+      <div className="flex flex-col justify-center gap-2 px-4 min-w-0 flex-[1.3] border-l border-border">
         {ticket.status_name && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Статус</span>
@@ -119,7 +72,57 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
           </span>
         </div>
       </div>
-    </>
+
+      {/* Колонка: Дата создания / Дедлайн */}
+      <div className="flex flex-col justify-center gap-2 px-4 min-w-0 flex-1 border-l border-border">
+        {ticket.created_at && (
+          <div className="flex flex-col items-start gap-0.5 max-w-full">
+            <span className="text-xs text-muted-foreground">Дата создания</span>
+            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
+              <Icon name="Clock" size={11} className="flex-shrink-0 mt-0.5" />
+              <span className="break-words min-w-0">
+                {(parseServerDate(ticket.created_at) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
+              </span>
+            </span>
+          </div>
+        )}
+        {ticket.due_date && (
+          <div className="flex flex-col items-start gap-0.5 max-w-full">
+            <span className="text-xs text-muted-foreground">Дедлайн</span>
+            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
+              <Icon name="Calendar" size={11} className="flex-shrink-0 mt-0.5" />
+              <span className="break-words min-w-0">
+                {(parseServerDate(ticket.due_date) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Колонка: Прогресс дедлайна */}
+      {ticket.due_date && deadline && (
+        <div className="flex flex-col justify-center gap-1.5 px-4 min-w-0 flex-1 border-l border-border">
+          <span className="text-sm font-semibold break-words max-w-full" style={{ color: deadline.color }}>
+            {deadline.label}
+          </span>
+          <div className="h-3 w-full flex gap-1">
+            {Array.from({ length: 5 }).map((_, i) => {
+              const filled = i < Math.round((deadline.percent / 100) * 5);
+              return (
+                <div
+                  key={i}
+                  className="flex-1 h-full rounded-sm transition-colors duration-300"
+                  style={{ backgroundColor: filled ? deadline.color : 'hsl(var(--muted))' }}
+                />
+              );
+            })}
+          </div>
+          <span className="text-xs text-muted-foreground break-words max-w-full">
+            {leftLabel}
+          </span>
+        </div>
+      )}
+    </div>
   );
 };
 
