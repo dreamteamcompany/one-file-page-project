@@ -49,6 +49,9 @@ export const useTicketsData = () => {
   const [showWatching, setShowWatching] = useState<boolean>(false);
   const [showSubordinates, setShowSubordinates] = useState<boolean>(false);
   const [hasSubordinates, setHasSubordinates] = useState<boolean>(false);
+  const [filterExecutors, setFilterExecutors] = useState<{ id: number; full_name?: string; username?: string }[]>([]);
+  const [filterCreators, setFilterCreators] = useState<{ id: number; full_name?: string; username?: string }[]>([]);
+  const [filterGroups, setFilterGroups] = useState<{ id: number; name: string }[]>([]);
   const showSubordinatesRef = useRef(false);
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -272,6 +275,9 @@ export const useTicketsData = () => {
       setHiddenCount(data.hidden_count || 0);
       setNeedsMyReplyCount(data.needs_my_reply_count || 0);
       setHasSubordinates(!!data.has_subordinates);
+      if (Array.isArray(data.executors)) setFilterExecutors(data.executors);
+      if (Array.isArray(data.creators)) setFilterCreators(data.creators);
+      if (Array.isArray(data.groups)) setFilterGroups(data.groups);
       setLoading(false);
 
       // services грузим отдельно в фоне (отдельная функция, нужна реже — для форм)
@@ -417,6 +423,9 @@ export const useTicketsData = () => {
     showWatching,
     showSubordinates,
     hasSubordinates,
+    filterExecutors,
+    filterCreators,
+    filterGroups,
     sortBy,
     sortDir,
     setSortBy,

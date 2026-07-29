@@ -94,6 +94,9 @@ const Tickets = () => {
     showWatching,
     showSubordinates,
     hasSubordinates,
+    filterExecutors: bootstrapExecutors,
+    filterCreators: bootstrapCreators,
+    filterGroups: bootstrapGroups,
     sortBy,
     sortDir,
     setSortBy,
@@ -115,6 +118,12 @@ const Tickets = () => {
   // (иначе замыкание видит пустой массив и шлёт лишний запрос).
   const statusesCountRef = useRef(0);
   useEffect(() => { statusesCountRef.current = statuses.length; }, [statuses.length]);
+  const filterAssigneesRef = useRef(0);
+  useEffect(() => { filterAssigneesRef.current = filterAssignees.length; }, [filterAssignees.length]);
+  const filterCreatorsRef = useRef(0);
+  useEffect(() => { filterCreatorsRef.current = filterCreators.length; }, [filterCreators.length]);
+  const filterGroupsRef = useRef(0);
+  useEffect(() => { filterGroupsRef.current = filterGroups.length; }, [filterGroups.length]);
   // Поиск выполняется на сервере (по теме, описанию, доп. полям, комментариям,
   // участникам, номеру, дате, сервису и услуге) — см. эффект ниже.
   const searchedTickets = tickets;
@@ -214,10 +223,20 @@ const Tickets = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticketsInterface]);
 
-  // Справочники для выпадающих фильтров: подгружаем один раз.
-  // Откладываем их на ~1.2с, чтобы не конкурировать с основным bootstrap-
-  // запросом (заявки + справочники) за лимит запросов БД. Фильтры —
-  // второстепенные данные, их не страшно подгрузить чуть позже.
+  // Справочники исполнителей / заявителей / групп для фильтров теперь приходят
+  // прямо из bootstrap (одним запросом) — заполняем локальные состояния из них.
+  useEffect(() => {
+    if (bootstrapExecutors.length > 0) setFilterAssignees(bootstrapExecutors);
+  }, [bootstrapExecutors]);
+  useEffect(() => {
+    if (bootstrapCreators.length > 0) setFilterCreators(bootstrapCreators);
+  }, [bootstrapCreators]);
+  useEffect(() => {
+    if (bootstrapGroups.length > 0) setFilterGroups(bootstrapGroups);
+  }, [bootstrapGroups]);
+
+  // Фолбэк: если bootstrap не отдал справочники фильтров (старый ответ или
+  // сбой) — через ~2с догружаем их отдельными запросами, как раньше.
   const filterDictsLoaded = useRef(false);
   useEffect(() => {
     if (!token || filterDictsLoaded.current) return;
@@ -227,28 +246,34 @@ const Tickets = () => {
       if (statusesCountRef.current === 0) loadDictionaries();
       if (services.length === 0 || ticketServices.length === 0) loadServices();
 
-      apiFetch(`${API_URL}?endpoint=users&system_roles=executor`, { headers: { 'X-Auth-Token': token } })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => {
-          if (Array.isArray(data)) setFilterAssignees(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
-        })
-        .catch(() => {});
+      if (filterAssigneesRef.current === 0) {
+        apiFetch(`${API_URL}?endpoint=users&system_roles=executor`, { headers: { 'X-Auth-Token': token } })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data) => {
+            if (Array.isArray(data)) setFilterAssignees(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+          })
+          .catch(() => {});
+      }
 
-      apiFetch(`${API_URL}?endpoint=users&system_roles=user`, { headers: { 'X-Auth-Token': token } })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => {
-          if (Array.isArray(data)) setFilterCreators(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
-        })
-        .catch(() => {});
+      if (filterCreatorsRef.current === 0) {
+        apiFetch(`${API_URL}?endpoint=users&system_roles=user`, { headers: { 'X-Auth-Token': token } })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data) => {
+            if (Array.isArray(data)) setFilterCreators(data.filter((u: { is_active?: boolean }) => u.is_active !== false));
+          })
+          .catch(() => {});
+      }
 
-      apiFetch(EXECUTOR_GROUPS_URL, { headers: { 'X-Auth-Token': token } })
-        .then((r) => (r.ok ? r.json() : []))
-        .then((data) => {
-          const list = Array.isArray(data) ? data : data?.groups || [];
-          setFilterGroups(list);
-        })
-        .catch(() => {});
-    }, 1200);
+      if (filterGroupsRef.current === 0) {
+        apiFetch(EXECUTOR_GROUPS_URL, { headers: { 'X-Auth-Token': token } })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((data) => {
+            const list = Array.isArray(data) ? data : data?.groups || [];
+            setFilterGroups(list);
+          })
+          .catch(() => {});
+      }
+    }, 2000);
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps

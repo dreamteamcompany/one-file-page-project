@@ -4251,6 +4251,58 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
     except Exception:
         has_subordinates = False
 
+    # 6. Справочники для фильтров: исполнители, заявители, группы исполнителей.
+    #    Раньше фронт грузил их 3 отдельными Cloud Function вызовами при
+    #    открытии страницы — это давало лишние коннекты и упор в rate-limit БД.
+    #    Теперь отдаём их прямо из bootstrap (одно соединение). Поля — только
+    #    те, что реально нужны фильтрам (id, full_name, username / id, name).
+    executors: list = []
+    creators: list = []
+    groups: list = []
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT u.id, u.full_name, u.username, u.is_active,
+                   bool_or(LOWER(COALESCE(r.system_role, '')) = 'executor') AS is_executor,
+                   bool_or(LOWER(COALESCE(r.system_role, '')) = 'user') AS is_user
+            FROM {SCHEMA}.users u
+            LEFT JOIN {SCHEMA}.user_roles ur ON u.id = ur.user_id
+            LEFT JOIN {SCHEMA}.roles r ON ur.role_id = r.id
+            WHERE u.is_active = true
+            GROUP BY u.id, u.full_name, u.username, u.is_active
+            ORDER BY u.full_name
+        """)
+        for row in cur.fetchall():
+            item = {'id': row['id'], 'full_name': row['full_name'],
+                    'username': row['username'], 'is_active': row['is_active']}
+            if row['is_executor']:
+                executors.append(item)
+            if row['is_user']:
+                creators.append(item)
+        cur.close()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"[TICKETS] bootstrap users load failed: {e}")
+
+    try:
+        cur = conn.cursor()
+        cur.execute(f"""
+            SELECT id, name FROM {SCHEMA}.executor_groups
+            WHERE is_active = true
+            ORDER BY name
+        """)
+        groups = [{'id': row['id'], 'name': row['name']} for row in cur.fetchall()]
+        cur.close()
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        print(f"[TICKETS] bootstrap groups load failed: {e}")
+
     return response(200, {
         'tickets': tickets_data,
         'dictionaries': dictionaries,
@@ -4258,6 +4310,9 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
         'hidden_count': hidden_count,
         'needs_my_reply_count': needs_my_reply_count,
         'has_subordinates': has_subordinates,
+        'executors': executors,
+        'creators': creators,
+        'groups': groups,
     })
 
 
