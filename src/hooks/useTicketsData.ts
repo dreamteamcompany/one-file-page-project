@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch } from '@/utils/api';
+import { readBootstrapCache, writeBootstrapCache, type BootstrapDicts } from '@/utils/bootstrapCache';
 import type {
   Ticket,
   CustomField,
@@ -233,8 +234,27 @@ export const useTicketsData = () => {
     }
   }, [token]);
 
+  // Применяет справочники (из кеша или свежего ответа) к состоянию.
+  const applyDicts = useCallback((d: BootstrapDicts) => {
+    const dict = (d.dictionaries || {}) as Record<string, unknown[]>;
+    setCategories((dict.categories as never[]) || []);
+    setPriorities((dict.priorities as never[]) || []);
+    setStatuses((dict.statuses as never[]) || []);
+    setDepartments((dict.departments as never[]) || []);
+    setCustomFields((dict.custom_fields as never[]) || []);
+    setTicketServices((d.ticket_services as never[]) || []);
+    setHasSubordinates(!!d.has_subordinates);
+    if (Array.isArray(d.executors)) setFilterExecutors(d.executors as never[]);
+    if (Array.isArray(d.creators)) setFilterCreators(d.creators as never[]);
+    if (Array.isArray(d.groups)) setFilterGroups(d.groups as never[]);
+  }, []);
+
   const loadBootstrap = useCallback(async () => {
     if (!token) return;
+    // Мгновенно показываем справочники из кеша (если свежие) — страница
+    // рисуется сразу, без ожидания ответа сервера.
+    const cached = readBootstrapCache(token);
+    if (cached) applyDicts(cached);
     setLoading(true);
     try {
       const skipWaiting = hideWaiting;
@@ -264,20 +284,19 @@ export const useTicketsData = () => {
       setTotalTickets(t.total || 0);
       setPage(1);
 
-      const dict = data.dictionaries || {};
-      setCategories(dict.categories || []);
-      setPriorities(dict.priorities || []);
-      setStatuses(dict.statuses || []);
-      setDepartments(dict.departments || []);
-      setCustomFields(dict.custom_fields || []);
+      const dicts: BootstrapDicts = {
+        dictionaries: data.dictionaries || {},
+        ticket_services: data.ticket_services || [],
+        executors: Array.isArray(data.executors) ? data.executors : [],
+        creators: Array.isArray(data.creators) ? data.creators : [],
+        groups: Array.isArray(data.groups) ? data.groups : [],
+        has_subordinates: !!data.has_subordinates,
+      };
+      applyDicts(dicts);
+      writeBootstrapCache(token, dicts);
 
-      setTicketServices(data.ticket_services || []);
       setHiddenCount(data.hidden_count || 0);
       setNeedsMyReplyCount(data.needs_my_reply_count || 0);
-      setHasSubordinates(!!data.has_subordinates);
-      if (Array.isArray(data.executors)) setFilterExecutors(data.executors);
-      if (Array.isArray(data.creators)) setFilterCreators(data.creators);
-      if (Array.isArray(data.groups)) setFilterGroups(data.groups);
       setLoading(false);
 
       // services грузим отдельно в фоне (отдельная функция, нужна реже — для форм)
@@ -291,7 +310,7 @@ export const useTicketsData = () => {
       loadHiddenCount();
       loadNeedsMyReplyCount();
     }
-  }, [token, hideWaiting, sortBy, sortDir, pageSize, loadServices, loadTickets, loadDictionaries, loadHiddenCount, loadNeedsMyReplyCount]);
+  }, [token, hideWaiting, sortBy, sortDir, pageSize, applyDicts, loadServices, loadTickets, loadDictionaries, loadHiddenCount, loadNeedsMyReplyCount]);
 
   useEffect(() => {
     if (token) {

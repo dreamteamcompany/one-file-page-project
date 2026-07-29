@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { API_URL, apiFetch } from '@/utils/api';
+import { clearBootstrapCache } from '@/utils/bootstrapCache';
 
 interface Permission {
   name: string;
@@ -125,6 +126,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     sessionStorage.removeItem('auth_token');
     sessionStorage.removeItem('active_role');
     localStorage.removeItem('remember_me');
+    clearBootstrapCache();
   };
   
   const refreshToken = async () => {
