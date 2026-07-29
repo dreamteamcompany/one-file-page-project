@@ -3,6 +3,7 @@ API для работы с заявками (tickets) и категориями 
 """
 import json
 import re
+import time
 import traceback
 from typing import Dict, Any, Optional, Set, List
 from pydantic import BaseModel, Field
@@ -1567,68 +1568,85 @@ def handler(event: dict, context) -> dict:
         return handle_options()
     
     endpoint = get_endpoint(event)
-    
-    try:
-        conn = get_db_connection()
-    except Exception as e:
-        return response(500, {'error': f'Database connection failed: {str(e)}'})
-    
-    try:
-        if endpoint == 'tickets':
-            return handle_tickets(method, event, conn)
-        elif endpoint == 'service_categories':
-            return handle_service_categories(method, event, conn)
-        elif endpoint == 'ticket-dictionaries-api':
-            return handle_ticket_dictionaries(method, event, conn)
-        elif endpoint == 'ticket_services':
-            return handle_ticket_services(method, event, conn)
-        elif endpoint == 'ticket-statuses':
-            return handle_ticket_statuses(method, event, conn)
-        elif endpoint == 'ticket-priorities':
-            return handle_ticket_priorities(method, event, conn)
-        elif endpoint == 'sla':
-            return handle_sla(method, event, conn)
-        elif endpoint == 'sla-service-mappings':
-            return handle_sla_service_mappings(method, event, conn)
-        elif endpoint == 'sla-group-budgets':
-            return handle_sla_group_budgets(method, event, conn)
-        elif endpoint == 'sla-priority-times':
-            return handle_sla_priority_times(method, event, conn)
-        elif endpoint == 'sla-analytics':
-            return handle_sla_analytics(method, event, conn)
-        elif endpoint == 'ticket-approvals':
-            return handle_ticket_approvals(method, event, conn)
-        elif endpoint == 'ticket_service_mappings':
-            return handle_ticket_service_mappings(method, event, conn)
-        elif endpoint == 'ticket-confirmation':
-            return handle_ticket_confirmation(method, event, conn)
-        elif endpoint == 'ticket-watchers':
-            return handle_ticket_watchers(method, event, conn)
-        elif endpoint == 'tickets-full':
-            return handle_tickets_full(method, event, conn)
-        elif endpoint == 'tickets-bootstrap':
-            return handle_tickets_bootstrap(method, event, conn)
-        elif endpoint == 'tickets-created-stats':
-            return handle_tickets_created_stats(method, event, conn)
-        elif endpoint == 'tickets-rating-stats':
-            return handle_tickets_rating_stats(method, event, conn)
-        elif endpoint == 'dashboard-ops':
-            return handle_dashboard_ops(method, event, conn)
-        elif endpoint == 'dashboard-sla':
-            return handle_dashboard_sla(method, event, conn)
-        elif endpoint == 'dashboard-services':
-            return handle_dashboard_services(method, event, conn)
-        elif endpoint == 'dashboard-team':
-            return handle_dashboard_team(method, event, conn)
-        elif endpoint == 'escalation-tickets':
-            return handle_escalation_tickets(method, event, conn)
-        else:
-            return response(400, {'error': 'Unknown endpoint'})
-    finally:
+
+    # При ошибке "rate limit exceeded" от БД делаем короткий авто-ретрай
+    # (только для GET — безопасно повторять). Это гасит разовые всплески
+    # нагрузки на базу, чтобы пользователь не видел 502 «через раз».
+    max_attempts = 3 if method == 'GET' else 1
+    last_error = None
+    for attempt in range(max_attempts):
         try:
-            conn.close()
-        except:
-            pass
+            conn = get_db_connection()
+        except Exception as e:
+            return response(500, {'error': f'Database connection failed: {str(e)}'})
+        try:
+            return _route(endpoint, method, event, conn)
+        except Exception as e:
+            last_error = e
+            if 'rate limit' in str(e).lower() and attempt < max_attempts - 1:
+                time.sleep(0.15 * (attempt + 1))
+                continue
+            raise
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+    if last_error:
+        raise last_error
+
+
+def _route(endpoint: str, method: str, event: dict, conn) -> dict:
+    if endpoint == 'tickets':
+        return handle_tickets(method, event, conn)
+    elif endpoint == 'service_categories':
+        return handle_service_categories(method, event, conn)
+    elif endpoint == 'ticket-dictionaries-api':
+        return handle_ticket_dictionaries(method, event, conn)
+    elif endpoint == 'ticket_services':
+        return handle_ticket_services(method, event, conn)
+    elif endpoint == 'ticket-statuses':
+        return handle_ticket_statuses(method, event, conn)
+    elif endpoint == 'ticket-priorities':
+        return handle_ticket_priorities(method, event, conn)
+    elif endpoint == 'sla':
+        return handle_sla(method, event, conn)
+    elif endpoint == 'sla-service-mappings':
+        return handle_sla_service_mappings(method, event, conn)
+    elif endpoint == 'sla-group-budgets':
+        return handle_sla_group_budgets(method, event, conn)
+    elif endpoint == 'sla-priority-times':
+        return handle_sla_priority_times(method, event, conn)
+    elif endpoint == 'sla-analytics':
+        return handle_sla_analytics(method, event, conn)
+    elif endpoint == 'ticket-approvals':
+        return handle_ticket_approvals(method, event, conn)
+    elif endpoint == 'ticket_service_mappings':
+        return handle_ticket_service_mappings(method, event, conn)
+    elif endpoint == 'ticket-confirmation':
+        return handle_ticket_confirmation(method, event, conn)
+    elif endpoint == 'ticket-watchers':
+        return handle_ticket_watchers(method, event, conn)
+    elif endpoint == 'tickets-full':
+        return handle_tickets_full(method, event, conn)
+    elif endpoint == 'tickets-bootstrap':
+        return handle_tickets_bootstrap(method, event, conn)
+    elif endpoint == 'tickets-created-stats':
+        return handle_tickets_created_stats(method, event, conn)
+    elif endpoint == 'tickets-rating-stats':
+        return handle_tickets_rating_stats(method, event, conn)
+    elif endpoint == 'dashboard-ops':
+        return handle_dashboard_ops(method, event, conn)
+    elif endpoint == 'dashboard-sla':
+        return handle_dashboard_sla(method, event, conn)
+    elif endpoint == 'dashboard-services':
+        return handle_dashboard_services(method, event, conn)
+    elif endpoint == 'dashboard-team':
+        return handle_dashboard_team(method, event, conn)
+    elif endpoint == 'escalation-tickets':
+        return handle_escalation_tickets(method, event, conn)
+    else:
+        return response(400, {'error': 'Unknown endpoint'})
 
 def _load_org_structure_cache(cur) -> dict:
     """Загружает справочники компаний, подразделений и должностей одним набором
