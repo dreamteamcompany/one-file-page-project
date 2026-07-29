@@ -65,7 +65,7 @@ const TicketCard = ({
       <div className="relative">
       <div className="space-y-2 relative z-10">
         <div className="flex items-stretch justify-between gap-3">
-          <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+          <div className="flex items-stretch gap-2 sm:gap-3 flex-1 min-w-0">
             {bulkMode && onToggleTicket && (
               <Checkbox
                 checked={selectedTicketIds.includes(ticket.id)}
