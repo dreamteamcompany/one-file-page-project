@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS t_p67567221_one_file_page_projec.idx_tickets_closed_at;

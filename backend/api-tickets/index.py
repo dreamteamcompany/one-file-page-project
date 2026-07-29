@@ -2062,22 +2062,16 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
             )"""
             params.append(f"%{search_ticket_service}%")
         if search_content:
-            # Ищем по содержанию: title, description, доп. поля, номер, дата,
-            # комментарии, участники (заказчик/исполнитель/наблюдатели), сервис, услуга
+            # Ищем по содержанию: title, description, номер, дата,
+            # участники (заказчик/исполнитель/наблюдатели), сервис, услуга.
+            # Поиск по комментариям и доп. полям исключён из-за большого объёма
+            # (тормозил запрос до таймаута на 10k+ заявок и 48k+ комментариев).
             like = f"%{search_content}%"
             where_clause += f""" AND (
                 t.title ILIKE %s
                 OR t.description ILIKE %s
                 OR CAST(t.id AS TEXT) ILIKE %s
                 OR TO_CHAR(t.created_at, 'YYYY-MM-DD') ILIKE %s
-                OR EXISTS (
-                    SELECT 1 FROM {SCHEMA}.ticket_custom_field_values tcfv
-                    WHERE tcfv.ticket_id = t.id AND tcfv.value ILIKE %s
-                )
-                OR EXISTS (
-                    SELECT 1 FROM {SCHEMA}.ticket_comments tc
-                    WHERE tc.ticket_id = t.id AND tc.comment ILIKE %s
-                )
                 OR EXISTS (
                     SELECT 1 FROM {SCHEMA}.users up
                     WHERE up.id IN (t.created_by, t.assigned_to)
@@ -2100,7 +2094,7 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                     WHERE tsmc2.ticket_id = t.id AND tssc.name ILIKE %s
                 )
             )"""
-            params.extend([like] * 12)
+            params.extend([like] * 10)
         if due_from:
             where_clause += " AND t.due_date >= %s"
             params.append(due_from)
