@@ -241,7 +241,7 @@ const TicketCard = ({
           </div>
         </div>
 
-        <div className="pt-2.5 mt-1 space-y-2">
+        <div className="pt-1 space-y-2 -mt-1">
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             {(() => {
               const phone = getPhoneFromTicket(ticket);
