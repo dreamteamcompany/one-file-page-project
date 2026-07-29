@@ -25,7 +25,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
     <>
       {ticket.due_date && deadline && (
         <div className="hidden md:flex absolute inset-y-3 left-[76%] right-0 z-20 flex-col items-start justify-center gap-1.5 px-4 pointer-events-none border-l border-border">
-          <span className="text-sm font-semibold truncate max-w-full" style={{ color: deadline.color }}>
+          <span className="text-sm font-semibold break-words max-w-full" style={{ color: deadline.color }}>
             {deadline.label}
           </span>
           <div className="h-3 w-full flex gap-1">
@@ -40,7 +40,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
               );
             })}
           </div>
-          <span className="text-xs text-muted-foreground truncate max-w-full">
+          <span className="text-xs text-muted-foreground break-words max-w-full">
             {leftLabel}
           </span>
         </div>
@@ -50,9 +50,9 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
         {ticket.created_at && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Дата создания</span>
-            <span className="inline-flex items-center gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
-              <Icon name="Clock" size={11} className="flex-shrink-0" />
-              <span className="truncate">
+            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
+              <Icon name="Clock" size={11} className="flex-shrink-0 mt-0.5" />
+              <span className="break-words min-w-0">
                 {(parseServerDate(ticket.created_at) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
               </span>
             </span>
@@ -61,9 +61,9 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
         {ticket.due_date && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Дедлайн</span>
-            <span className="inline-flex items-center gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
-              <Icon name="Calendar" size={11} className="flex-shrink-0" />
-              <span className="truncate">
+            <span className="inline-flex items-start gap-1.5 bg-muted text-foreground rounded-md px-2 py-1 text-xs max-w-full">
+              <Icon name="Calendar" size={11} className="flex-shrink-0 mt-0.5" />
+              <span className="break-words min-w-0">
                 {(parseServerDate(ticket.due_date) ?? new Date()).toLocaleString('ru-RU', MSK_LIST_OPTS)}
               </span>
             </span>
@@ -77,7 +77,7 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
             <span className="text-xs text-muted-foreground">Статус</span>
             <Badge
               variant="secondary"
-              className="text-xs max-w-full truncate border"
+              className="text-xs max-w-full whitespace-normal break-words h-auto border"
               style={{
                 backgroundColor: `${ticket.status_color}33`,
                 color: ticket.status_color,
@@ -91,31 +91,31 @@ const TicketCardDesktop = ({ ticket }: TicketCardDesktopProps) => {
         {(ticket.customer_name || ticket.creator_name) && (
           <div className="flex flex-col items-start gap-0.5 max-w-full">
             <span className="text-xs text-muted-foreground">Заказчик</span>
-            <span className="inline-flex items-center gap-1.5 bg-blue-500/10 text-blue-400 rounded-md px-2 py-1 text-xs max-w-full">
+            <span className="inline-flex items-start gap-1.5 bg-blue-500/10 text-blue-400 rounded-md px-2 py-1 text-xs max-w-full">
               {ticket.creator_photo_url ? (
-                <img src={ticket.creator_photo_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+                <img src={ticket.creator_photo_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0 mt-0.5" />
               ) : (
-                <Icon name="User" size={11} className="flex-shrink-0" />
+                <Icon name="User" size={11} className="flex-shrink-0 mt-0.5" />
               )}
-              <span className="truncate">{ticket.customer_name || ticket.creator_name}</span>
+              <span className="break-words min-w-0">{ticket.customer_name || ticket.creator_name}</span>
             </span>
             {ticket.creator_department_name && (
-              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground max-w-full">
-                <Icon name="Building2" size={11} className="flex-shrink-0" />
-                <span className="truncate">{ticket.creator_department_name}</span>
+              <span className="inline-flex items-start gap-1 text-xs text-muted-foreground max-w-full">
+                <Icon name="Building2" size={11} className="flex-shrink-0 mt-0.5" />
+                <span className="break-words min-w-0">{ticket.creator_department_name}</span>
               </span>
             )}
           </div>
         )}
         <div className="flex flex-col items-start gap-0.5 max-w-full">
           <span className="text-xs text-muted-foreground">Исполнитель</span>
-          <span className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs leading-none max-w-full ${(ticket.assigned_to_name || ticket.assignee_name) ? 'bg-muted/60 text-muted-foreground' : 'bg-orange-500/10 text-orange-500'}`}>
+          <span className={`inline-flex items-start gap-1.5 rounded-md px-2 py-1 text-xs max-w-full ${(ticket.assigned_to_name || ticket.assignee_name) ? 'bg-muted/60 text-muted-foreground' : 'bg-orange-500/10 text-orange-500'}`}>
             {ticket.assignee_photo_url ? (
-              <img src={ticket.assignee_photo_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0" />
+              <img src={ticket.assignee_photo_url} alt="" className="w-4 h-4 rounded-full object-cover flex-shrink-0 mt-0.5" />
             ) : (
-              <Icon name={(ticket.assigned_to_name || ticket.assignee_name) ? "UserCheck" : "UserX"} size={11} className="block flex-shrink-0" />
+              <Icon name={(ticket.assigned_to_name || ticket.assignee_name) ? "UserCheck" : "UserX"} size={11} className="block flex-shrink-0 mt-0.5" />
             )}
-            <span className="truncate leading-none">{ticket.assigned_to_name || ticket.assignee_name || 'Не назначен'}</span>
+            <span className="break-words min-w-0">{ticket.assigned_to_name || ticket.assignee_name || 'Не назначен'}</span>
           </span>
         </div>
       </div>
