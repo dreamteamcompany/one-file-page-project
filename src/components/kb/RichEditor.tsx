@@ -15,7 +15,20 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import func2url from '../../../backend/func2url.json';
+
+const UPLOAD_FILE_URL = (func2url as Record<string, string>)['upload-file'];
+
+const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
+
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res((reader.result as string).split(',')[1] || '');
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
 
 interface Props {
   value: string;
@@ -39,6 +52,42 @@ const ToolbarButton = ({ active, onClick, icon, label }: { active?: boolean; onC
 );
 
 const Toolbar = ({ editor }: { editor: Editor | null }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !editor) return;
+    setUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const resp = await fetch(UPLOAD_FILE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, filename: file.name, folder: 'uploads/kb' }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.cdn_url) throw new Error(data.error || 'Ошибка загрузки');
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (IMAGE_EXT.includes(ext)) {
+        editor.chain().focus().setImage({ src: data.cdn_url }).run();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .insertContent(
+            `<a href="${data.cdn_url}" target="_blank" rel="noopener" class="text-primary underline">📎 ${data.filename || file.name}</a>&nbsp;`,
+          )
+          .run();
+      }
+    } catch (err) {
+      window.alert('Не удалось загрузить файл: ' + (err instanceof Error ? err.message : 'ошибка'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   if (!editor) return null;
   return (
     <div className="flex flex-wrap gap-1 p-2 border-b border-border bg-muted/30 sticky top-0 z-10">
@@ -163,6 +212,17 @@ const Toolbar = ({ editor }: { editor: Editor | null }) => {
         onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
         icon="Table"
         label="Таблица"
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFilePick}
+      />
+      <ToolbarButton
+        onClick={() => fileInputRef.current?.click()}
+        icon={uploading ? 'Loader2' : 'Paperclip'}
+        label={uploading ? 'Загрузка…' : 'Прикрепить файл'}
       />
       <div className="w-px h-6 bg-border mx-1 my-1" />
       <ToolbarButton
