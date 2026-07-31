@@ -54,12 +54,14 @@ const ToolbarButton = ({ active, onClick, icon, label }: { active?: boolean; onC
 const Toolbar = ({ editor }: { editor: Editor | null }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadName, setUploadName] = useState('');
 
   const handleFilePick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !editor) return;
     setUploading(true);
+    setUploadName(file.name);
     try {
       const base64 = await fileToBase64(file);
       const resp = await fetch(UPLOAD_FILE_URL, {
@@ -85,6 +87,7 @@ const Toolbar = ({ editor }: { editor: Editor | null }) => {
       window.alert('Не удалось загрузить файл: ' + (err instanceof Error ? err.message : 'ошибка'));
     } finally {
       setUploading(false);
+      setUploadName('');
     }
   };
 
@@ -219,11 +222,23 @@ const Toolbar = ({ editor }: { editor: Editor | null }) => {
         className="hidden"
         onChange={handleFilePick}
       />
-      <ToolbarButton
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        className="h-8 w-8 p-0"
         onClick={() => fileInputRef.current?.click()}
-        icon={uploading ? 'Loader2' : 'Paperclip'}
-        label={uploading ? 'Загрузка…' : 'Прикрепить файл'}
-      />
+        disabled={uploading}
+        title={uploading ? 'Загрузка файла…' : 'Прикрепить файл'}
+      >
+        <Icon name={uploading ? 'Loader2' : 'Paperclip'} size={14} className={uploading ? 'animate-spin' : ''} />
+      </Button>
+      {uploading && (
+        <span className="inline-flex items-center gap-1.5 px-2 h-8 rounded-md bg-primary/10 text-primary text-xs max-w-[180px]">
+          <Icon name="Loader2" size={12} className="animate-spin flex-shrink-0" />
+          <span className="truncate">Загрузка: {uploadName}</span>
+        </span>
+      )}
       <div className="w-px h-6 bg-border mx-1 my-1" />
       <ToolbarButton
         onClick={() => editor.chain().focus().undo().run()}
