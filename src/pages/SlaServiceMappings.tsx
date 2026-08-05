@@ -240,12 +240,12 @@ const SlaServiceMappings = () => {
                   </div>
                   <div className="flex gap-1">
                     {hasPermission('sla', 'update') && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(m)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(m)} title="Редактировать" aria-label="Редактировать">
                         <Icon name="Pencil" size={14} />
                       </Button>
                     )}
                     {hasPermission('sla', 'remove') && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-500/10" onClick={() => handleDelete(m.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:bg-red-500/10" onClick={() => handleDelete(m.id)} title="Удалить" aria-label="Удалить">
                         <Icon name="Trash2" size={14} />
                       </Button>
                     )}

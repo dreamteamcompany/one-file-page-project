@@ -35,6 +35,8 @@ const AppHeader = ({ menuOpen, setMenuOpen, actions }: AppHeaderProps) => {
           size="icon"
           className="lg:hidden"
           onClick={handleMenuToggle}
+          title="Меню"
+          aria-label="Меню"
         >
           <Icon name="Menu" size={24} />
         </Button>
@@ -51,6 +53,7 @@ const AppHeader = ({ menuOpen, setMenuOpen, actions }: AppHeaderProps) => {
             size="icon"
             onClick={handleLogout}
             title="Выйти"
+            aria-label="Выйти"
           >
             <Icon name="LogOut" size={20} />
           </Button>

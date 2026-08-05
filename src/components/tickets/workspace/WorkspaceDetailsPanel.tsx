@@ -476,6 +476,8 @@ const WorkspaceDetailsPanel = ({ ticketId, onClose, onChanged }: WorkspaceDetail
             size="icon"
             disabled={submittingComment || !newComment.trim()}
             onClick={() => handleSubmitComment()}
+            title={submittingComment ? 'Отправка…' : 'Отправить комментарий'}
+            aria-label={submittingComment ? 'Отправка комментария' : 'Отправить комментарий'}
           >
             {submittingComment ? (
               <Icon name="Loader2" size={18} className="animate-spin" />

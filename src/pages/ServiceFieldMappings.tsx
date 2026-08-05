@@ -317,6 +317,8 @@ const ServiceFieldMappings = () => {
               variant="ghost"
               size="icon"
               onClick={() => setMenuOpen(true)}
+              title="Меню"
+              aria-label="Меню"
             >
               <Icon name="Menu" size={24} />
             </Button>

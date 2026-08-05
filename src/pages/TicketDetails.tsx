@@ -310,6 +310,8 @@ const TicketDetails = () => {
           size="icon"
           onClick={() => setMenuOpen(!menuOpen)}
           className="lg:hidden shrink-0"
+          title="Меню"
+          aria-label="Меню"
         >
           <Icon name="Menu" size={24} />
         </Button>
@@ -319,6 +321,8 @@ const TicketDetails = () => {
           data-back-button
           onClick={handleBack}
           className="shrink-0 w-9 h-9"
+          title="Назад"
+          aria-label="Назад"
         >
           <Icon name="ArrowLeft" size={20} />
         </Button>

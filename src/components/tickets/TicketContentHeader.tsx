@@ -36,6 +36,7 @@ const TicketContentHeader = ({
             size="icon"
             className="shrink-0 h-8 w-8 text-muted-foreground hover:text-foreground"
             title="Редактировать содержание"
+            aria-label="Редактировать содержание"
             onClick={onOpenEdit}
           >
             <Icon name="Pencil" size={16} />

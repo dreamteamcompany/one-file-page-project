@@ -217,10 +217,10 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openExampleDialog(ex)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openExampleDialog(ex)} title="Редактировать" aria-label="Редактировать">
                         <Icon name="Pencil" size={14} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExample(ex.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteExample(ex.id)} title="Удалить" aria-label="Удалить">
                         <Icon name="Trash2" size={14} />
                       </Button>
                     </div>
@@ -316,6 +316,8 @@ const ExamplesTab = ({ examples, ticketServices, services, onReload }: ExamplesT
                         size="icon"
                         className="h-8 w-8 flex-shrink-0 text-destructive"
                         onClick={() => removeQuestion(idx)}
+                        title="Удалить вопрос"
+                        aria-label="Удалить вопрос"
                       >
                         <Icon name="X" size={14} />
                       </Button>

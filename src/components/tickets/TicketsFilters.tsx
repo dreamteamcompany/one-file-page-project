@@ -225,6 +225,7 @@ export const TicketsFilterPanel = ({
             className="h-8 w-8"
             onClick={() => onExpandedChange?.(false)}
             title="Свернуть"
+            aria-label="Свернуть фильтры"
           >
             <Icon name="ChevronUp" size={18} />
           </Button>
@@ -254,6 +255,7 @@ export const TicketsFilterPanel = ({
                 onClick={() => handleRemoveOne(key)}
                 className="inline-flex items-center justify-center rounded-full hover:bg-background/80 p-0.5 transition-colors"
                 title="Убрать фильтр"
+                aria-label="Убрать фильтр"
               >
                 <Icon name="X" size={12} />
               </button>
@@ -304,6 +306,7 @@ const TicketsFilters = ({
       className="h-8 w-8 relative"
       onClick={() => setExpanded(!expanded)}
       title="Фильтры"
+      aria-label="Фильтры"
     >
       <Icon name="Filter" size={18} />
       {activeCount > 0 && (
@@ -319,6 +322,7 @@ const TicketsFilters = ({
       className="h-9"
       onClick={() => setExpanded(!expanded)}
       title="Фильтры"
+      aria-label="Фильтры"
     >
       <Icon name="Filter" size={16} className="mr-2" />
       Фильтры

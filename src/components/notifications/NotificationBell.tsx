@@ -155,6 +155,8 @@ const NotificationBell = () => {
           variant="ghost"
           size="icon"
           className="relative text-foreground hover:bg-foreground/10"
+          title={unreadCount > 0 ? `Уведомления (${unreadCount} новых)` : 'Уведомления'}
+          aria-label={unreadCount > 0 ? `Уведомления, ${unreadCount} новых` : 'Уведомления'}
         >
           <Icon name="Bell" size={20} />
           {unreadCount > 0 && (

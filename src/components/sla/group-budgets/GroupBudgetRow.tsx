@@ -88,7 +88,8 @@ const GroupBudgetRow = ({
             className="h-7 w-7"
             disabled={localIdx === 0}
             onClick={() => moveBudget(budget._origIndex, -1)}
-            title="Выше"
+            title="Переместить выше"
+            aria-label="Переместить выше"
           >
             <Icon name="ChevronUp" size={13} />
           </Button>
@@ -99,7 +100,8 @@ const GroupBudgetRow = ({
             className="h-7 w-7"
             disabled={localIdx === totalCount - 1}
             onClick={() => moveBudget(budget._origIndex, 1)}
-            title="Ниже"
+            title="Переместить ниже"
+            aria-label="Переместить ниже"
           >
             <Icon name="ChevronDown" size={13} />
           </Button>
@@ -109,6 +111,8 @@ const GroupBudgetRow = ({
             size="icon"
             className="h-7 w-7 text-red-500 hover:bg-red-500/10"
             onClick={() => removeBudget(budget._origIndex)}
+            title="Удалить"
+            aria-label="Удалить"
           >
             <Icon name="Trash2" size={14} />
           </Button>

@@ -37,7 +37,7 @@ const BitrixPageHeader = ({
   return (
     <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')}>
+        <Button variant="ghost" size="icon" onClick={() => navigate('/settings')} title="Назад к настройкам" aria-label="Назад к настройкам">
           <Icon name="ArrowLeft" size={20} />
         </Button>
         <div>

@@ -372,6 +372,8 @@ const PriorityRow = ({
           size="icon"
           className="h-7 w-7 text-red-500 hover:bg-red-500/10 flex-shrink-0"
           onClick={onRemove}
+          title="Удалить"
+          aria-label="Удалить"
         >
           <Icon name="Trash2" size={14} />
         </Button>

@@ -130,10 +130,10 @@ const RulesTab = ({ rules, onReload }: RulesTabProps) => {
                         checked={rule.is_active}
                         onCheckedChange={() => toggleRule(rule)}
                       />
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openRuleDialog(rule)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openRuleDialog(rule)} title="Редактировать" aria-label="Редактировать">
                         <Icon name="Pencil" size={14} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteRule(rule.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteRule(rule.id)} title="Удалить" aria-label="Удалить">
                         <Icon name="Trash2" size={14} />
                       </Button>
                     </div>

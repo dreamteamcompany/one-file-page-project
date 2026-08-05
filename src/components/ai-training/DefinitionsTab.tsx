@@ -143,10 +143,10 @@ const DefinitionsTab = ({ onReload }: DefinitionsTabProps) => {
                       <p className="text-sm text-muted-foreground whitespace-pre-wrap">{def.description}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(def)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDialog(def)} title="Редактировать" aria-label="Редактировать">
                         <Icon name="Pencil" size={14} />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(def.id)}>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => remove(def.id)} title="Удалить" aria-label="Удалить">
                         <Icon name="Trash2" size={14} />
                       </Button>
                     </div>

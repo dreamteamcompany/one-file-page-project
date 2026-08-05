@@ -356,6 +356,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                         onClick={() => recheckOne(rv.id)}
                         disabled={loading || recheckingId === rv.id || !!bulkRecheck}
                         title="Перепроверить (учесть определения и правила)"
+                        aria-label="Перепроверить"
                       >
                         <Icon name={recheckingId === rv.id ? 'Loader2' : 'RefreshCw'} size={14} className={recheckingId === rv.id ? 'animate-spin' : ''} />
                       </Button>
@@ -366,6 +367,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                         onClick={() => handleApprove(rv.id)}
                         disabled={loading}
                         title="Подтвердить"
+                        aria-label="Подтвердить"
                       >
                         <Icon name="Check" size={14} />
                       </Button>
@@ -376,6 +378,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                         onClick={() => openCorrectDialog(rv)}
                         disabled={loading}
                         title="Исправить"
+                        aria-label="Исправить"
                       >
                         <Icon name="Pencil" size={14} />
                       </Button>
@@ -386,6 +389,7 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                         onClick={() => handleReject(rv.id)}
                         disabled={loading}
                         title="Отклонить"
+                        aria-label="Отклонить"
                       >
                         <Icon name="X" size={14} />
                       </Button>
@@ -477,6 +481,8 @@ const PendingReviewsTab = ({ pendingReviews, ticketServices, services, onReload 
                         size="icon"
                         className="h-8 w-8 text-destructive flex-shrink-0"
                         onClick={() => removeQuestion(idx)}
+                        title="Удалить вопрос"
+                        aria-label="Удалить вопрос"
                       >
                         <Icon name="Trash2" size={14} />
                       </Button>

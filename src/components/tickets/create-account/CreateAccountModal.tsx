@@ -617,7 +617,7 @@ const CredRow = ({ label, value, copied, onCopy, mono }: CredRowProps) => (
       <div className="text-[11px] text-muted-foreground">{label}</div>
       <div className={`truncate text-sm ${mono ? 'font-mono' : ''}`}>{value}</div>
     </div>
-    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onCopy} title="Скопировать">
+    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onCopy} title="Скопировать" aria-label="Скопировать">
       <Icon name={copied ? 'Check' : 'Copy'} size={16} className={copied ? 'text-green-600' : ''} />
     </Button>
   </div>

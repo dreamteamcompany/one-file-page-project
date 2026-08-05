@@ -143,6 +143,8 @@ const SlaCard = ({
               size="icon"
               onClick={onEdit}
               className="h-7 w-7 hover:bg-accent/30"
+              title="Редактировать"
+              aria-label="Редактировать"
             >
               <Icon name="Pencil" size={13} />
             </Button>
@@ -153,6 +155,8 @@ const SlaCard = ({
               size="icon"
               onClick={onDelete}
               className="h-7 w-7 hover:bg-red-500/10 text-red-500"
+              title="Удалить"
+              aria-label="Удалить"
             >
               <Icon name="Trash2" size={13} />
             </Button>

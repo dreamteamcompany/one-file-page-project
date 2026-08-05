@@ -268,6 +268,8 @@ const SidebarTrigger = React.forwardRef<
       variant="ghost"
       size="icon"
       className={cn("h-7 w-7", className)}
+      title="Свернуть/развернуть меню"
+      aria-label="Свернуть или развернуть меню"
       onClick={(event) => {
         event.stopPropagation()
         toggleSidebar()
@@ -276,7 +278,7 @@ const SidebarTrigger = React.forwardRef<
       {...props}
     >
       <PanelLeft />
-      <span className="sr-only">Toggle Sidebar</span>
+      <span className="sr-only">Свернуть или развернуть меню</span>
     </Button>
   )
 })

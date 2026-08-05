@@ -67,6 +67,7 @@ const TicketsSearchBar = ({
                   size="icon"
                   className="h-8 w-8"
                   title={`Сортировка: ${currentSortLabel}`}
+                  aria-label={`Сортировка: ${currentSortLabel}`}
                 >
                   <Icon name="ArrowUpDown" size={18} />
                 </Button>
@@ -91,6 +92,7 @@ const TicketsSearchBar = ({
               className="h-8 w-8"
               onClick={onSortDirToggle}
               title={sortDir === 'asc' ? 'По возрастанию' : 'По убыванию'}
+              aria-label={sortDir === 'asc' ? 'Сортировка по возрастанию' : 'Сортировка по убыванию'}
             >
               <Icon name={sortDir === 'asc' ? 'ArrowUp' : 'ArrowDown'} size={18} />
             </Button>

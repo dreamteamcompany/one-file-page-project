@@ -140,6 +140,8 @@ const TicketFormStepServiceItems = ({
             className="h-9 w-9 rounded-lg"
             disabled={currentPage <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
+            title="Предыдущая страница"
+            aria-label="Предыдущая страница"
           >
             <Icon name="ChevronLeft" size={16} />
           </Button>
@@ -151,6 +153,9 @@ const TicketFormStepServiceItems = ({
               size="icon"
               className="h-9 w-9 rounded-lg"
               onClick={() => setPage(p)}
+              title={`Страница ${p}`}
+              aria-label={`Страница ${p}`}
+              aria-current={p === currentPage ? 'page' : undefined}
             >
               {p}
             </Button>
@@ -162,6 +167,8 @@ const TicketFormStepServiceItems = ({
             className="h-9 w-9 rounded-lg"
             disabled={currentPage >= totalPages}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            title="Следующая страница"
+            aria-label="Следующая страница"
           >
             <Icon name="ChevronRight" size={16} />
           </Button>
