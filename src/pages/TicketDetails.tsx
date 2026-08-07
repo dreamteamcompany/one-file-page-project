@@ -63,6 +63,7 @@ const TicketDetails = () => {
     submittingComment,
     updating,
     sendingPing,
+    statusError,
     uploadingFile,
     pendingAttachments,
     removeAttachment,
@@ -381,6 +382,7 @@ const TicketDetails = () => {
               executorUsers={executorUsers}
               updating={updating || isClosed}
               sendingPing={sendingPing}
+              statusError={statusError}
               isCustomer={ticket.created_by === user?.id}
               hasAssignee={!!ticket.assigned_to}
               executorGroups={executorGroups}

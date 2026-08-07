@@ -10,6 +10,7 @@ import type { Ticket as AssignTicket, User as AssignUser, ExecutorGroup as Assig
 import ApprovalDialog from './sidebar/ApprovalDialog';
 import RecentTicketsBlock from './sidebar/RecentTicketsBlock';
 import TicketGroupBudget from './sidebar/TicketGroupBudget';
+import AccessChecklistBlock from './sidebar/AccessChecklistBlock';
 
 interface User {
   id: number;
@@ -94,6 +95,8 @@ interface TicketDetailsSidebarProps {
   onUpdateDueDate?: (dueDate: string | null) => void;
   hidePing?: boolean;
   onReopened?: () => void;
+  /** Ошибка смены статуса (например незакрытый чек-лист блокировки доступов) */
+  statusError?: string;
 }
 
 const TicketDetailsSidebar = ({
@@ -114,6 +117,7 @@ const TicketDetailsSidebar = ({
   onUpdateDueDate,
   hidePing = false,
   onReopened,
+  statusError,
 }: TicketDetailsSidebarProps) => {
   const { hasPermission, hasSystemRole } = useAuth();
   const canSeeGroup = hasSystemRole('admin', 'executor');
@@ -199,6 +203,8 @@ const TicketDetailsSidebar = ({
         </div>
 
         <TicketGroupBudget ticketId={ticket.id} />
+
+        <AccessChecklistBlock ticketId={ticket.id} closeError={statusError} />
 
         <TicketInfoFields
           ticket={ticket}

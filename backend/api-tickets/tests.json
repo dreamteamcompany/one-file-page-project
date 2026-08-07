@@ -202,6 +202,52 @@
         "error": "Требуется авторизация"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get ticket access checklist (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=ticket-access-checklist&ticket_id=1",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Update access checklist item (requires auth)",
+      "method": "PUT",
+      "path": "/?endpoint=ticket-access-checklist&item_id=1",
+      "body": {
+        "status": "done"
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get access checklist services (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=access-checklist-services",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Create access checklist service (requires auth)",
+      "method": "POST",
+      "path": "/?endpoint=access-checklist-services",
+      "body": {
+        "name": "Test service"
+      },
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }

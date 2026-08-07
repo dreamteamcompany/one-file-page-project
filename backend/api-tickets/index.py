@@ -9,6 +9,12 @@ from typing import Dict, Any, Optional, Set, List
 from pydantic import BaseModel, Field
 from shared_utils import response, get_db_connection, verify_token, handle_options, get_endpoint, SCHEMA
 from group_tracking_service import open_log_entry, track_assignment_change, track_ticket_closed
+from access_checklist_handler import (
+    handle_ticket_access_checklist,
+    handle_access_checklist_services,
+    sync_checklist_for_ticket,
+    check_can_close,
+)
 
 
 # Лимит размера ответа Cloud Functions (~4 МБ). Чтобы гарантированно влезть,
@@ -1645,6 +1651,10 @@ def _route(endpoint: str, method: str, event: dict, conn) -> dict:
         return handle_dashboard_team(method, event, conn)
     elif endpoint == 'escalation-tickets':
         return handle_escalation_tickets(method, event, conn)
+    elif endpoint == 'ticket-access-checklist':
+        return handle_ticket_access_checklist(method, event, conn)
+    elif endpoint == 'access-checklist-services':
+        return handle_access_checklist_services(method, event, conn)
     else:
         return response(400, {'error': 'Unknown endpoint'})
 
@@ -2483,7 +2493,13 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                 conn.rollback()
                 cur.close()
                 return response(400, {'error': f'Услуга с ID {data.ticket_service_id} не найдена'})
-        
+
+        # Чек-лист блокировки доступов (только для услуг с соответствующим признаком)
+        try:
+            sync_checklist_for_ticket(cur, ticket['id'])
+        except Exception as e:
+            print(f"[TICKETS] access checklist init error: {e}")
+
         # Сохраняем кастомные поля
         if data.custom_fields:
             for field_id, value in data.custom_fields.items():
@@ -2739,6 +2755,13 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                     if not allowed_roles or not (allowed_roles & user_roles):
                         cur.close()
                         return response(403, {'error': 'Недостаточно прав для установки этого статуса'})
+                # Заявку с чек-листом блокировки доступов нельзя закрыть или
+                # отправить на подтверждение, пока есть неотмеченные пункты.
+                blocked = check_can_close(cur, ticket_id, body['status_id'])
+                if blocked:
+                    conn.rollback()
+                    cur.close()
+                    return blocked
                 history_entries.append(('status_id', get_status_name(old_ticket['status_id']), get_status_name(body['status_id'])))
             update_fields.append("status_id = %s")
             params.append(body['status_id'])
@@ -2980,7 +3003,24 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
                     INSERT INTO {SCHEMA}.ticket_to_service_mappings (ticket_id, service_id, ticket_service_id)
                     VALUES (%s, %s, %s)
                 """, (ticket_id, service_id, ticket_service_id))
-        
+
+            # Услуга без привязанных сервисов: сохраняем саму услугу,
+            # иначе связь заявки с типом услуги потерялась бы.
+            if not body['service_ids'] and body.get('ticket_service_id'):
+                cur.execute(f"""
+                    INSERT INTO {SCHEMA}.ticket_to_service_mappings (ticket_id, service_id, ticket_service_id)
+                    VALUES (%s, NULL, %s)
+                    ON CONFLICT DO NOTHING
+                """, (ticket_id, int(body['ticket_service_id'])))
+
+            # Тип заявки сменили — при необходимости заводим чек-лист.
+            # Существующие пункты сохраняются: при возврате типа обратно
+            # отметки остаются на месте.
+            try:
+                sync_checklist_for_ticket(cur, ticket_id)
+            except Exception as e:
+                print(f"[TICKETS] access checklist sync error: {e}")
+
         if 'custom_fields' in body:
             cur.execute("DELETE FROM ticket_custom_field_values WHERE ticket_id = %s", (ticket_id,))
             for field_id, value in body['custom_fields'].items():
@@ -3916,6 +3956,12 @@ def handle_ticket_confirmation(method: str, event: dict, conn) -> dict:
             pending_status = cur.fetchone()
             if not pending_status:
                 return response(500, {'error': 'Статус "Ожидает подтверждения" не настроен'})
+
+            # Чек-лист блокировки доступов должен быть закрыт полностью
+            blocked = check_can_close(cur, ticket_id, pending_status['id'])
+            if blocked:
+                conn.rollback()
+                return blocked
 
             cur.execute(f"""
                 UPDATE {SCHEMA}.tickets

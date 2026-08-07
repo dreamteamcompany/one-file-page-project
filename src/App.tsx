@@ -24,6 +24,7 @@ import TicketDetails from "./pages/TicketDetails";
 import TicketServices from "./pages/TicketServices";
 import TicketServicesManagement from "./pages/TicketServicesManagement";
 import TicketServiceCategories from "./pages/TicketServiceCategories";
+import AccessChecklistServices from "./pages/AccessChecklistServices";
 import TicketStatuses from "./pages/TicketStatuses";
 import TicketPriorities from "./pages/TicketPriorities";
 import TicketWatcherRules from "./pages/TicketWatcherRules";
@@ -76,6 +77,7 @@ const App = () => {
             <Route path="/ticket-services" element={<ProtectedRoute><TicketServices /></ProtectedRoute>} />
             <Route path="/ticket-services-management" element={<ProtectedRoute><TicketServicesManagement /></ProtectedRoute>} />
             <Route path="/ticket-service-categories" element={<ProtectedRoute><TicketServiceCategories /></ProtectedRoute>} />
+            <Route path="/access-checklist-services" element={<ProtectedRoute><AccessChecklistServices /></ProtectedRoute>} />
             <Route path="/ticket-statuses" element={<ProtectedRoute><TicketStatuses /></ProtectedRoute>} />
             <Route path="/ticket-priorities" element={<ProtectedRoute><TicketPriorities /></ProtectedRoute>} />
             <Route path="/ticket-watcher-rules" element={<ProtectedRoute requiredPermission={{ resource: 'ticket_priorities', action: 'read' }}><TicketWatcherRules /></ProtectedRoute>} />

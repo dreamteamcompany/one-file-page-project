@@ -15,6 +15,7 @@ export const useTicketActions = (
   const [submittingComment, setSubmittingComment] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [sendingPing, setSendingPing] = useState(false);
+  const [statusError, setStatusError] = useState('');
   const commentUploader = useFileUploader('uploads/attachments');
 
   const handleSubmitComment = async (parentCommentId?: number, mentionedUserIds?: number[], overrideText?: string) => {
@@ -67,6 +68,7 @@ export const useTicketActions = (
     
     try {
       setUpdating(true);
+      setStatusError('');
       const response = await apiFetch(`${API_URL}?endpoint=tickets`, {
         method: 'PUT',
         headers: {
@@ -75,13 +77,18 @@ export const useTicketActions = (
         },
         body: JSON.stringify({ id: ticketId, status_id: statusId }),
       });
-      
+
       if (response.ok) {
         loadTicket(false);
         loadHistory();
+        return;
       }
+
+      const data = await response.json().catch(() => ({}));
+      setStatusError(data?.error || 'Не удалось изменить статус заявки');
     } catch (error) {
       console.error('Error updating status:', error);
+      setStatusError('Нет связи с сервером. Статус не изменён');
     } finally {
       setUpdating(false);
     }
@@ -327,6 +334,8 @@ export const useTicketActions = (
     submittingComment,
     updating,
     sendingPing,
+    statusError,
+    clearStatusError: () => setStatusError(''),
     uploadingFile: commentUploader.isUploading,
     pendingAttachments: commentUploader.attachments,
     removeAttachment: commentUploader.remove,

@@ -279,6 +279,45 @@ def handler(event, context):
             except (TypeError, ValueError):
                 return response(400, {'error': 'ticket_ids должны быть числами'})
 
+            # Чек-лист блокировки доступов: заявку нельзя закрыть или отправить
+            # на подтверждение, пока есть неотмеченные пункты.
+            cur.execute(
+                f"""
+                SELECT COALESCE(is_closed, false) OR COALESCE(is_pending_confirmation, false) AS blocking
+                FROM {SCHEMA}.ticket_statuses WHERE id = %s
+                """,
+                (status_id_int,),
+            )
+            _blocking_row = cur.fetchone()
+            if _blocking_row and _blocking_row[0]:
+                ph = ','.join(['%s'] * len(ticket_ids_int))
+                cur.execute(
+                    f"""
+                    SELECT t.id, COUNT(i.id) AS pending
+                    FROM {SCHEMA}.tickets t
+                    JOIN {SCHEMA}.ticket_to_service_mappings m ON m.ticket_id = t.id
+                    JOIN {SCHEMA}.ticket_services ts ON ts.id = m.ticket_service_id
+                    JOIN {SCHEMA}.ticket_access_checklist_items i
+                      ON i.ticket_id = t.id AND i.status = 'pending'
+                    WHERE t.id IN ({ph})
+                      AND COALESCE(ts.requires_access_checklist, false) = true
+                    GROUP BY t.id
+                    ORDER BY t.id
+                    """,
+                    ticket_ids_int,
+                )
+                blocked_rows = cur.fetchall()
+                if blocked_rows:
+                    blocked_ids = [str(r[0]) for r in blocked_rows]
+                    return response(409, {
+                        'error': (
+                            'Нельзя закрыть заявки с незаполненным чек-листом блокировки '
+                            f'доступов: №{", №".join(blocked_ids)}'
+                        ),
+                        'code': 'access_checklist_pending',
+                        'blocked_ticket_ids': [r[0] for r in blocked_rows],
+                    })
+
             old_status_ids = fetch_old_values(cur, ticket_ids_int, 'status_id')
             new_status_name = get_name_by_id(cur, 'ticket_statuses', status_id_int)
             old_status_names = {
