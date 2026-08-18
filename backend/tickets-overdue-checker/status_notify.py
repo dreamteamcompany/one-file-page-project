@@ -55,20 +55,29 @@ def run_status_notifications(cur, schema: str) -> dict:
         if not operator_ids:
             continue
 
-        # Порог по времени считаем прямо в SQL — возвращаем только "созревшие" заявки
+        # Порог по времени считаем прямо в SQL — возвращаем только "созревшие" заявки.
+        # Точка отсчёта:
+        #   1) оператор не отвечал        -> создание заявки
+        #   2) последний ответил оператор -> его последний комментарий
+        #   3) последний ответил заказчик -> его комментарий (ждём ответа оператора)
         cur.execute(f"""
             SELECT t.id, t.title, t.created_at, t.assigned_to, t.due_date,
                    p.name AS priority_name,
                    au.full_name AS assignee_name,
                    cu.full_name AS author_name,
                    lc.comment AS last_comment,
-                   lcu.full_name AS last_comment_author
+                   lcu.full_name AS last_comment_author,
+                   CASE
+                       WHEN lc.user_id IS NOT NULL AND NOT (lc.user_id = ANY(%s)) THEN 'customer_waiting'
+                       WHEN op.last_op_at IS NOT NULL THEN 'operator_silent'
+                       ELSE 'no_reply'
+                   END AS trigger_kind
             FROM {schema}.tickets t
             LEFT JOIN {schema}.ticket_priorities p ON p.id = t.priority_id
             LEFT JOIN {schema}.users au ON au.id = t.assigned_to
             LEFT JOIN {schema}.users cu ON cu.id = t.created_by
             LEFT JOIN LATERAL (
-                SELECT c.comment, c.user_id
+                SELECT c.comment, c.user_id, c.created_at
                 FROM {schema}.ticket_comments c
                 WHERE c.ticket_id = t.id
                 ORDER BY c.created_at DESC
@@ -83,9 +92,13 @@ def run_status_notifications(cur, schema: str) -> dict:
             ) op ON true
             WHERE t.status_id = %s
               AND COALESCE(t.is_archived, false) = false
-              AND COALESCE(op.last_op_at, t.created_at) IS NOT NULL
-              AND (NOW() - COALESCE(op.last_op_at, t.created_at)) >= (%s * INTERVAL '1 hour')
-        """, (operator_ids, st['id'], hours))
+              AND (NOW() - (
+                    CASE
+                        WHEN lc.user_id IS NOT NULL AND NOT (lc.user_id = ANY(%s)) THEN lc.created_at
+                        ELSE COALESCE(op.last_op_at, t.created_at)
+                    END
+                  )) >= (%s * INTERVAL '1 hour')
+        """, (operator_ids, operator_ids, st['id'], operator_ids, hours))
         tickets = cur.fetchall()
         checked_tickets += len(tickets)
 
