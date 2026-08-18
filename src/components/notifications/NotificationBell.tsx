@@ -197,8 +197,8 @@ const NotificationBell = () => {
                   <button
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}
-                    className={`w-full p-4 text-left hover:bg-accent transition-colors ${
-                      !notification.is_read ? 'bg-blue-50 dark:bg-blue-950/20' : ''
+                    className={`w-full p-4 text-left text-popover-foreground hover:bg-foreground/10 transition-colors ${
+                      !notification.is_read ? 'bg-primary/10' : ''
                     }`}
                   >
                     <div className="flex gap-3">
