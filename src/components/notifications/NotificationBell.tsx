@@ -143,6 +143,8 @@ const NotificationBell = () => {
         return { name: 'CheckCircle2', color: 'text-emerald-500' };
       case 'overdue':
         return { name: 'AlertTriangle', color: 'text-red-500' };
+      case 'status_reminder':
+        return { name: 'BellRing', color: 'text-amber-500' };
       default:
         return { name: 'Bell', color: 'text-gray-500' };
     }

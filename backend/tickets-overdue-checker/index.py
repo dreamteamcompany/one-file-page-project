@@ -6,6 +6,7 @@ import os
 import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from status_notify import run_status_notifications
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 SCHEMA = os.environ.get('MAIN_DB_SCHEMA')
@@ -35,46 +36,73 @@ def handler(event: dict, context) -> dict:
         """)
         overdue_tickets = cur.fetchall()
 
+        overdue_ids = [int(tk['id']) for tk in overdue_tickets]
+
+        watchers_map = {}
+        sent_map = {}
+        if overdue_ids:
+            cur.execute(f"""
+                SELECT ticket_id, user_id FROM {SCHEMA}.ticket_watchers
+                WHERE ticket_id = ANY(%s) AND user_id IS NOT NULL
+            """, (overdue_ids,))
+            for w in cur.fetchall():
+                watchers_map.setdefault(int(w['ticket_id']), set()).add(int(w['user_id']))
+
+            cur.execute(f"""
+                SELECT ticket_id, user_id FROM {SCHEMA}.notifications
+                WHERE ticket_id = ANY(%s)
+                  AND event_type = 'overdue'
+                  AND created_at > NOW() - INTERVAL '24 hours'
+            """, (overdue_ids,))
+            for r in cur.fetchall():
+                sent_map.setdefault(int(r['ticket_id']), set()).add(int(r['user_id']))
+
+        overdue_rows = []
         for tk in overdue_tickets:
-            ticket_id = tk['id']
+            ticket_id = int(tk['id'])
             recipients = set()
             if tk['assigned_to']:
                 recipients.add(int(tk['assigned_to']))
             if tk['created_by']:
                 recipients.add(int(tk['created_by']))
-
-            cur.execute(f"""
-                SELECT user_id FROM {SCHEMA}.ticket_watchers WHERE ticket_id = %s
-            """, (ticket_id,))
-            for w in cur.fetchall():
-                if w['user_id']:
-                    recipients.add(int(w['user_id']))
+            recipients |= watchers_map.get(ticket_id, set())
+            recipients -= sent_map.get(ticket_id, set())
 
             if not recipients:
                 continue
 
+            message = f"Заявка #{ticket_id} «{tk['title']}» просрочена"
             for uid in recipients:
-                cur.execute(f"""
-                    SELECT 1 FROM {SCHEMA}.notifications
-                    WHERE ticket_id = %s
-                      AND user_id = %s
-                      AND event_type = 'overdue'
-                      AND created_at > NOW() - INTERVAL '24 hours'
-                    LIMIT 1
-                """, (ticket_id, uid))
-                if cur.fetchone():
-                    continue
+                overdue_rows.append((uid, ticket_id, message))
+                notified_users.add(uid)
 
-                message = f"Заявка #{ticket_id} «{tk['title']}» просрочена"
+        if overdue_rows:
+            CHUNK = 500
+            for i in range(0, len(overdue_rows), CHUNK):
+                chunk = overdue_rows[i:i + CHUNK]
+                values_sql = ','.join(["(%s, %s, 'overdue', 'overdue', %s, false, NOW())"] * len(chunk))
+                args = []
+                for uid, tid, msg in chunk:
+                    args.extend([uid, tid, msg])
                 cur.execute(f"""
                     INSERT INTO {SCHEMA}.notifications
                         (user_id, ticket_id, type, event_type, message, is_read, created_at)
-                    VALUES (%s, %s, 'overdue', 'overdue', %s, false, NOW())
-                """, (uid, ticket_id, message))
-                created_overdue += 1
-                notified_users.add(uid)
+                    VALUES {values_sql}
+                """, args)
+                created_overdue += len(chunk)
 
         conn.commit()
+
+        status_stats = {}
+        try:
+            status_stats = run_status_notifications(cur, SCHEMA)
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            import traceback
+            print(f"[status-notify] error: {e}\n{traceback.format_exc()}")
+            status_stats = {'error': str(e)}
+
         return {
             'statusCode': 200,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
@@ -82,6 +110,7 @@ def handler(event: dict, context) -> dict:
                 'overdue_tickets': len(overdue_tickets),
                 'notifications_created': created_overdue,
                 'users_notified': len(notified_users),
+                'status_notifications': status_stats,
             })
         }
     except Exception as e:
