@@ -3400,6 +3400,33 @@ def handle_ticket_dictionaries(method: str, event: Dict[str, Any], conn) -> Dict
     finally:
         cur.close()
 
+def _parse_notify_settings(body: Dict[str, Any]) -> Dict[str, Any]:
+    """Разбирает настройки рассылки уведомлений для статуса заявки"""
+    enabled = bool(body.get('notify_enabled', False))
+    if not enabled:
+        return {'notify_enabled': False, 'notify_template_id': None,
+                'notify_interval_hours': None, 'notify_group_id': None}
+
+    def _int_or_none(val):
+        if val is None or val == '':
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    hours = _int_or_none(body.get('notify_interval_hours'))
+    if hours is not None and (hours < 1 or hours > 8760):
+        hours = None
+
+    return {
+        'notify_enabled': True,
+        'notify_template_id': _int_or_none(body.get('notify_template_id')),
+        'notify_interval_hours': hours,
+        'notify_group_id': _int_or_none(body.get('notify_group_id')),
+    }
+
+
 def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Обработчик для управления статусами заявок (ticket_statuses)"""
     payload = verify_token(event)
@@ -3408,7 +3435,7 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
     
     if method == 'GET':
         cur = conn.cursor()
-        cur.execute(f'SELECT id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, is_pending_confirmation, count_for_distribution, is_in_progress, is_reopened, COALESCE(is_paused, false) AS is_paused FROM {SCHEMA}.ticket_statuses ORDER BY id')
+        cur.execute(f'SELECT id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, is_pending_confirmation, count_for_distribution, is_in_progress, is_reopened, COALESCE(is_paused, false) AS is_paused, COALESCE(notify_enabled, false) AS notify_enabled, notify_template_id, notify_interval_hours, notify_group_id FROM {SCHEMA}.ticket_statuses ORDER BY id')
         statuses = [dict(row) for row in cur.fetchall()]
         role_map = _load_status_role_map(cur)
         for st in statuses:
@@ -3456,9 +3483,10 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         if is_waiting_response:
             cur.execute(f"UPDATE {SCHEMA}.ticket_statuses SET is_waiting_response = false WHERE is_waiting_response = true")
         
+        nf = _parse_notify_settings(body)
         cur.execute(
-            f"INSERT INTO {SCHEMA}.ticket_statuses (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened",
-            (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened)
+            f"INSERT INTO {SCHEMA}.ticket_statuses (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, notify_enabled, notify_template_id, notify_interval_hours, notify_group_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, notify_enabled, notify_template_id, notify_interval_hours, notify_group_id",
+            (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, nf['notify_enabled'], nf['notify_template_id'], nf['notify_interval_hours'], nf['notify_group_id'])
         )
         status = dict(cur.fetchone())
         _replace_status_roles(cur, status['id'], role_ids)
@@ -3503,9 +3531,10 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         if is_waiting_response:
             cur.execute(f"UPDATE {SCHEMA}.ticket_statuses SET is_waiting_response = false WHERE is_waiting_response = true AND id != %s", (status_id,))
         
+        nf = _parse_notify_settings(body)
         cur.execute(
-            f"UPDATE {SCHEMA}.ticket_statuses SET name = %s, color = %s, is_closed = %s, is_open = %s, is_approval = %s, is_approval_revoked = %s, is_approved = %s, is_waiting_response = %s, count_for_distribution = %s, is_in_progress = %s, is_reopened = %s WHERE id = %s RETURNING id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened",
-            (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, status_id)
+            f"UPDATE {SCHEMA}.ticket_statuses SET name = %s, color = %s, is_closed = %s, is_open = %s, is_approval = %s, is_approval_revoked = %s, is_approved = %s, is_waiting_response = %s, count_for_distribution = %s, is_in_progress = %s, is_reopened = %s, notify_enabled = %s, notify_template_id = %s, notify_interval_hours = %s, notify_group_id = %s WHERE id = %s RETURNING id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, notify_enabled, notify_template_id, notify_interval_hours, notify_group_id",
+            (name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, count_for_distribution, is_in_progress, is_reopened, nf['notify_enabled'], nf['notify_template_id'], nf['notify_interval_hours'], nf['notify_group_id'], status_id)
         )
         status = dict(cur.fetchone())
         

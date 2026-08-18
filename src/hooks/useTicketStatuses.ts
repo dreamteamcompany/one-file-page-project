@@ -19,6 +19,30 @@ export interface TicketStatus {
   is_reopened: boolean;
   is_paused?: boolean;
   role_ids?: number[];
+  notify_enabled?: boolean;
+  notify_template_id?: number | null;
+  notify_interval_hours?: number | null;
+  notify_group_id?: number | null;
+}
+
+export interface StatusFormData {
+  name: string;
+  color: string;
+  is_closed: boolean;
+  is_open: boolean;
+  is_approval: boolean;
+  is_approval_revoked: boolean;
+  is_approved: boolean;
+  is_waiting_response: boolean;
+  is_awaiting_confirmation: boolean;
+  count_for_distribution: boolean;
+  is_in_progress: boolean;
+  is_reopened: boolean;
+  role_ids: number[];
+  notify_enabled: boolean;
+  notify_template_id: number | null;
+  notify_interval_hours: string;
+  notify_group_id: number | null;
 }
 
 export const useTicketStatuses = () => {
@@ -50,21 +74,7 @@ export const useTicketStatuses = () => {
   };
 
   const saveStatus = async (
-    formData: {
-      name: string;
-      color: string;
-      is_closed: boolean;
-      is_open: boolean;
-      is_approval: boolean;
-      is_approval_revoked: boolean;
-      is_approved: boolean;
-      is_waiting_response: boolean;
-      is_awaiting_confirmation: boolean;
-      count_for_distribution: boolean;
-      is_in_progress: boolean;
-      is_reopened: boolean;
-      role_ids: number[];
-    },
+    formData: StatusFormData,
     editingStatus: TicketStatus | null
   ) => {
     const requiredPermission = editingStatus ? 'update' : 'create';
@@ -76,9 +86,14 @@ export const useTicketStatuses = () => {
     try {
       const url = `${API_URL}?endpoint=ticket-statuses`;
       const method = editingStatus ? 'PUT' : 'POST';
-      const body = editingStatus 
-        ? { id: editingStatus.id, ...formData }
-        : formData;
+      const hours = parseInt(formData.notify_interval_hours, 10);
+      const payload = {
+        ...formData,
+        notify_interval_hours: Number.isFinite(hours) ? hours : null,
+      };
+      const body = editingStatus
+        ? { id: editingStatus.id, ...payload }
+        : payload;
 
       const response = await apiFetch(url, {
         method,

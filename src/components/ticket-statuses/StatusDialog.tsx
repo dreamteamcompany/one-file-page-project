@@ -14,7 +14,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import Icon from '@/components/ui/icon';
 import { apiFetch, API_URL } from '@/utils/api';
-import type { TicketStatus } from '@/hooks/useTicketStatuses';
+import type { TicketStatus, StatusFormData } from '@/hooks/useTicketStatuses';
+import StatusNotifySettings from './StatusNotifySettings';
 
 interface RoleOption {
   id: number;
@@ -50,21 +51,7 @@ interface StatusDialogProps {
   onOpenChange: (open: boolean) => void;
   editingStatus: TicketStatus | null;
   onSave: (
-    formData: {
-      name: string;
-      color: string;
-      is_closed: boolean;
-      is_open: boolean;
-      is_approval: boolean;
-      is_approval_revoked: boolean;
-      is_approved: boolean;
-      is_waiting_response: boolean;
-      is_awaiting_confirmation: boolean;
-      count_for_distribution: boolean;
-      is_in_progress: boolean;
-      is_reopened: boolean;
-      role_ids: number[];
-    },
+    formData: StatusFormData,
     editingStatus: TicketStatus | null
   ) => Promise<boolean>;
   onReset: () => void;
@@ -84,7 +71,7 @@ const StatusDialog = ({
   onSave,
   onReset,
 }: StatusDialogProps) => {
-  const defaultFormData = {
+  const defaultFormData: StatusFormData = {
     name: '',
     color: '#3b82f6',
     is_closed: false,
@@ -97,7 +84,11 @@ const StatusDialog = ({
     count_for_distribution: false,
     is_in_progress: false,
     is_reopened: false,
-    role_ids: [] as number[],
+    role_ids: [],
+    notify_enabled: false,
+    notify_template_id: null,
+    notify_interval_hours: '',
+    notify_group_id: null,
   };
 
   const [formData, setFormData] = useState(defaultFormData);
@@ -129,6 +120,13 @@ const StatusDialog = ({
         is_in_progress: editingStatus.is_in_progress || false,
         is_reopened: editingStatus.is_reopened || false,
         role_ids: editingStatus.role_ids ? [...editingStatus.role_ids] : [],
+        notify_enabled: editingStatus.notify_enabled || false,
+        notify_template_id: editingStatus.notify_template_id ?? null,
+        notify_interval_hours:
+          editingStatus.notify_interval_hours != null
+            ? String(editingStatus.notify_interval_hours)
+            : '',
+        notify_group_id: editingStatus.notify_group_id ?? null,
       });
     } else {
       setFormData(defaultFormData);
@@ -137,6 +135,21 @@ const StatusDialog = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.notify_enabled) {
+      if (!formData.notify_template_id) {
+        alert('Выберите шаблон уведомления');
+        return;
+      }
+      if (!formData.notify_group_id) {
+        alert('Выберите группу операторов');
+        return;
+      }
+      const hours = parseInt(formData.notify_interval_hours, 10);
+      if (!Number.isFinite(hours) || hours < 1 || hours > 8760) {
+        alert('Укажите периодичность в часах (от 1 до 8760)');
+        return;
+      }
+    }
     const success = await onSave(formData, editingStatus);
     if (success) {
       onOpenChange(false);
@@ -315,6 +328,15 @@ const StatusDialog = ({
               </p>
             </div>
           </div>
+
+          <StatusNotifySettings
+            open={open}
+            enabled={formData.notify_enabled}
+            templateId={formData.notify_template_id}
+            groupId={formData.notify_group_id}
+            intervalHours={formData.notify_interval_hours}
+            onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+          />
 
           <div className="space-y-2">
             <Label>Доступно для ролей</Label>
