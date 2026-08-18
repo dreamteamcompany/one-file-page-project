@@ -237,6 +237,14 @@ const Settings = () => {
       permission: { resource: 'settings', action: 'read' },
     },
     {
+      title: 'Уведомления',
+      description: 'Тексты уведомлений и хэштеги с данными заявки',
+      icon: 'Bell',
+      color: 'hsl(200, 80%, 55%)',
+      path: '/settings/notifications',
+      permission: { resource: 'settings', action: 'read' },
+    },
+    {
       title: 'Автоматизация',
       description: 'Периодический запуск синхронизации и проверок',
       icon: 'Zap',

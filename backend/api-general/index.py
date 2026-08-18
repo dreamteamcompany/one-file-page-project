@@ -9,6 +9,7 @@ from contractors_handler import handle_contractors
 from legal_entities_handler import handle_legal_entities
 from customer_departments_handler import handle_customer_departments
 from system_settings_handler import handle_system_settings
+from notification_templates_handler import handle_notification_templates
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -55,6 +56,8 @@ def handler(event, context):
             return handle_customer_departments(method, event, conn)
         elif resource == 'system_settings':
             return handle_system_settings(method, event, conn, payload)
+        elif resource == 'notification_templates':
+            return handle_notification_templates(method, event, conn, payload)
         else:
             return response(400, {'error': f'Unknown resource: {resource}'})
     
