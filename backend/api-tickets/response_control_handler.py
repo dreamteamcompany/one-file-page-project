@@ -20,7 +20,11 @@ _REACTED_EXISTS = f"""
         WHERE c.ticket_id = l.ticket_id
           AND c.created_at > l.created_at
           AND (
-              c.user_id IN (
+              (l.rule_id IS NOT NULL AND c.user_id IN (
+                  SELECT ru.user_id FROM {SCHEMA}.ticket_status_notify_rule_users ru
+                  WHERE ru.rule_id = l.rule_id
+              ))
+              OR c.user_id IN (
                   SELECT n.user_id FROM {SCHEMA}.ticket_status_notify_users n
                   WHERE n.status_id = l.status_id
               )
@@ -135,7 +139,11 @@ def handle_response_control(method: str, event: dict, conn) -> dict:
                    WHERE c.ticket_id = l.ticket_id
                      AND c.created_at > l.created_at
                      AND (
-                         c.user_id IN (
+                         (l.rule_id IS NOT NULL AND c.user_id IN (
+                             SELECT ru.user_id FROM {SCHEMA}.ticket_status_notify_rule_users ru
+                             WHERE ru.rule_id = l.rule_id
+                         ))
+                         OR c.user_id IN (
                              SELECT n.user_id FROM {SCHEMA}.ticket_status_notify_users n
                              WHERE n.status_id = l.status_id
                          )

@@ -24,6 +24,13 @@ export interface TicketStatus {
   notify_interval_hours?: number | null;
   notify_group_id?: number | null;
   notify_user_ids?: number[];
+  notify_rules?: {
+    id: number;
+    template_id: number | null;
+    interval_hours: number | null;
+    is_active: boolean;
+    user_ids: number[];
+  }[];
 }
 
 export interface StatusFormData {
@@ -45,6 +52,13 @@ export interface StatusFormData {
   notify_interval_hours: string;
   notify_group_id: number | null;
   notify_user_ids: number[];
+  notify_rules: {
+    id?: number;
+    template_id: number | null;
+    interval_hours: string;
+    is_active: boolean;
+    user_ids: number[];
+  }[];
 }
 
 export const useTicketStatuses = () => {
@@ -92,6 +106,15 @@ export const useTicketStatuses = () => {
       const payload = {
         ...formData,
         notify_interval_hours: Number.isFinite(hours) ? hours : null,
+        notify_rules: (formData.notify_rules || []).map((r) => {
+          const h = parseInt(r.interval_hours, 10);
+          return {
+            template_id: r.template_id,
+            interval_hours: Number.isFinite(h) ? h : null,
+            is_active: r.is_active,
+            user_ids: r.user_ids,
+          };
+        }),
       };
       const body = editingStatus
         ? { id: editingStatus.id, ...payload }

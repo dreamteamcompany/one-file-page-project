@@ -31,28 +31,41 @@ def run_status_notifications(cur, schema: str) -> dict:
     checked_tickets = 0
     notified_users = set()
 
+    # Каждое правило статуса обрабатывается независимо: свой шаблон,
+    # свой интервал и свой список операторов.
     cur.execute(f"""
-        SELECT s.id, s.name, s.notify_interval_hours, s.notify_group_id,
+        SELECT r.id AS rule_id, s.id, s.name, s.notify_group_id,
+               r.interval_hours AS notify_interval_hours,
                nt.content AS template_content
-        FROM {schema}.ticket_statuses s
-        JOIN {schema}.notification_templates nt ON nt.id = s.notify_template_id
+        FROM {schema}.ticket_status_notify_rules r
+        JOIN {schema}.ticket_statuses s ON s.id = r.status_id
+        JOIN {schema}.notification_templates nt ON nt.id = r.template_id
         WHERE COALESCE(s.notify_enabled, false) = true
-          AND s.notify_interval_hours IS NOT NULL
-          AND s.notify_interval_hours > 0
+          AND COALESCE(r.is_active, true) = true
+          AND r.interval_hours IS NOT NULL
+          AND r.interval_hours > 0
           AND COALESCE(nt.is_active, false) = true
+        ORDER BY r.status_id, r.sort_order, r.id
     """)
     statuses = cur.fetchall()
 
     for st in statuses:
         hours = int(st['notify_interval_hours'])
         group_id = int(st['notify_group_id']) if st['notify_group_id'] else None
+        rule_id = int(st['rule_id'])
 
-        # Приоритет — персонально выбранные операторы статуса.
-        # Если их нет, откатываемся на состав группы (старое поведение).
+        # Операторы правила. Если не заданы — операторы статуса,
+        # затем состав группы (старое поведение).
         cur.execute(f"""
-            SELECT user_id FROM {schema}.ticket_status_notify_users WHERE status_id = %s
-        """, (st['id'],))
+            SELECT user_id FROM {schema}.ticket_status_notify_rule_users WHERE rule_id = %s
+        """, (rule_id,))
         operator_ids = [int(r['user_id']) for r in cur.fetchall() if r['user_id']]
+
+        if not operator_ids:
+            cur.execute(f"""
+                SELECT user_id FROM {schema}.ticket_status_notify_users WHERE status_id = %s
+            """, (st['id'],))
+            operator_ids = [int(r['user_id']) for r in cur.fetchall() if r['user_id']]
 
         if not operator_ids and group_id:
             cur.execute(f"""
@@ -128,14 +141,16 @@ def run_status_notifications(cur, schema: str) -> dict:
         for w in cur.fetchall():
             watchers_map.setdefault(int(w['ticket_id']), set()).add(int(w['user_id']))
 
-        # Уже отправленные напоминания за период — тоже одним запросом
+        # Уже отправленные напоминания за период — тоже одним запросом.
+        # Считаем только по этому правилу, чтобы правила не глушили друг друга.
         sent_map = {}
         cur.execute(f"""
             SELECT ticket_id, user_id FROM {schema}.notifications
             WHERE ticket_id = ANY(%s)
               AND event_type = %s
+              AND rule_id = %s
               AND created_at > NOW() - (%s * INTERVAL '1 hour')
-        """, (ticket_ids, EVENT_TYPE, hours))
+        """, (ticket_ids, EVENT_TYPE, rule_id, hours))
         for r in cur.fetchall():
             sent_map.setdefault(int(r['ticket_id']), set()).add(int(r['user_id']))
 
@@ -176,7 +191,7 @@ def run_status_notifications(cur, schema: str) -> dict:
             log_rows.append((
                 tid, st['id'], group_id, tk['trigger_kind'],
                 int(tk['assigned_to']) if tk['assigned_to'] else None,
-                hours, tk['reference_at'], len(recipients),
+                hours, tk['reference_at'], len(recipients), rule_id,
             ))
 
         # Вставка пачкой — один запрос на статус
@@ -184,13 +199,13 @@ def run_status_notifications(cur, schema: str) -> dict:
             CHUNK = 500
             for i in range(0, len(rows_to_insert), CHUNK):
                 chunk = rows_to_insert[i:i + CHUNK]
-                values_sql = ','.join(['(%s, %s, %s, %s, %s, false, NOW())'] * len(chunk))
+                values_sql = ','.join(['(%s, %s, %s, %s, %s, false, %s, NOW())'] * len(chunk))
                 args = []
                 for uid, tid, message in chunk:
-                    args.extend([uid, tid, EVENT_TYPE, EVENT_TYPE, message])
+                    args.extend([uid, tid, EVENT_TYPE, EVENT_TYPE, message, rule_id])
                 cur.execute(f"""
                     INSERT INTO {schema}.notifications
-                        (user_id, ticket_id, type, event_type, message, is_read, created_at)
+                        (user_id, ticket_id, type, event_type, message, is_read, rule_id, created_at)
                     VALUES {values_sql}
                 """, args)
                 created += len(chunk)
@@ -201,7 +216,7 @@ def run_status_notifications(cur, schema: str) -> dict:
             for i in range(0, len(log_rows), CHUNK):
                 chunk = log_rows[i:i + CHUNK]
                 values_sql = ','.join(
-                    ['(%s, %s, %s, %s, %s, %s, %s, %s, NOW())'] * len(chunk)
+                    ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())'] * len(chunk)
                 )
                 args = []
                 for row in chunk:
@@ -209,7 +224,7 @@ def run_status_notifications(cur, schema: str) -> dict:
                 cur.execute(f"""
                     INSERT INTO {schema}.ticket_response_log
                         (ticket_id, status_id, group_id, trigger_kind, assigned_to,
-                         interval_hours, reference_at, recipients_count, created_at)
+                         interval_hours, reference_at, recipients_count, rule_id, created_at)
                     VALUES {values_sql}
                 """, args)
 

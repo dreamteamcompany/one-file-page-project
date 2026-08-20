@@ -90,6 +90,7 @@ const StatusDialog = ({
     notify_interval_hours: '',
     notify_group_id: null,
     notify_user_ids: [],
+    notify_rules: [],
   };
 
   const [formData, setFormData] = useState(defaultFormData);
@@ -131,6 +132,13 @@ const StatusDialog = ({
         notify_user_ids: editingStatus.notify_user_ids
           ? [...editingStatus.notify_user_ids]
           : [],
+        notify_rules: (editingStatus.notify_rules || []).map((r) => ({
+          id: r.id,
+          template_id: r.template_id ?? null,
+          interval_hours: r.interval_hours != null ? String(r.interval_hours) : '',
+          is_active: r.is_active !== false,
+          user_ids: r.user_ids ? [...r.user_ids] : [],
+        })),
       });
     } else {
       setFormData(defaultFormData);
@@ -140,18 +148,26 @@ const StatusDialog = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.notify_enabled) {
-      if (!formData.notify_template_id) {
-        alert('Выберите шаблон уведомления');
+      const rules = formData.notify_rules || [];
+      if (rules.length === 0) {
+        alert('Добавьте хотя бы одно уведомление');
         return;
       }
-      if (!formData.notify_user_ids || formData.notify_user_ids.length === 0) {
-        alert('Выберите хотя бы одного оператора');
-        return;
-      }
-      const hours = parseInt(formData.notify_interval_hours, 10);
-      if (!Number.isFinite(hours) || hours < 1 || hours > 8760) {
-        alert('Укажите периодичность в часах (от 1 до 8760)');
-        return;
+      for (let i = 0; i < rules.length; i += 1) {
+        const r = rules[i];
+        if (!r.template_id) {
+          alert(`Уведомление ${i + 1}: выберите шаблон`);
+          return;
+        }
+        if (!r.user_ids || r.user_ids.length === 0) {
+          alert(`Уведомление ${i + 1}: выберите хотя бы одного оператора`);
+          return;
+        }
+        const hours = parseInt(r.interval_hours, 10);
+        if (!Number.isFinite(hours) || hours < 1 || hours > 8760) {
+          alert(`Уведомление ${i + 1}: укажите периодичность в часах (от 1 до 8760)`);
+          return;
+        }
       }
     }
     const success = await onSave(formData, editingStatus);
@@ -336,9 +352,7 @@ const StatusDialog = ({
           <StatusNotifySettings
             open={open}
             enabled={formData.notify_enabled}
-            templateId={formData.notify_template_id}
-            userIds={formData.notify_user_ids}
-            intervalHours={formData.notify_interval_hours}
+            rules={formData.notify_rules}
             onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
           />
 

@@ -3480,6 +3480,123 @@ def _load_status_notify_users_map(cur) -> Dict[int, List[int]]:
     return result
 
 
+def _parse_notify_rules(body: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Разбирает список правил уведомлений статуса. None — правила не переданы."""
+    raw = body.get('notify_rules')
+    if not isinstance(raw, list):
+        return None
+
+    def _int_or_none(val):
+        if val is None or val == '':
+            return None
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return None
+
+    rules = []
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        template_id = _int_or_none(item.get('template_id'))
+        hours = _int_or_none(item.get('interval_hours'))
+        if template_id is None or hours is None:
+            continue
+        if hours < 1 or hours > 8760:
+            continue
+
+        user_ids = []
+        for v in (item.get('user_ids') or []):
+            uid = _int_or_none(v)
+            if uid and uid > 0 and uid not in user_ids:
+                user_ids.append(uid)
+        if not user_ids:
+            continue
+
+        rules.append({
+            'template_id': template_id,
+            'interval_hours': hours,
+            'is_active': bool(item.get('is_active', True)),
+            'sort_order': idx,
+            'user_ids': user_ids,
+        })
+    return rules
+
+
+def _replace_status_notify_rules(cur, status_id: int, rules: List[Dict[str, Any]]) -> None:
+    """Перезаписывает правила уведомлений статуса вместе с получателями"""
+    cur.execute(f"""
+        DELETE FROM {SCHEMA}.ticket_status_notify_rule_users
+        WHERE rule_id IN (
+            SELECT id FROM {SCHEMA}.ticket_status_notify_rules WHERE status_id = %s
+        )
+    """, (status_id,))
+    cur.execute(
+        f"DELETE FROM {SCHEMA}.ticket_status_notify_rules WHERE status_id = %s",
+        (status_id,)
+    )
+
+    for rule in rules:
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.ticket_status_notify_rules
+                (status_id, template_id, interval_hours, sort_order, is_active)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id
+        """, (status_id, rule['template_id'], rule['interval_hours'],
+              rule['sort_order'], rule['is_active']))
+        rule_id = int(cur.fetchone()['id'])
+
+        user_ids = rule['user_ids']
+        values_sql = ','.join(['(%s, %s)'] * len(user_ids))
+        args = []
+        for uid in user_ids:
+            args.extend([rule_id, uid])
+        cur.execute(f"""
+            INSERT INTO {SCHEMA}.ticket_status_notify_rule_users (rule_id, user_id)
+            VALUES {values_sql}
+            ON CONFLICT (rule_id, user_id) DO NOTHING
+        """, args)
+
+
+def _load_status_notify_rules(cur, status_id: Optional[int] = None) -> Dict[int, List[Dict[str, Any]]]:
+    """Правила уведомлений по статусам вместе с получателями"""
+    if status_id is None:
+        cur.execute(f"""
+            SELECT r.id, r.status_id, r.template_id, r.interval_hours,
+                   r.sort_order, r.is_active
+            FROM {SCHEMA}.ticket_status_notify_rules r
+            ORDER BY r.status_id, r.sort_order, r.id
+        """)
+    else:
+        cur.execute(f"""
+            SELECT r.id, r.status_id, r.template_id, r.interval_hours,
+                   r.sort_order, r.is_active
+            FROM {SCHEMA}.ticket_status_notify_rules r
+            WHERE r.status_id = %s
+            ORDER BY r.sort_order, r.id
+        """, (status_id,))
+    rules = [dict(r) for r in cur.fetchall()]
+    if not rules:
+        return {}
+
+    rule_ids = [int(r['id']) for r in rules]
+    cur.execute(f"""
+        SELECT rule_id, user_id
+        FROM {SCHEMA}.ticket_status_notify_rule_users
+        WHERE rule_id = ANY(%s)
+        ORDER BY rule_id, user_id
+    """, (rule_ids,))
+    users_map: Dict[int, List[int]] = {}
+    for row in cur.fetchall():
+        users_map.setdefault(int(row['rule_id']), []).append(int(row['user_id']))
+
+    result: Dict[int, List[Dict[str, Any]]] = {}
+    for r in rules:
+        r['user_ids'] = users_map.get(int(r['id']), [])
+        result.setdefault(int(r['status_id']), []).append(r)
+    return result
+
+
 def handle_status_notify_operators(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Сотрудники, состоящие в группах исполнителей — кандидаты для рассылки"""
     if method != 'GET':
@@ -3518,9 +3635,11 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         statuses = [dict(row) for row in cur.fetchall()]
         role_map = _load_status_role_map(cur)
         notify_users_map = _load_status_notify_users_map(cur)
+        notify_rules_map = _load_status_notify_rules(cur)
         for st in statuses:
             st['role_ids'] = role_map.get(st['id'], [])
             st['notify_user_ids'] = notify_users_map.get(st['id'], [])
+            st['notify_rules'] = notify_rules_map.get(st['id'], [])
         params = event.get('queryStringParameters') or {}
         if str(params.get('filter_by_role', '')).lower() in ('1', 'true', 'yes'):
             user_id = payload.get('user_id')
@@ -3575,6 +3694,10 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         notify_user_ids = _parse_notify_user_ids(body) if nf['notify_enabled'] else []
         _replace_status_notify_users(cur, status['id'], notify_user_ids)
         status['notify_user_ids'] = notify_user_ids
+        parsed_rules = _parse_notify_rules(body)
+        rules_to_save = (parsed_rules or []) if nf['notify_enabled'] else []
+        _replace_status_notify_rules(cur, status['id'], rules_to_save)
+        status['notify_rules'] = _load_status_notify_rules(cur, status['id']).get(status['id'], [])
         conn.commit()
         cur.close()
         return response(201, status)
@@ -3639,6 +3762,12 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
             (status_id,)
         )
         status['notify_user_ids'] = [int(r['user_id']) for r in cur.fetchall()]
+
+        parsed_rules = _parse_notify_rules(body)
+        if parsed_rules is not None or not nf['notify_enabled']:
+            rules_to_save = (parsed_rules or []) if nf['notify_enabled'] else []
+            _replace_status_notify_rules(cur, status_id, rules_to_save)
+        status['notify_rules'] = _load_status_notify_rules(cur, status_id).get(status_id, [])
         
         cur.execute(
             f"UPDATE {SCHEMA}.tickets SET is_archived = %s WHERE status_id = %s AND COALESCE(is_archived, false) <> %s",
