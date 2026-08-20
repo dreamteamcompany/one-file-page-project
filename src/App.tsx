@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import AutomationSettings from "./pages/AutomationSettings";
 import IntegrationsSettings from "./pages/IntegrationsSettings";
 import NotificationSettings from "./pages/NotificationSettings";
+import ResponseControl from "./pages/ResponseControl";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Tickets from "./pages/Tickets";
 import TicketDetails from "./pages/TicketDetails";
@@ -73,6 +74,7 @@ const App = () => {
             <Route path="/settings/automation" element={<ProtectedRoute><AutomationSettings /></ProtectedRoute>} />
             <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationsSettings /></ProtectedRoute>} />
             <Route path="/settings/notifications" element={<ProtectedRoute><NotificationSettings /></ProtectedRoute>} />
+            <Route path="/settings/response-control" element={<ProtectedRoute requiredPermission={{ resource: 'response_control', action: 'read' }}><ResponseControl /></ProtectedRoute>} />
             <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
             <Route path="/tickets" element={<ProtectedRoute><Tickets /></ProtectedRoute>} />
             <Route path="/tickets/:id" element={<ProtectedRoute><TicketDetails /></ProtectedRoute>} />

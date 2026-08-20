@@ -173,6 +173,7 @@ from sla_handler import handle_sla, handle_sla_priority_times
 from sla_group_budgets_handler import handle_sla_group_budgets
 from sla_service_mappings_handler import handle_sla_service_mappings, resolve_sla_for_ticket
 from sla_analytics_handler import handle_sla_analytics
+from response_control_handler import handle_response_control
 from executor_assignment_resolver import resolve_executor, resolve_executor_group
 from bitrix_bot_notifier import notify_executor_assigned, notify_watcher_added
 from max_bot_notifier import (
@@ -1655,6 +1656,8 @@ def _route(endpoint: str, method: str, event: dict, conn) -> dict:
         return handle_ticket_access_checklist(method, event, conn)
     elif endpoint == 'access-checklist-services':
         return handle_access_checklist_services(method, event, conn)
+    elif endpoint == 'response-control':
+        return handle_response_control(method, event, conn)
     else:
         return response(400, {'error': 'Unknown endpoint'})
 

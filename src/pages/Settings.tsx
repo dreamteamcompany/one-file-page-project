@@ -129,6 +129,7 @@ const Settings = () => {
     ['users', 'read'],
     ['roles', 'read'],
     ['log_analyzer', 'read'],
+    ['response_control', 'read'],
   ];
   const canAccessSettings = settingsAccessResources.some(([r, a]) => hasPermission(r, a));
 
@@ -166,6 +167,7 @@ const Settings = () => {
         { name: 'Статусы заявок', path: '/ticket-statuses', icon: 'CircleDot', permission: { resource: 'ticket_statuses', action: 'read' } },
         { name: 'Приоритеты заявок', path: '/ticket-priorities', icon: 'AlertCircle', permission: { resource: 'ticket_priorities', action: 'read' } },
         { name: 'Наблюдатели', path: '/ticket-watcher-rules', icon: 'Eye', permission: { resource: 'ticket_priorities', action: 'read' } },
+        { name: 'Контроль реакции', path: '/settings/response-control', icon: 'AlarmClock', permission: { resource: 'response_control', action: 'read' } },
         { name: 'Шаблоны ответов', path: '/reply-templates', icon: 'MessageSquare', permission: { resource: 'ticket_priorities', action: 'read' } },
         { name: 'Чек-лист блокировки доступов', path: '/access-checklist-services', icon: 'ShieldOff', permission: { resource: 'access_checklist', action: 'read' } },
       ],

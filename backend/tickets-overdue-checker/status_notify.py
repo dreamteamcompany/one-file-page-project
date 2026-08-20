@@ -71,7 +71,11 @@ def run_status_notifications(cur, schema: str) -> dict:
                        WHEN lc.user_id IS NOT NULL AND NOT (lc.user_id = ANY(%s)) THEN 'customer_waiting'
                        WHEN op.last_op_at IS NOT NULL THEN 'operator_silent'
                        ELSE 'no_reply'
-                   END AS trigger_kind
+                   END AS trigger_kind,
+                   CASE
+                       WHEN lc.user_id IS NOT NULL AND NOT (lc.user_id = ANY(%s)) THEN lc.created_at
+                       ELSE COALESCE(op.last_op_at, t.created_at)
+                   END AS reference_at
             FROM {schema}.tickets t
             LEFT JOIN {schema}.ticket_priorities p ON p.id = t.priority_id
             LEFT JOIN {schema}.users au ON au.id = t.assigned_to
@@ -98,7 +102,7 @@ def run_status_notifications(cur, schema: str) -> dict:
                         ELSE COALESCE(op.last_op_at, t.created_at)
                     END
                   )) >= (%s * INTERVAL '1 hour')
-        """, (operator_ids, operator_ids, st['id'], operator_ids, hours))
+        """, (operator_ids, operator_ids, operator_ids, st['id'], operator_ids, hours))
         tickets = cur.fetchall()
         checked_tickets += len(tickets)
 
@@ -128,6 +132,7 @@ def run_status_notifications(cur, schema: str) -> dict:
             sent_map.setdefault(int(r['ticket_id']), set()).add(int(r['user_id']))
 
         rows_to_insert = []
+        log_rows = []
         for tk in tickets:
             tid = int(tk['id'])
 
@@ -160,6 +165,12 @@ def run_status_notifications(cur, schema: str) -> dict:
                 rows_to_insert.append((uid, tid, message))
                 notified_users.add(uid)
 
+            log_rows.append((
+                tid, st['id'], group_id, tk['trigger_kind'],
+                int(tk['assigned_to']) if tk['assigned_to'] else None,
+                hours, tk['reference_at'], len(recipients),
+            ))
+
         # Вставка пачкой — один запрос на статус
         if rows_to_insert:
             CHUNK = 500
@@ -175,6 +186,24 @@ def run_status_notifications(cur, schema: str) -> dict:
                     VALUES {values_sql}
                 """, args)
                 created += len(chunk)
+
+        # Журнал срабатываний: одна строка на заявку, а не на получателя
+        if log_rows:
+            CHUNK = 500
+            for i in range(0, len(log_rows), CHUNK):
+                chunk = log_rows[i:i + CHUNK]
+                values_sql = ','.join(
+                    ['(%s, %s, %s, %s, %s, %s, %s, %s, NOW())'] * len(chunk)
+                )
+                args = []
+                for row in chunk:
+                    args.extend(row)
+                cur.execute(f"""
+                    INSERT INTO {schema}.ticket_response_log
+                        (ticket_id, status_id, group_id, trigger_kind, assigned_to,
+                         interval_hours, reference_at, recipients_count, created_at)
+                    VALUES {values_sql}
+                """, args)
 
     return {
         'statuses_with_notify': len(statuses),
