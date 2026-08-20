@@ -76,7 +76,10 @@ const NotifyOperatorsPicker = ({ operators, selectedIds, onChange }: Props) => {
               value={search}
               onValueChange={setSearch}
             />
-            <CommandList>
+            <CommandList
+              className="max-h-[280px] overflow-y-auto overscroll-contain"
+              onWheel={(e) => e.stopPropagation()}
+            >
               <CommandEmpty>
                 {operators.length === 0
                   ? 'Нет сотрудников в группах исполнителей'
