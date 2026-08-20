@@ -1658,6 +1658,8 @@ def _route(endpoint: str, method: str, event: dict, conn) -> dict:
         return handle_access_checklist_services(method, event, conn)
     elif endpoint == 'response-control':
         return handle_response_control(method, event, conn)
+    elif endpoint == 'status-notify-operators':
+        return handle_status_notify_operators(method, event, conn)
     else:
         return response(400, {'error': 'Unknown endpoint'})
 
@@ -3430,6 +3432,80 @@ def _parse_notify_settings(body: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _parse_notify_user_ids(body: Dict[str, Any]) -> List[int]:
+    """Список ID операторов для рассылки по статусу"""
+    raw = body.get('notify_user_ids')
+    if not isinstance(raw, list):
+        return []
+    result = []
+    for v in raw:
+        try:
+            uid = int(v)
+        except (TypeError, ValueError):
+            continue
+        if uid > 0 and uid not in result:
+            result.append(uid)
+    return result
+
+
+def _replace_status_notify_users(cur, status_id: int, user_ids: List[int]) -> None:
+    """Перезаписывает список операторов статуса"""
+    cur.execute(
+        f"DELETE FROM {SCHEMA}.ticket_status_notify_users WHERE status_id = %s",
+        (status_id,)
+    )
+    if not user_ids:
+        return
+    values_sql = ','.join(['(%s, %s)'] * len(user_ids))
+    args = []
+    for uid in user_ids:
+        args.extend([status_id, uid])
+    cur.execute(f"""
+        INSERT INTO {SCHEMA}.ticket_status_notify_users (status_id, user_id)
+        VALUES {values_sql}
+        ON CONFLICT (status_id, user_id) DO NOTHING
+    """, args)
+
+
+def _load_status_notify_users_map(cur) -> Dict[int, List[int]]:
+    """Операторы всех статусов одним запросом"""
+    cur.execute(f"""
+        SELECT status_id, user_id
+        FROM {SCHEMA}.ticket_status_notify_users
+        ORDER BY status_id, user_id
+    """)
+    result: Dict[int, List[int]] = {}
+    for row in cur.fetchall():
+        result.setdefault(int(row['status_id']), []).append(int(row['user_id']))
+    return result
+
+
+def handle_status_notify_operators(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
+    """Сотрудники, состоящие в группах исполнителей — кандидаты для рассылки"""
+    if method != 'GET':
+        return response(405, {'error': 'Метод не поддерживается'})
+
+    payload = verify_token(event)
+    if not payload:
+        return response(401, {'error': 'Требуется авторизация'})
+
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT u.id, u.full_name, u.email,
+               STRING_AGG(DISTINCT g.name, ', ' ORDER BY g.name) AS groups
+        FROM {SCHEMA}.executor_group_members m
+        JOIN {SCHEMA}.users u ON u.id = m.user_id
+        JOIN {SCHEMA}.executor_groups g ON g.id = m.group_id
+        WHERE COALESCE(u.is_active, true) = true
+          AND COALESCE(g.is_active, true) = true
+        GROUP BY u.id, u.full_name, u.email
+        ORDER BY u.full_name
+    """)
+    operators = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    return response(200, {'operators': operators})
+
+
 def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Обработчик для управления статусами заявок (ticket_statuses)"""
     payload = verify_token(event)
@@ -3441,8 +3517,10 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         cur.execute(f'SELECT id, name, color, is_closed, is_open, is_approval, is_approval_revoked, is_approved, is_waiting_response, is_pending_confirmation, count_for_distribution, is_in_progress, is_reopened, COALESCE(is_paused, false) AS is_paused, COALESCE(notify_enabled, false) AS notify_enabled, notify_template_id, notify_interval_hours, notify_group_id FROM {SCHEMA}.ticket_statuses ORDER BY id')
         statuses = [dict(row) for row in cur.fetchall()]
         role_map = _load_status_role_map(cur)
+        notify_users_map = _load_status_notify_users_map(cur)
         for st in statuses:
             st['role_ids'] = role_map.get(st['id'], [])
+            st['notify_user_ids'] = notify_users_map.get(st['id'], [])
         params = event.get('queryStringParameters') or {}
         if str(params.get('filter_by_role', '')).lower() in ('1', 'true', 'yes'):
             user_id = payload.get('user_id')
@@ -3494,6 +3572,9 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
         status = dict(cur.fetchone())
         _replace_status_roles(cur, status['id'], role_ids)
         status['role_ids'] = [int(r) for r in (role_ids or []) if str(r).lstrip('-').isdigit()]
+        notify_user_ids = _parse_notify_user_ids(body) if nf['notify_enabled'] else []
+        _replace_status_notify_users(cur, status['id'], notify_user_ids)
+        status['notify_user_ids'] = notify_user_ids
         conn.commit()
         cur.close()
         return response(201, status)
@@ -3549,6 +3630,15 @@ def handle_ticket_statuses(method: str, event: Dict[str, Any], conn) -> Dict[str
             _replace_status_roles(cur, status_id, role_ids)
         cur.execute(f"SELECT role_id FROM {SCHEMA}.ticket_status_roles WHERE status_id = %s", (status_id,))
         status['role_ids'] = [r['role_id'] for r in cur.fetchall()]
+
+        if 'notify_user_ids' in body or not nf['notify_enabled']:
+            notify_user_ids = _parse_notify_user_ids(body) if nf['notify_enabled'] else []
+            _replace_status_notify_users(cur, status_id, notify_user_ids)
+        cur.execute(
+            f"SELECT user_id FROM {SCHEMA}.ticket_status_notify_users WHERE status_id = %s ORDER BY user_id",
+            (status_id,)
+        )
+        status['notify_user_ids'] = [int(r['user_id']) for r in cur.fetchall()]
         
         cur.execute(
             f"UPDATE {SCHEMA}.tickets SET is_archived = %s WHERE status_id = %s AND COALESCE(is_archived, false) <> %s",

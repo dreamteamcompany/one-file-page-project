@@ -89,6 +89,7 @@ const StatusDialog = ({
     notify_template_id: null,
     notify_interval_hours: '',
     notify_group_id: null,
+    notify_user_ids: [],
   };
 
   const [formData, setFormData] = useState(defaultFormData);
@@ -127,6 +128,9 @@ const StatusDialog = ({
             ? String(editingStatus.notify_interval_hours)
             : '',
         notify_group_id: editingStatus.notify_group_id ?? null,
+        notify_user_ids: editingStatus.notify_user_ids
+          ? [...editingStatus.notify_user_ids]
+          : [],
       });
     } else {
       setFormData(defaultFormData);
@@ -140,8 +144,8 @@ const StatusDialog = ({
         alert('Выберите шаблон уведомления');
         return;
       }
-      if (!formData.notify_group_id) {
-        alert('Выберите группу операторов');
+      if (!formData.notify_user_ids || formData.notify_user_ids.length === 0) {
+        alert('Выберите хотя бы одного оператора');
         return;
       }
       const hours = parseInt(formData.notify_interval_hours, 10);
@@ -333,7 +337,7 @@ const StatusDialog = ({
             open={open}
             enabled={formData.notify_enabled}
             templateId={formData.notify_template_id}
-            groupId={formData.notify_group_id}
+            userIds={formData.notify_user_ids}
             intervalHours={formData.notify_interval_hours}
             onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
           />

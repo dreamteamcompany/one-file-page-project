@@ -11,8 +11,9 @@ import {
 } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { apiFetch, getApiUrl } from '@/utils/api';
-
-const EXCLUDED_GROUPS = ['исвс'];
+import NotifyOperatorsPicker, {
+  OperatorOption,
+} from '@/components/ticket-statuses/NotifyOperatorsPicker';
 
 interface TemplateOption {
   id: number;
@@ -21,22 +22,16 @@ interface TemplateOption {
   is_active: boolean;
 }
 
-interface GroupOption {
-  id: number;
-  name: string;
-  is_active?: boolean;
-}
-
 interface Props {
   open: boolean;
   enabled: boolean;
   templateId: number | null;
-  groupId: number | null;
+  userIds: number[];
   intervalHours: string;
   onChange: (patch: {
     notify_enabled?: boolean;
     notify_template_id?: number | null;
-    notify_group_id?: number | null;
+    notify_user_ids?: number[];
     notify_interval_hours?: string;
   }) => void;
 }
@@ -45,12 +40,12 @@ const StatusNotifySettings = ({
   open,
   enabled,
   templateId,
-  groupId,
+  userIds,
   intervalHours,
   onChange,
 }: Props) => {
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
-  const [groups, setGroups] = useState<GroupOption[]>([]);
+  const [operators, setOperators] = useState<OperatorOption[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -60,19 +55,12 @@ const StatusNotifySettings = ({
       .then((data) => setTemplates(Array.isArray(data?.templates) ? data.templates : []))
       .catch(() => setTemplates([]));
 
-    apiFetch(getApiUrl('executor-groups'))
+    apiFetch(`${getApiUrl('status-notify-operators')}?endpoint=status-notify-operators`)
       .then((res) => res.json())
-      .then((data) => {
-        const list: GroupOption[] = Array.isArray(data) ? data : [];
-        setGroups(
-          list.filter(
-            (g) =>
-              g.is_active !== false &&
-              !EXCLUDED_GROUPS.includes((g.name || '').trim().toLowerCase())
-          )
-        );
-      })
-      .catch(() => setGroups([]));
+      .then((data) =>
+        setOperators(Array.isArray(data?.operators) ? data.operators : []),
+      )
+      .catch(() => setOperators([]));
   }, [open]);
 
   const activeTemplates = templates.filter((t) => t.is_active);
@@ -121,30 +109,15 @@ const StatusNotifySettings = ({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm">Группа операторов</Label>
-              <Select
-                value={groupId ? String(groupId) : ''}
-                onValueChange={(v) => onChange({ notify_group_id: Number(v) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Выберите группу исполнителей" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups.length === 0 ? (
-                    <div className="px-2 py-3 text-xs text-muted-foreground">
-                      Группы не загружены
-                    </div>
-                  ) : (
-                    groups.map((g) => (
-                      <SelectItem key={g.id} value={String(g.id)}>
-                        {g.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm">Операторы</Label>
+              <NotifyOperatorsPicker
+                operators={operators}
+                selectedIds={userIds}
+                onChange={(ids) => onChange({ notify_user_ids: ids })}
+              />
               <p className="text-xs text-muted-foreground">
-                Отсчёт начинается от последнего сообщения оператора из этой группы
+                Можно выбрать несколько. Отсчёт начинается от последнего сообщения
+                любого из выбранных операторов
               </p>
             </div>
 

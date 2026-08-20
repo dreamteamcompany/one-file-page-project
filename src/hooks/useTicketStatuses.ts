@@ -23,6 +23,7 @@ export interface TicketStatus {
   notify_template_id?: number | null;
   notify_interval_hours?: number | null;
   notify_group_id?: number | null;
+  notify_user_ids?: number[];
 }
 
 export interface StatusFormData {
@@ -43,6 +44,7 @@ export interface StatusFormData {
   notify_template_id: number | null;
   notify_interval_hours: string;
   notify_group_id: number | null;
+  notify_user_ids: number[];
 }
 
 export const useTicketStatuses = () => {

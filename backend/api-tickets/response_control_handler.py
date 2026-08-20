@@ -17,10 +17,18 @@ TRIGGER_LABELS = {
 _REACTED_EXISTS = f"""
     EXISTS (
         SELECT 1 FROM {SCHEMA}.ticket_comments c
-        JOIN {SCHEMA}.executor_group_members m ON m.user_id = c.user_id
         WHERE c.ticket_id = l.ticket_id
-          AND m.group_id = l.group_id
           AND c.created_at > l.created_at
+          AND (
+              c.user_id IN (
+                  SELECT n.user_id FROM {SCHEMA}.ticket_status_notify_users n
+                  WHERE n.status_id = l.status_id
+              )
+              OR (l.group_id IS NOT NULL AND c.user_id IN (
+                  SELECT m.user_id FROM {SCHEMA}.executor_group_members m
+                  WHERE m.group_id = l.group_id
+              ))
+          )
     )
 """
 
@@ -124,10 +132,18 @@ def handle_response_control(method: str, event: dict, conn) -> dict:
                {_REACTED_EXISTS} AS reacted,
                (
                    SELECT MIN(c.created_at) FROM {SCHEMA}.ticket_comments c
-                   JOIN {SCHEMA}.executor_group_members m ON m.user_id = c.user_id
                    WHERE c.ticket_id = l.ticket_id
-                     AND m.group_id = l.group_id
                      AND c.created_at > l.created_at
+                     AND (
+                         c.user_id IN (
+                             SELECT n.user_id FROM {SCHEMA}.ticket_status_notify_users n
+                             WHERE n.status_id = l.status_id
+                         )
+                         OR (l.group_id IS NOT NULL AND c.user_id IN (
+                             SELECT m.user_id FROM {SCHEMA}.executor_group_members m
+                             WHERE m.group_id = l.group_id
+                         ))
+                     )
                ) AS reacted_at
         FROM {SCHEMA}.ticket_response_log l
         JOIN {SCHEMA}.tickets t ON t.id = l.ticket_id

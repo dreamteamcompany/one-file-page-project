@@ -39,19 +39,27 @@ def run_status_notifications(cur, schema: str) -> dict:
         WHERE COALESCE(s.notify_enabled, false) = true
           AND s.notify_interval_hours IS NOT NULL
           AND s.notify_interval_hours > 0
-          AND s.notify_group_id IS NOT NULL
           AND COALESCE(nt.is_active, false) = true
     """)
     statuses = cur.fetchall()
 
     for st in statuses:
         hours = int(st['notify_interval_hours'])
-        group_id = int(st['notify_group_id'])
+        group_id = int(st['notify_group_id']) if st['notify_group_id'] else None
 
+        # Приоритет — персонально выбранные операторы статуса.
+        # Если их нет, откатываемся на состав группы (старое поведение).
         cur.execute(f"""
-            SELECT user_id FROM {schema}.executor_group_members WHERE group_id = %s
-        """, (group_id,))
+            SELECT user_id FROM {schema}.ticket_status_notify_users WHERE status_id = %s
+        """, (st['id'],))
         operator_ids = [int(r['user_id']) for r in cur.fetchall() if r['user_id']]
+
+        if not operator_ids and group_id:
+            cur.execute(f"""
+                SELECT user_id FROM {schema}.executor_group_members WHERE group_id = %s
+            """, (group_id,))
+            operator_ids = [int(r['user_id']) for r in cur.fetchall() if r['user_id']]
+
         if not operator_ids:
             continue
 
