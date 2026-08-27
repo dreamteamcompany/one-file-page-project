@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,45 +10,52 @@ import PushNotificationPrompt from "@/components/notifications/PushNotificationP
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { ImageLightboxProvider } from "@/components/shared/ImageLightbox";
 import Login from "./pages/Login";
-import Dashboard2 from "./pages/Dashboard2";
-import Users from "./pages/Users";
-import Roles from "./pages/Roles";
-import CustomFields from "./pages/CustomFields";
-import LogAnalyzer from "./pages/LogAnalyzer";
-import Settings from "./pages/Settings";
-import AutomationSettings from "./pages/AutomationSettings";
-import IntegrationsSettings from "./pages/IntegrationsSettings";
-import NotificationSettings from "./pages/NotificationSettings";
-import ResponseControl from "./pages/ResponseControl";
-import KnowledgeBase from "./pages/KnowledgeBase";
-import Tickets from "./pages/Tickets";
-import TicketDetails from "./pages/TicketDetails";
-import TicketServices from "./pages/TicketServices";
-import TicketServicesManagement from "./pages/TicketServicesManagement";
-import TicketServiceCategories from "./pages/TicketServiceCategories";
-import AccessChecklistServices from "./pages/AccessChecklistServices";
-import TicketStatuses from "./pages/TicketStatuses";
-import TicketPriorities from "./pages/TicketPriorities";
-import TicketWatcherRules from "./pages/TicketWatcherRules";
-import SLA from "./pages/SLA";
-import SlaServiceMappings from "./pages/SlaServiceMappings";
-import ServiceProviders from "./pages/ServiceProviders";
-import FieldRegistry from "./pages/FieldRegistry";
-import Services from "./pages/Services";
-import CustomFieldGroups from "./pages/CustomFieldGroups";
-import ServiceFieldMappings from "./pages/ServiceFieldMappings";
-import Companies from "./pages/Companies";
-import Departments from "./pages/Departments";
-import Positions from "./pages/Positions";
-import ExecutorGroups from "./pages/ExecutorGroups";
-import ExecutorAssignments from "./pages/ExecutorAssignments";
-import WorkSchedules from "./pages/WorkSchedules";
-import BitrixCallback from "./pages/BitrixCallback";
-import AiTraining from "./pages/AiTraining";
-import BitrixInactiveUsers from "./pages/BitrixInactiveUsers";
-import OrgChart from "./pages/OrgChart";
-import ReplyTemplates from "./pages/ReplyTemplates";
-import NotFound from "./pages/NotFound";
+
+const Dashboard2 = lazy(() => import("./pages/Dashboard2"));
+const Users = lazy(() => import("./pages/Users"));
+const Roles = lazy(() => import("./pages/Roles"));
+const CustomFields = lazy(() => import("./pages/CustomFields"));
+const LogAnalyzer = lazy(() => import("./pages/LogAnalyzer"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AutomationSettings = lazy(() => import("./pages/AutomationSettings"));
+const IntegrationsSettings = lazy(() => import("./pages/IntegrationsSettings"));
+const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
+const ResponseControl = lazy(() => import("./pages/ResponseControl"));
+const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
+const Tickets = lazy(() => import("./pages/Tickets"));
+const TicketDetails = lazy(() => import("./pages/TicketDetails"));
+const TicketServices = lazy(() => import("./pages/TicketServices"));
+const TicketServicesManagement = lazy(() => import("./pages/TicketServicesManagement"));
+const TicketServiceCategories = lazy(() => import("./pages/TicketServiceCategories"));
+const AccessChecklistServices = lazy(() => import("./pages/AccessChecklistServices"));
+const TicketStatuses = lazy(() => import("./pages/TicketStatuses"));
+const TicketPriorities = lazy(() => import("./pages/TicketPriorities"));
+const TicketWatcherRules = lazy(() => import("./pages/TicketWatcherRules"));
+const SLA = lazy(() => import("./pages/SLA"));
+const SlaServiceMappings = lazy(() => import("./pages/SlaServiceMappings"));
+const ServiceProviders = lazy(() => import("./pages/ServiceProviders"));
+const FieldRegistry = lazy(() => import("./pages/FieldRegistry"));
+const Services = lazy(() => import("./pages/Services"));
+const CustomFieldGroups = lazy(() => import("./pages/CustomFieldGroups"));
+const ServiceFieldMappings = lazy(() => import("./pages/ServiceFieldMappings"));
+const Companies = lazy(() => import("./pages/Companies"));
+const Departments = lazy(() => import("./pages/Departments"));
+const Positions = lazy(() => import("./pages/Positions"));
+const ExecutorGroups = lazy(() => import("./pages/ExecutorGroups"));
+const ExecutorAssignments = lazy(() => import("./pages/ExecutorAssignments"));
+const WorkSchedules = lazy(() => import("./pages/WorkSchedules"));
+const BitrixCallback = lazy(() => import("./pages/BitrixCallback"));
+const AiTraining = lazy(() => import("./pages/AiTraining"));
+const BitrixInactiveUsers = lazy(() => import("./pages/BitrixInactiveUsers"));
+const OrgChart = lazy(() => import("./pages/OrgChart"));
+const ReplyTemplates = lazy(() => import("./pages/ReplyTemplates"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+const RouteFallback = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="w-12 h-12 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+  </div>
+);
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -62,6 +69,7 @@ const App = () => {
         <Sonner />
         <PushNotificationPrompt />
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Suspense fallback={<RouteFallback />}>
             <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/auth/bitrix/callback" element={<BitrixCallback />} />
@@ -104,6 +112,7 @@ const App = () => {
             <Route path="/reply-templates" element={<ProtectedRoute><ReplyTemplates /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
         </ImageLightboxProvider>
       </AuthProvider>
