@@ -62,7 +62,7 @@ export const useTicketsData = () => {
     if (!token) return;
     try {
       const res = await apiFetch(
-        `${API_URL}?endpoint=tickets&page=1&limit=1&is_hidden=true`,
+        `${API_URL}?endpoint=tickets&page=1&limit=1&is_hidden=true&count_only=true`,
         { headers: { 'X-Auth-Token': token } }
       );
       if (res.ok) {
@@ -78,7 +78,7 @@ export const useTicketsData = () => {
     if (!token) return;
     try {
       const res = await apiFetch(
-        `${API_URL}?endpoint=tickets&page=1&limit=1&needs_my_reply=true`,
+        `${API_URL}?endpoint=tickets&page=1&limit=1&needs_my_reply=true&count_only=true`,
         { headers: { 'X-Auth-Token': token } }
       );
       if (res.ok) {

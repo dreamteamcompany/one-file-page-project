@@ -1836,6 +1836,9 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         page = max(1, int(query_params.get('page', 1)))
         limit = min(100, max(1, int(query_params.get('limit', 50))))
         offset = (page - 1) * limit
+        # Вызывающему нужно только общее количество (бейджи-счётчики), сами
+        # строки не используются — позволяет пропустить выборку и обогащение.
+        count_only = str(query_params.get('count_only', '')).lower() in ('1', 'true', 'yes')
 
         # Сортировка списка заявок. Whitelist допустимых полей.
         sort_by_param = (query_params.get('sort_by') or 'created_at').strip()
@@ -2138,7 +2141,18 @@ def handle_tickets(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
         count_query = f"SELECT COUNT(*) AS total FROM {SCHEMA}.tickets t {where_clause}"
         cur.execute(count_query, params)
         total = cur.fetchone()['total']
-        
+
+        # Режим «только счётчик»: вызывающему нужно лишь число (бейджи «скрытые»,
+        # «нужен мой ответ»). Раньше на это всё равно выполнялась полная выборка
+        # строк и ~10 обогащающих запросов (услуги, доп. поля, комментарии,
+        # уведомления, SLA) — впустую, результат отбрасывался. Выходим сразу
+        # после COUNT.
+        if count_only:
+            cur.close()
+            pages = (total + limit - 1) // limit
+            return response(200, {'tickets': [], 'total': total, 'page': page,
+                                  'limit': limit, 'pages': pages})
+
         main_query = f"""
             SELECT t.id, t.title, t.description, t.status_id, t.priority_id,
                    t.assigned_to, t.created_by, t.created_at, t.updated_at,
@@ -4525,10 +4539,12 @@ def handle_tickets_bootstrap(method: str, event: dict, conn) -> dict:
     ticket_services = _parse(_call(handle_ticket_services), [])
 
     # 4. Счётчики: скрытые и «нужен мой ответ» (limit=1, берём только total)
-    hidden_resp = _call(handle_tickets, {'page': '1', 'limit': '1', 'is_hidden': 'true'})
+    hidden_resp = _call(handle_tickets, {'page': '1', 'limit': '1', 'is_hidden': 'true',
+                                         'count_only': 'true'})
     hidden_count = _parse(hidden_resp, {}).get('total', 0)
 
-    reply_resp = _call(handle_tickets, {'page': '1', 'limit': '1', 'needs_my_reply': 'true'})
+    reply_resp = _call(handle_tickets, {'page': '1', 'limit': '1', 'needs_my_reply': 'true',
+                                        'count_only': 'true'})
     needs_my_reply_count = _parse(reply_resp, {}).get('total', 0)
 
     # 5. Есть ли у пользователя подчинённые (отделы или конкретные сотрудники)
