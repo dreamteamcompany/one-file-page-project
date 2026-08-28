@@ -6,6 +6,8 @@ import urllib.request
 import urllib.parse
 import urllib.error
 
+from notify_budget import has_budget, effective_timeout
+
 MAX_BOT_TOKEN = os.environ.get('MAX_BOT_TOKEN', '')
 MAX_API_BASE = 'https://botapi.max.ru'  # старый домен, всё ещё рабочий
 # MAX требует токен в заголовке Authorization БЕЗ префикса Bearer
@@ -29,6 +31,9 @@ def _send_max_message(max_user_id: str, text: str, ticket_id: int = None, ticket
         print('[max-bot] MAX_BOT_TOKEN is not set, skipping')
         return
     if not max_user_id:
+        return
+    if not has_budget():
+        print(f'[max-bot] Notify budget exhausted, skip message to {max_user_id}')
         return
 
     plain = _strip_bbcode(text)
@@ -64,13 +69,14 @@ def _send_max_message(max_user_id: str, text: str, ticket_id: int = None, ticket
             },
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=effective_timeout()) as resp:
             body = resp.read().decode('utf-8', errors='replace')
             print(f'[max-bot] Sent to {max_user_id}: HTTP {resp.status}')
     except urllib.error.HTTPError as e:
         body = e.read().decode('utf-8', errors='replace') if e.fp else ''
-        # На случай если API ждёт chat_id вместо user_id — пробуем chat_id
-        if e.code == 400 and 'user_id' in body.lower():
+        # Запасная отправка через chat_id выполняется только если бюджет
+        # ещё не исчерпан: раньше она удваивала ожидание ради редкого случая.
+        if e.code == 400 and 'user_id' in body.lower() and has_budget():
             _send_max_message_chat(max_user_id, plain, ticket_id, ticket_url)
             return
         print(f'[max-bot] HTTP {e.code} sending to {max_user_id}: {body[:300]}')
@@ -81,6 +87,9 @@ def _send_max_message(max_user_id: str, text: str, ticket_id: int = None, ticket
 def _send_max_message_chat(chat_id: str, text: str, ticket_id: int = None, ticket_url: str = ''):
     """Фолбэк-отправка через chat_id вместо user_id."""
     if not MAX_BOT_TOKEN:
+        return
+    if not has_budget():
+        print(f'[max-bot] Notify budget exhausted, skip fallback to {chat_id}')
         return
     params = {'chat_id': str(chat_id)}
     url = f"{MAX_API_BASE}/messages?{urllib.parse.urlencode(params)}"
@@ -107,7 +116,7 @@ def _send_max_message_chat(chat_id: str, text: str, ticket_id: int = None, ticke
             },
             method='POST',
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with urllib.request.urlopen(req, timeout=effective_timeout()) as resp:
             print(f'[max-bot] Sent via chat_id to {chat_id}: HTTP {resp.status}')
     except Exception as e:
         print(f'[max-bot] Fallback failed to {chat_id}: {e}')

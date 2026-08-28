@@ -8,6 +8,7 @@ import traceback
 from typing import Dict, Any, Optional, Set, List
 from pydantic import BaseModel, Field
 from shared_utils import response, get_db_connection, verify_token, handle_options, get_endpoint, SCHEMA
+from notify_budget import start_budget
 from group_tracking_service import open_log_entry, track_assignment_change, track_ticket_closed
 from access_checklist_handler import (
     handle_ticket_access_checklist,
@@ -1570,7 +1571,12 @@ def handle_escalation_tickets(method: str, event: Dict[str, Any], conn) -> Dict[
 def handler(event: dict, context) -> dict:
     """API для работы с заявками и категориями сервисов"""
     method = event.get('httpMethod', 'GET')
-    
+
+    # Стартуем бюджет времени на мессенджеры: суммарное ожидание Битрикс/MAX
+    # внутри этого вызова не превысит NOTIFY_BUDGET_SEC, поэтому уведомления
+    # больше не могут сорвать сохранение заявки по таймауту.
+    start_budget()
+
     if method == 'OPTIONS':
         return handle_options()
     

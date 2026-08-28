@@ -4,6 +4,8 @@ import os
 import urllib.request
 import urllib.parse
 
+from notify_budget import has_budget, effective_timeout
+
 BITRIX_PORTAL_URL = os.environ.get('BITRIX24_PORTAL_URL', '').rstrip('/')
 BITRIX_BOT_ID = os.environ.get('BITRIX_BOT_ID', '')
 BITRIX_BOT_CLIENT_ID = os.environ.get('BITRIX_BOT_CLIENT_ID', '')
@@ -30,9 +32,16 @@ def _get_bot_token() -> str:
     })
     url = f"https://oauth.bitrix.info/oauth/token/?{params}"
 
+    # Обновление токена было самым долгим единичным ожиданием (10 секунд) —
+    # одного такого запроса хватало, чтобы сорвать весь вызов по таймауту.
+    timeout = effective_timeout()
+    if timeout <= 0:
+        print("[bitrix-bot] Notify budget exhausted, skip token refresh")
+        return ''
+
     try:
         req = urllib.request.Request(url, method='GET')
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode())
             _bot_access_token = data.get('access_token', '')
             new_refresh = data.get('refresh_token', '')
@@ -45,6 +54,12 @@ def _get_bot_token() -> str:
 
 
 def _send_bot_message(access_token: str, bitrix_user_id: str, message: str, keyboard: list = None):
+    # Бюджет проверяем перед каждым получателем: при нескольких наблюдателях
+    # ожидания складываются, и без ограничения вызов уходит в таймаут.
+    if not has_budget():
+        print(f"[bitrix-bot] Notify budget exhausted, skip message to {bitrix_user_id}")
+        return
+
     url = f"{BITRIX_PORTAL_URL}/rest/imbot.message.add.json?auth={access_token}"
 
     payload = {
@@ -60,7 +75,7 @@ def _send_bot_message(access_token: str, bitrix_user_id: str, message: str, keyb
 
     try:
         req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/json'}, method='POST')
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=effective_timeout()) as r:
             result = json.loads(r.read().decode())
             print(f"[bitrix-bot] Message sent to {bitrix_user_id}: {result.get('result', 'unknown')}")
     except urllib.error.HTTPError as e:
