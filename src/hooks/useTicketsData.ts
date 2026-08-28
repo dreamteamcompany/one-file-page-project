@@ -58,8 +58,18 @@ export const useTicketsData = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [searchFilters, setSearchFilters] = useState<Record<string, string>>({});
 
-  const loadHiddenCount = useCallback(async () => {
+  // Счётчики бейджей приходят из bootstrap при открытии страницы. Повторный
+  // запрос нужен только чтобы цифра не «застыла» надолго, поэтому чаще чем
+  // раз в 60 секунд не дёргаем — переключение вкладок больше не создаёт вызов.
+  const COUNTERS_MIN_INTERVAL_MS = 60000;
+  const hiddenCountAtRef = useRef(0);
+  const needsReplyCountAtRef = useRef(0);
+
+  const loadHiddenCount = useCallback(async (force = false) => {
     if (!token) return;
+    const now = Date.now();
+    if (!force && now - hiddenCountAtRef.current < COUNTERS_MIN_INTERVAL_MS) return;
+    hiddenCountAtRef.current = now;
     try {
       const res = await apiFetch(
         `${API_URL}?endpoint=tickets&page=1&limit=1&is_hidden=true&count_only=true`,
@@ -74,8 +84,11 @@ export const useTicketsData = () => {
     }
   }, [token]);
 
-  const loadNeedsMyReplyCount = useCallback(async () => {
+  const loadNeedsMyReplyCount = useCallback(async (force = false) => {
     if (!token) return;
+    const now = Date.now();
+    if (!force && now - needsReplyCountAtRef.current < COUNTERS_MIN_INTERVAL_MS) return;
+    needsReplyCountAtRef.current = now;
     try {
       const res = await apiFetch(
         `${API_URL}?endpoint=tickets&page=1&limit=1&needs_my_reply=true&count_only=true`,
@@ -297,6 +310,10 @@ export const useTicketsData = () => {
 
       setHiddenCount(data.hidden_count || 0);
       setNeedsMyReplyCount(data.needs_my_reply_count || 0);
+      // Счётчики уже актуальны — отмечаем время, чтобы переключение вкладок
+      // сразу после загрузки не слало повторные запросы за теми же числами.
+      hiddenCountAtRef.current = Date.now();
+      needsReplyCountAtRef.current = Date.now();
       setLoading(false);
 
       // services грузим отдельно в фоне (отдельная функция, нужна реже — для форм)
@@ -307,8 +324,8 @@ export const useTicketsData = () => {
       loadTickets(1);
       loadDictionaries();
       loadServices();
-      loadHiddenCount();
-      loadNeedsMyReplyCount();
+      loadHiddenCount(true);
+      loadNeedsMyReplyCount(true);
     }
   }, [token, hideWaiting, sortBy, sortDir, pageSize, applyDicts, loadServices, loadTickets, loadDictionaries, loadHiddenCount, loadNeedsMyReplyCount]);
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch, API_URL } from '@/utils/api';
+import { apiFetch, API_URL, cachedJsonFetch, invalidateCache } from '@/utils/api';
 import PaymentsSidebar from '@/components/payments/PaymentsSidebar';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -84,9 +84,13 @@ const TicketPriorities = () => {
     }
   };
 
-  const loadPriorities = () => {
-    apiFetch(`${API_URL}?endpoint=ticket-priorities`)
-      .then(res => res.json())
+  // Приоритеты почти не меняются — держим ответ в кэше 10 минут.
+  // После создания/изменения/удаления кэш сбрасывается принудительно.
+  const PRIORITIES_TTL_MS = 10 * 60 * 1000;
+
+  const loadPriorities = (force = false) => {
+    if (force) invalidateCache('endpoint=ticket-priorities');
+    cachedJsonFetch<TicketPriority[]>(`${API_URL}?endpoint=ticket-priorities`, {}, PRIORITIES_TTL_MS)
       .then((data) => {
         setPriorities(Array.isArray(data) ? data : []);
         setLoading(false);
@@ -126,7 +130,7 @@ const TicketPriorities = () => {
         setDialogOpen(false);
         setEditingPriority(null);
         setFormData({ name: '', level: 1, color: '#3b82f6', description: '', is_critical: false });
-        loadPriorities();
+        loadPriorities(true);
       }
     } catch (err) {
       console.error('Failed to save priority:', err);
@@ -171,7 +175,7 @@ const TicketPriorities = () => {
       );
 
       if (response.ok) {
-        loadPriorities();
+        loadPriorities(true);
       } else {
         const data = await response.json();
         alert(data.error || 'Не удалось удалить приоритет');

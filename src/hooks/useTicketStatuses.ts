@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch, API_URL } from '@/utils/api';
+import { apiFetch, API_URL, cachedJsonFetch, invalidateCache } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 
 export interface TicketStatus {
@@ -75,9 +75,15 @@ export const useTicketStatuses = () => {
     loadStatuses();
   }, [hasPermission, navigate]);
 
-  const loadStatuses = () => {
-    apiFetch(`${API_URL}?endpoint=ticket-statuses`)
-      .then(res => res.json())
+  // Статусы меняются редко (раз в недели), а запрашивались при каждом открытии
+  // страницы. Держим ответ в кэше 10 минут; после изменения/удаления кэш
+  // сбрасывается принудительно, поэтому свежесть данных не страдает.
+  const STATUSES_TTL_MS = 10 * 60 * 1000;
+
+  const loadStatuses = (force = false) => {
+    const url = `${API_URL}?endpoint=ticket-statuses`;
+    if (force) invalidateCache('endpoint=ticket-statuses');
+    cachedJsonFetch<TicketStatus[]>(url, {}, STATUSES_TTL_MS)
       .then((data) => {
         setStatuses(Array.isArray(data) ? data : []);
         setLoading(false);
@@ -129,7 +135,7 @@ export const useTicketStatuses = () => {
       });
 
       if (response.ok) {
-        loadStatuses();
+        loadStatuses(true);
         return true;
       }
       return false;
@@ -160,7 +166,7 @@ export const useTicketStatuses = () => {
       );
 
       if (response.ok) {
-        loadStatuses();
+        loadStatuses(true);
         return true;
       } else {
         const data = await response.json();

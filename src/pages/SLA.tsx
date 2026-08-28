@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch, getApiUrl } from '@/utils/api';
+import { apiFetch, getApiUrl, cachedJsonFetch } from '@/utils/api';
 import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
@@ -60,16 +60,22 @@ const SLA = () => {
       });
   };
 
+  // Справочники статусов и приоритетов здесь только для выпадающих списков —
+  // берём их из общего кэша (10 минут), а не отдельным запросом при каждом входе.
+  const DICT_TTL_MS = 10 * 60 * 1000;
+
   const loadStatuses = () => {
-    apiFetch(`${getApiUrl('ticket-statuses')}?endpoint=ticket-statuses`)
-      .then(res => res.json())
+    cachedJsonFetch<TicketStatus[]>(
+      `${getApiUrl('ticket-statuses')}?endpoint=ticket-statuses`, {}, DICT_TTL_MS,
+    )
       .then((data) => setStatuses(Array.isArray(data) ? data : []))
       .catch(() => setStatuses([]));
   };
 
   const loadPriorities = () => {
-    apiFetch(`${getApiUrl('ticket-priorities')}?endpoint=ticket-priorities`)
-      .then(res => res.json())
+    cachedJsonFetch<TicketPriority[]>(
+      `${getApiUrl('ticket-priorities')}?endpoint=ticket-priorities`, {}, DICT_TTL_MS,
+    )
       .then((data) => setPriorities(Array.isArray(data) ? data : []))
       .catch(() => setPriorities([]));
   };
