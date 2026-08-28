@@ -6,6 +6,7 @@ import Icon from '@/components/ui/icon';
 import SavingFormDialog from './Savings/SavingFormDialog';
 import SavingsTable from './Savings/SavingsTable';
 import { Saving, Service, Employee, SavingReason, SavingFormData, CustomerDepartment } from './Savings/types';
+import { FN } from '@/config/backend';
 
 const Savings = () => {
   const [savings, setSavings] = useState<Saving[]>([]);
@@ -134,7 +135,7 @@ const Savings = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await fetch('https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=customer-departments', {
+      const response = await fetch(`${FN.FINANCE}?endpoint=customer-departments`, {
         headers: {
           'X-Auth-Token': token || '',
         },
@@ -206,7 +207,7 @@ const Savings = () => {
     if (!confirm('Вы уверены, что хотите удалить эту запись об экономии?')) return;
     
     try {
-      const response = await fetch(`https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=savings&id=${savingId}`, {
+      const response = await fetch(`${FN.FINANCE}?endpoint=savings&id=${savingId}`, {
         method: 'DELETE',
         headers: {
           'X-Auth-Token': token || '',

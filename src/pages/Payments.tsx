@@ -11,6 +11,7 @@ import PaymentForm from '@/components/payments/PaymentForm';
 import PaymentsList from '@/components/payments/PaymentsList';
 import PaymentDetailsModal from '@/components/payments/PaymentDetailsModal';
 import type { Payment } from '@/types';
+import { FN } from '@/config/backend';
 
 const Payments = () => {
   const { token } = useAuth();
@@ -50,7 +51,7 @@ const Payments = () => {
 
   const handleSubmitForApproval = async (paymentId: number) => {
     try {
-      const response = await fetch('https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=approvals', {
+      const response = await fetch(`${FN.FINANCE}?endpoint=approvals`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

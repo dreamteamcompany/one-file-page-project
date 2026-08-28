@@ -9,6 +9,7 @@ import DepartmentsHeader from '@/components/departments/DepartmentsHeader';
 import DepartmentsFilters from '@/components/departments/DepartmentsFilters';
 import DepartmentFormDialog from '@/components/departments/DepartmentFormDialog';
 import DeleteDepartmentDialog from '@/components/departments/DeleteDepartmentDialog';
+import { FN } from '@/config/backend';
 
 interface FormData {
   company_id: string;
@@ -251,7 +252,7 @@ const Departments = () => {
       }, 300000);
 
       try {
-        const response = await apiFetch('https://functions.poehali.dev/1f366079-778d-425e-a0ba-378f356dceae', {
+        const response = await apiFetch(FN.BITRIX_SYNC_DEPARTMENTS, {
           method: 'POST',
           body: JSON.stringify({ company_id: parseInt(companyId) }),
           signal: controller.signal,
@@ -285,7 +286,7 @@ const Departments = () => {
         try {
           const posController = new AbortController();
           const posTimeoutId = setTimeout(() => posController.abort(), 300000);
-          const posResp = await apiFetch('https://functions.poehali.dev/554d2115-1c37-4955-b544-bc0a5df0b466', {
+          const posResp = await apiFetch(FN.BITRIX_SYNC_POSITIONS, {
             method: 'POST',
             body: JSON.stringify({ company_id: parseInt(companyId) }),
             signal: posController.signal,
@@ -314,7 +315,7 @@ const Departments = () => {
         try {
           const headsController = new AbortController();
           const headsTimeoutId = setTimeout(() => headsController.abort(), 300000);
-          const headsResp = await apiFetch('https://functions.poehali.dev/d76a8ec5-152f-427f-802c-ebf292c0f3e8', {
+          const headsResp = await apiFetch(FN.BITRIX_SYNC_HEADS, {
             method: 'POST',
             body: JSON.stringify({ company_id: parseInt(companyId) }),
             signal: headsController.signal,

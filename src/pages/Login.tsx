@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import Logo from '@/components/ui/Logo';
+import { FN } from '@/config/backend';
 
-const BITRIX_AUTH_API = 'https://functions.poehali.dev/1ba4ba6c-50e0-4458-b7e4-4464ffcff093';
+const BITRIX_AUTH_API = FN.BITRIX_AUTH;
 
 const Login = () => {
   const [username, setUsername] = useState('');

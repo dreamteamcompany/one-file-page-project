@@ -5,6 +5,7 @@ import Icon from '@/components/ui/icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { formatDateTimeMSK } from '@/utils/dateFormat';
+import { FN } from '@/config/backend';
 
 const ScheduledPaymentsSettings = () => {
   const { token } = useAuth();
@@ -15,7 +16,7 @@ const ScheduledPaymentsSettings = () => {
   const handleProcessNow = async () => {
     setProcessing(true);
     try {
-      const response = await fetch('https://functions.poehali.dev/eeefc720-2351-43cd-804d-44fbd748ab8f', {
+      const response = await fetch(FN.SCHEDULED_PAYMENTS, {
         headers: {
           'X-Auth-Token': token || '',
         },

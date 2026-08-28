@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { FN } from '@/config/backend';
 
 interface CustomFieldDefinition {
   id: number;
@@ -68,7 +69,7 @@ export const usePlannedPaymentForm = (
     }
 
     try {
-      const response = await fetch('https://functions.poehali.dev/a0000b1e-3d3e-4094-b08e-2893df500d3f', {
+      const response = await fetch(FN.PLANNED_PAYMENTS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

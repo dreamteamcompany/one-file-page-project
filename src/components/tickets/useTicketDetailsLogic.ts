@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import type { Ticket, Comment, User } from './TicketDetailsModalTypes';
 import { API_URL, apiFetch } from '@/utils/api';
+import { FN } from '@/config/backend';
 
 export const useTicketDetailsLogic = (ticket: Ticket | null, onTicketUpdate?: () => void) => {
   const { token, user } = useAuth();
@@ -91,7 +92,7 @@ export const useTicketDetailsLogic = (ticket: Ticket | null, onTicketUpdate?: ()
 
     setLoadingComments(true);
     try {
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       const response = await apiFetch(`${commentsUrl}?ticket_id=${ticket.id}`, {
         headers: { 'X-Auth-Token': token },
       });
@@ -112,7 +113,7 @@ export const useTicketDetailsLogic = (ticket: Ticket | null, onTicketUpdate?: ()
 
     setSubmittingComment(true);
     try {
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       const response = await apiFetch(commentsUrl, {
         method: 'POST',
         headers: {
@@ -201,7 +202,7 @@ export const useTicketDetailsLogic = (ticket: Ticket | null, onTicketUpdate?: ()
 
     setSendingPing(true);
     try {
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       await apiFetch(commentsUrl, {
         method: 'POST',
         headers: {
@@ -254,7 +255,7 @@ export const useTicketDetailsLogic = (ticket: Ticket | null, onTicketUpdate?: ()
 
     setUpdating(true);
     try {
-      const mainUrl = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd';
+      const mainUrl = FN.FINANCE;
       const assignedUserId = userId === 'unassign' ? null : Number(userId);
       
       const response = await fetch(`${mainUrl}?endpoint=tickets`, {

@@ -12,6 +12,7 @@ import Dashboard2TeamPerformance from './Dashboard2TeamPerformance';
 import Dashboard2ServicesDynamics from './Dashboard2ServicesDynamics';
 import Dashboard2CostIndexing from './Dashboard2CostIndexing';
 import Dashboard2BudgetBreakdown from './Dashboard2BudgetBreakdown';
+import { FN } from '@/config/backend';
 
 Chart.register(...registerables);
 
@@ -92,7 +93,7 @@ const Dashboard2FullEditableLayout = () => {
   useEffect(() => {
     const loadLayouts = async () => {
       try {
-        const response = await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+        const response = await fetch(FN.DASHBOARD_LAYOUT, {
           method: 'GET',
           headers: {
             'X-User-Id': 'admin',
@@ -189,7 +190,7 @@ const Dashboard2FullEditableLayout = () => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+      const response = await fetch(FN.DASHBOARD_LAYOUT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +215,7 @@ const Dashboard2FullEditableLayout = () => {
     if (confirm('Сбросить расположение к исходному?')) {
       setLayouts(defaultLayouts);
       try {
-        await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+        await fetch(FN.DASHBOARD_LAYOUT, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

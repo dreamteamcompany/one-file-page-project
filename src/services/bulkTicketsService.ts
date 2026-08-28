@@ -1,9 +1,10 @@
+import { FN } from '@/config/backend';
 /**
  * Сервис для массовых операций с заявками
  * Single Responsibility: только API вызовы для bulk actions
  */
 
-const BULK_TICKETS_URL = 'https://functions.poehali.dev/582ca427-5c6d-4995-b1b5-f4f206c12a07';
+const BULK_TICKETS_URL = FN.BULK_TICKETS;
 
 interface BulkActionResult {
   successful: number;

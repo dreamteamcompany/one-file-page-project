@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { apiFetch } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDateOnlyMSK } from '@/utils/dateFormat';
+import { FN } from '@/config/backend';
 
 interface CustomField {
   id: number;
@@ -65,7 +66,7 @@ const ApprovedPaymentDetailsModal = ({ payment, onClose, onRevoked }: ApprovedPa
 
     setIsRevoking(true);
     try {
-      const response = await fetch('https://functions.poehali.dev/b79dfca0-9f01-41a8-92bb-7a6d9212d2f1', {
+      const response = await fetch(FN.APPROVED_PAYMENT_DETAILS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

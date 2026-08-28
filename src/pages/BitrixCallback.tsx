@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { FN } from '@/config/backend';
 
-const BITRIX_AUTH_API = 'https://functions.poehali.dev/1ba4ba6c-50e0-4458-b7e4-4464ffcff093';
+const BITRIX_AUTH_API = FN.BITRIX_AUTH;
 
 const BitrixCallback = () => {
   const [searchParams] = useSearchParams();

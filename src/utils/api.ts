@@ -1,21 +1,24 @@
-const AUTH_API = 'https://functions.poehali.dev/390bc680-77ff-4e34-a383-c92f6b67d723';
-const GENERAL_API = 'https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc';
-const TICKETS_API = 'https://functions.poehali.dev/42feebee-e551-4872-901b-0512a2085c1a';
-const COMPANIES_API = 'https://functions.poehali.dev/9ce1d908-bb39-4250-a1e3-8930ac0307de';
-const DEPARTMENTS_API = 'https://functions.poehali.dev/b5550e9f-c621-44b8-b4e5-3128ed44acff';
-const POSITIONS_API = 'https://functions.poehali.dev/176c438b-4080-43b6-b98d-21b4d7f54109';
-const DEPT_POSITIONS_API = 'https://functions.poehali.dev/7c79f9e7-a51d-454b-b470-599ff9ed8527';
-const FIELD_GROUPS_API = 'https://functions.poehali.dev/c481d806-6ef1-4d9e-bf34-8f6370a5554b';
-const SERVICE_FIELD_MAPPINGS_API = 'https://functions.poehali.dev/bc96bbe3-687c-4427-86c7-6c6bb2b3e61b';
-const EXECUTOR_GROUPS_API = 'https://functions.poehali.dev/a52eb50f-38cf-4887-aead-cc77f01ca416';
-const EXECUTOR_ASSIGNMENTS_API = 'https://functions.poehali.dev/bb7f3193-fa1a-4243-b236-08b2795bd696';
-const WORK_SCHEDULES_API = 'https://functions.poehali.dev/8db7a0da-8978-4e99-8d6b-45d47fc080c2';
-const CLASSIFY_TICKET_API = 'https://functions.poehali.dev/b1d49417-fb02-4b11-9656-d30b68924b54';
-const WATCHER_RULES_API = 'https://functions.poehali.dev/b6560f3c-5899-486e-83da-00fe16d0dd2f';
-export const UPLOAD_FILE_URL = 'https://functions.poehali.dev/3d20e803-c39e-4d0f-84c2-6c5eb7bb1af7';
-export const TICKETS_COUNTERS_URL = 'https://functions.poehali.dev/bcc93198-ef8f-4b7f-b1b7-25ed7616922c';
-export const TICKETS_MARK_READ_URL = 'https://functions.poehali.dev/91bd6009-4bdd-4161-9e0d-ea3a03bf70c0';
-export const USERS_SEARCH_URL = 'https://functions.poehali.dev/f8b49a39-1f3e-4195-9d9f-521b0cfca73d';
+// Адреса backend-функций задаются в одном месте — src/config/backend.ts
+import { FN } from '@/config/backend';
+
+const AUTH_API = FN.AUTH;
+const GENERAL_API = FN.GENERAL;
+const TICKETS_API = FN.TICKETS;
+const COMPANIES_API = FN.COMPANIES;
+const DEPARTMENTS_API = FN.DEPARTMENTS;
+const POSITIONS_API = FN.POSITIONS;
+const DEPT_POSITIONS_API = FN.DEPT_POSITIONS;
+const FIELD_GROUPS_API = FN.FIELD_GROUPS;
+const SERVICE_FIELD_MAPPINGS_API = FN.SERVICE_FIELD_MAPPINGS;
+const EXECUTOR_GROUPS_API = FN.EXECUTOR_GROUPS;
+const EXECUTOR_ASSIGNMENTS_API = FN.EXECUTOR_ASSIGNMENTS;
+const WORK_SCHEDULES_API = FN.WORK_SCHEDULES;
+const CLASSIFY_TICKET_API = FN.CLASSIFY_TICKET;
+const WATCHER_RULES_API = FN.WATCHER_RULES;
+export const UPLOAD_FILE_URL = FN.UPLOAD_FILE;
+export const TICKETS_COUNTERS_URL = FN.TICKETS_COUNTERS;
+export const TICKETS_MARK_READ_URL = FN.TICKETS_MARK_READ;
+export const USERS_SEARCH_URL = FN.USERS_SEARCH;
 
 const ENDPOINT_MAP: Record<string, string> = {
   'login': AUTH_API,
@@ -59,8 +62,8 @@ const ENDPOINT_MAP: Record<string, string> = {
   'access-checklist-services': TICKETS_API,
   'response-control': TICKETS_API,
   'status-notify-operators': TICKETS_API,
-  'services': 'https://functions.poehali.dev/2cfd72d5-c228-4dc9-af9b-f592d65be207',
-  'payments': 'https://functions.poehali.dev/42303a3a-efd9-4863-9d99-b41962f017dc',
+  'services': FN.SERVICES,
+  'payments': FN.PAYMENTS,
   'companies': COMPANIES_API,
   'departments': DEPARTMENTS_API,
   'positions': POSITIONS_API,
@@ -102,7 +105,10 @@ const MAX_RETRY_ATTEMPTS = 2;
 const RETRY_DELAYS_MS = [1000, 2000];
 
 const DISABLED_ENDPOINTS = new Set(['payments']);
-const DISABLED_FUNCTION_IDS = new Set(['42303a3a-efd9-4863-9d99-b41962f017dc']);
+// Берём хвост адреса из конфига, чтобы при смене хоста список не «протух».
+const DISABLED_FUNCTION_IDS = new Set(
+  [FN.PAYMENTS.split('/').filter(Boolean).pop()].filter(Boolean) as string[],
+);
 
 const isDisabledUrl = (url: string): boolean => {
   if (!url) return false;

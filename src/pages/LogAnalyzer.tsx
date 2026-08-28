@@ -10,6 +10,7 @@ import LogFilesList from '@/components/log-analyzer/LogFilesList';
 import LogFilters from '@/components/log-analyzer/LogFilters';
 import LogEntriesViewer from '@/components/log-analyzer/LogEntriesViewer';
 import { formatDateTimeMSK } from '@/utils/dateFormat';
+import { FN } from '@/config/backend';
 
 interface LogFile {
   id: number;
@@ -31,8 +32,8 @@ interface LogEntry {
   raw_line: string;
 }
 
-const API_URL = 'https://functions.poehali.dev/dd221a88-cc33-4a30-a59f-830b0a41862f';
-const COLLECT_API_URL = 'https://functions.poehali.dev/acbb6915-96bf-4e7f-ab66-c34c3fa4b26c';
+const API_URL = FN.LOG_ANALYZER;
+const COLLECT_API_URL = FN.COLLECT_LOGS;
 
 const LogAnalyzer = () => {
   const { hasPermission } = useAuth();

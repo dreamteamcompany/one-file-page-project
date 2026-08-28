@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import { apiFetch } from '@/utils/api';
 import PaymentDetailsModal from '@/components/payments/PaymentDetailsModal';
+import { FN } from '@/config/backend';
 
 interface Payment {
   id: number;
@@ -62,7 +63,7 @@ const CategoryPayments = () => {
   useEffect(() => {
     if (!categoryId) return;
 
-    apiFetch(`https://functions.poehali.dev/20167b17-c827-4e24-b1a1-2ca1571d5bab?category_id=${categoryId}`)
+    apiFetch(`${FN.CATEGORY_PAYMENTS}?category_id=${categoryId}`)
       .then(res => res.json())
       .then(data => {
         setCategoryInfo(data.category);

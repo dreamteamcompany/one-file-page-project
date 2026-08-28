@@ -11,6 +11,7 @@ import PlannedPaymentForm from '@/components/payments/PlannedPaymentForm';
 import PaymentsList from '@/components/payments/PaymentsList';
 import PaymentDetailsModal from '@/components/payments/PaymentDetailsModal';
 import type { Payment } from '@/types';
+import { FN } from '@/config/backend';
 
 const PlannedPayments = () => {
   const { token } = useAuth();
@@ -65,7 +66,7 @@ const PlannedPayments = () => {
 
   const handleConvertToPayment = async (paymentId: number) => {
     try {
-      const response = await fetch('https://functions.poehali.dev/a0000b1e-3d3e-4094-b08e-2893df500d3f', {
+      const response = await fetch(FN.PLANNED_PAYMENTS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

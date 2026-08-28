@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FN } from '@/config/backend';
 
 interface Category {
   id: number;
@@ -347,7 +348,7 @@ const PaymentForm = ({
                               const base64 = (reader.result as string).split(',')[1];
                               
                               try {
-                                const response = await fetch('https://functions.poehali.dev/465f29bc-7031-4a0b-a671-05368d234efe', {
+                                const response = await fetch(FN.PAYMENT_FORM, {
                                   method: 'POST',
                                   headers: {
                                     'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { FN } from '@/config/backend';
 
 const PushNotificationPrompt = () => {
   const { user, token } = useAuth();
@@ -40,7 +41,7 @@ const PushNotificationPrompt = () => {
           ),
         });
 
-        await fetch('https://functions.poehali.dev/cc67e884-8946-4bcd-939d-ea3c195a6598?endpoint=subscribe-push', {
+        await fetch(`${FN.PUSH_NOTIFICATIONS}?endpoint=subscribe-push`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

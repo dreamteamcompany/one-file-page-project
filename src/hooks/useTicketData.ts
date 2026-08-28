@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch, cachedJsonFetch } from '@/utils/api';
 import type { Ticket, TicketComment, TicketAuditLog, TicketStatus, User } from '@/types';
+import { FN } from '@/config/backend';
 
 interface ApprovalRow {
   id: number;
@@ -196,7 +197,7 @@ export const useTicketData = (id: string | undefined, initialTicket: Ticket | nu
     historyRequestIdRef.current = requestTicketId;
 
     if (!silent) setLoadingHistory(true);
-    const historyUrl = 'https://functions.poehali.dev/429bf640-f15c-4a4f-b791-a7437061ba87';
+    const historyUrl = FN.TICKET_HISTORY;
 
     let attempt = 0;
     while (attempt <= maxRetries) {
@@ -254,7 +255,7 @@ export const useTicketData = (id: string | undefined, initialTicket: Ticket | nu
     commentsRequestIdRef.current = requestTicketId;
 
     if (!silent) setLoadingComments(true);
-    const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+    const commentsUrl = FN.TICKET_COMMENTS;
 
     let attempt = 0;
     while (attempt <= maxRetries) {
@@ -314,7 +315,7 @@ export const useTicketData = (id: string | undefined, initialTicket: Ticket | nu
   const markCommentsRead = async (commentIds: number[]) => {
     if (!commentIds.length) return;
     try {
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       await apiFetch(`${commentsUrl}?action=mark-read`, {
         method: 'POST',
         headers: {
@@ -329,7 +330,7 @@ export const useTicketData = (id: string | undefined, initialTicket: Ticket | nu
   };
 
   const loadExecutorGroups = async () => {
-    const EXECUTOR_GROUPS_URL = 'https://functions.poehali.dev/a52eb50f-38cf-4887-aead-cc77f01ca416';
+    const EXECUTOR_GROUPS_URL = FN.EXECUTOR_GROUPS;
     try {
       const data = await cachedJsonFetch<ExecutorGroup[] | { groups?: ExecutorGroup[] }>(
         EXECUTOR_GROUPS_URL,

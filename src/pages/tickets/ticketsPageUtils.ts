@@ -1,4 +1,5 @@
 import { getDeadlineSeverity } from '@/utils/dateFormat';
+import { FN } from '@/config/backend';
 
 export type CounterRole = 'assignee' | 'customer' | 'approver' | 'mentions' | 'overdue';
 
@@ -21,7 +22,7 @@ export interface BulkExecutorGroup {
   name: string;
 }
 
-export const EXECUTOR_GROUPS_URL = 'https://functions.poehali.dev/a52eb50f-38cf-4887-aead-cc77f01ca416';
+export const EXECUTOR_GROUPS_URL = FN.EXECUTOR_GROUPS;
 
 export const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: 'created_at', label: 'Дате создания' },

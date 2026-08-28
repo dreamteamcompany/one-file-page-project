@@ -10,8 +10,9 @@ import {
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import CreateAccountModal, { AccountTarget, AccountInitialValues } from './CreateAccountModal';
+import { FN } from '@/config/backend';
 
-const CREATE_ACCOUNT_URL = 'https://functions.poehali.dev/30868c2a-0677-4a5e-b668-e78c5d7f918a';
+const CREATE_ACCOUNT_URL = FN.CREATE_ACCOUNT;
 
 interface CreateAccountButtonProps {
   ticketId?: number;

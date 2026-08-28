@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_URL, apiFetch } from '@/utils/api';
 import { useFileUploader } from '@/hooks/useFileUploader';
+import { FN } from '@/config/backend';
 
 export const useTicketActions = (
   ticketId: string | undefined,
@@ -26,7 +27,7 @@ export const useTicketActions = (
 
     try {
       setSubmittingComment(true);
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       const response = await apiFetch(commentsUrl, {
         method: 'POST',
         headers: {
@@ -97,7 +98,7 @@ export const useTicketActions = (
   const handleSendPing = async () => {
     try {
       setSendingPing(true);
-      const commentsUrl = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const commentsUrl = FN.TICKET_COMMENTS;
       await apiFetch(commentsUrl, {
         method: 'POST',
         headers: {
@@ -124,7 +125,7 @@ export const useTicketActions = (
 
   const handleTogglePin = async (commentId: number) => {
     try {
-      const url = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3?action=toggle-pin';
+      const url = `${FN.TICKET_COMMENTS}?action=toggle-pin`;
       const resp = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
@@ -143,7 +144,7 @@ export const useTicketActions = (
     data: { comment?: string; created_at?: string },
   ): Promise<boolean> => {
     try {
-      const url = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+      const url = FN.TICKET_COMMENTS;
       const resp = await apiFetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
@@ -164,7 +165,7 @@ export const useTicketActions = (
 
   const handleDeleteComment = async (commentId: number): Promise<boolean> => {
     try {
-      const url = `https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3?id=${commentId}`;
+      const url = `${FN.TICKET_COMMENTS}?id=${commentId}`;
       const resp = await apiFetch(url, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },

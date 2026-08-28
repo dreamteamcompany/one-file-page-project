@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import EditableCard from './EditableCard';
 import EditModeToolbar from './EditModeToolbar';
 import { dashboardCards, DashboardCard } from './DashboardCardsData';
+import { FN } from '@/config/backend';
 
 interface CardLayout {
   id: string;
@@ -61,7 +62,7 @@ const Dashboard2EditableLayout = () => {
   useEffect(() => {
     const loadLayouts = async () => {
       try {
-        const response = await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+        const response = await fetch(FN.DASHBOARD_LAYOUT, {
           method: 'GET',
           headers: {
             'X-User-Id': 'admin',
@@ -169,7 +170,7 @@ const Dashboard2EditableLayout = () => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+      const response = await fetch(FN.DASHBOARD_LAYOUT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +195,7 @@ const Dashboard2EditableLayout = () => {
     if (confirm('Сбросить расположение к исходному?')) {
       setLayouts(defaultLayouts);
       try {
-        await fetch('https://functions.poehali.dev/5977014b-b187-49a2-8bf6-4ffb51e2aaeb', {
+        await fetch(FN.DASHBOARD_LAYOUT, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

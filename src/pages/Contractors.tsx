@@ -4,6 +4,7 @@ import ContractorsHeader from '@/components/contractors/ContractorsHeader';
 import ContractorForm from '@/components/contractors/ContractorForm';
 import ContractorsList from '@/components/contractors/ContractorsList';
 import { apiFetch, API_URL } from '@/utils/api';
+import { FN } from '@/config/backend';
 
 interface Contractor {
   id: number;
@@ -89,7 +90,7 @@ const Contractors = () => {
     e.preventDefault();
     
     try {
-      const url = 'https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=contractors';
+      const url = `${FN.FINANCE}?endpoint=contractors`;
       const method = editingContractor ? 'PUT' : 'POST';
       const body = editingContractor 
         ? { ...formData, id: editingContractor.id }
@@ -155,7 +156,7 @@ const Contractors = () => {
     
     try {
       const response = await apiFetch(
-        `https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=contractors&id=${id}`,
+        `${FN.FINANCE}?endpoint=contractors&id=${id}`,
         { method: 'DELETE' }
       );
 

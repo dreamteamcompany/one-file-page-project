@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { FN } from '@/config/backend';
 
 interface Category {
   id: number;
@@ -121,7 +122,7 @@ const Categories = () => {
 
     try {
       const response = await apiFetch(
-        `https://functions.poehali.dev/8f2170d4-9167-4354-85a1-4478c2403dfd?endpoint=categories&id=${id}`,
+        `${FN.FINANCE}?endpoint=categories&id=${id}`,
         { method: 'DELETE' }
       );
 

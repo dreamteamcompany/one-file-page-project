@@ -1,4 +1,5 @@
-export const CREATE_ACCOUNT_URL = 'https://functions.poehali.dev/30868c2a-0677-4a5e-b668-e78c5d7f918a';
+import { FN } from '@/config/backend';
+export const CREATE_ACCOUNT_URL = FN.CREATE_ACCOUNT;
 
 export type AccountTarget = 'bitrix' | 'email';
 

@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/utils/api';
 import { useImageLightbox } from '@/components/shared/ImageLightbox';
+import { FN } from '@/config/backend';
 
-const COMMENTS_API = 'https://functions.poehali.dev/5de559ba-3637-4418-aea0-26c373f191c3';
+const COMMENTS_API = FN.TICKET_COMMENTS;
 const IMAGE_RE = /!\[([^\]]*)\]\((data:image\/[^;)]+;base64,[^\s)]+)\)/g;
 
 const inlineCache = new Map<number, string>();
