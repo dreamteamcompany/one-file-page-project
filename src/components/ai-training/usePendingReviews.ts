@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import type { TicketService, Service } from './ExamplesTab';
 import type { PendingReview } from './PendingReviewItem';
 
-const AI_TRAINING_URL = func2url['api-ai-training'];
+const AI_TRAINING_URL = FN.AI_TRAINING;
 
 interface Params {
   ticketServices: TicketService[];

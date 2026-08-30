@@ -5,7 +5,7 @@ import PageLayout from '@/components/layout/PageLayout';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import BlockReportModal, { BlockReport } from './bitrix-inactive-users/BlockReportModal';
 import {
   InactiveUser,
@@ -23,7 +23,7 @@ import DeactivateConfirmDialog from './bitrix-inactive-users/DeactivateConfirmDi
 import RemoveExceptionDialog from './bitrix-inactive-users/RemoveExceptionDialog';
 import AddExceptionDialog from './bitrix-inactive-users/AddExceptionDialog';
 
-const API_URL = func2url['bitrix-inactive-users'];
+const API_URL = FN.BITRIX_INACTIVE_USERS;
 
 const BitrixInactiveUsers = () => {
   const { toast } = useToast();

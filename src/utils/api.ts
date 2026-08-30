@@ -31,7 +31,9 @@ const ENDPOINT_MAP: Record<string, string> = {
   'categories': GENERAL_API,
   'contractors': GENERAL_API,
   'legal_entities': GENERAL_API,
+  'legal-entities': GENERAL_API,
   'customer_departments': GENERAL_API,
+  'custom-fields': FIELD_GROUPS_API,
   'system_settings': GENERAL_API,
   'notification_templates': GENERAL_API,
   'tickets': TICKETS_API,
@@ -43,6 +45,7 @@ const ENDPOINT_MAP: Record<string, string> = {
   'dashboard-sla': TICKETS_API,
   'dashboard-services': TICKETS_API,
   'dashboard-team': TICKETS_API,
+  'escalation-tickets': TICKETS_API,
   'api-tickets': TICKETS_API,
   'service_categories': TICKETS_API,
   'ticket-dictionaries-api': TICKETS_API,
@@ -207,8 +210,26 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
   }
 
   let finalUrl = url;
-  
-  if (url.startsWith('/')) {
+
+  // В Docker адреса функций относительные (`/api/<UUID>`). Раньше такие
+  // адреса ошибочно воспринимались как сокращённая запись `/users`, поэтому
+  // параметр `endpoint` не участвовал в выборе функции и почти все запросы,
+  // построенные от API_URL, уходили в функцию auth.
+  let routedByQuery = false;
+  try {
+    const urlObj = new URL(url, 'http://local.invalid');
+    const endpoint = urlObj.searchParams.get('endpoint');
+
+    if (endpoint && ENDPOINT_MAP[endpoint]) {
+      finalUrl = ENDPOINT_MAP[endpoint] + urlObj.search;
+      routedByQuery = true;
+    }
+  } catch (e) {
+    console.error('[API] URL parsing error:', e);
+  }
+
+  // Сохраняем старый сокращённый формат `/users?id=1`.
+  if (!routedByQuery && url.startsWith('/')) {
     const parts = url.split('?');
     const pathParts = parts[0].split('/').filter(Boolean);
     const endpoint = pathParts[0];
@@ -225,18 +246,6 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
       } else {
         finalUrl = queryString ? `${baseUrl}?${queryString}` : baseUrl;
       }
-    }
-  } else {
-    try {
-      const urlObj = new URL(url);
-      const endpoint = urlObj.searchParams.get('endpoint');
-      
-      if (endpoint && ENDPOINT_MAP[endpoint]) {
-        const newBase = ENDPOINT_MAP[endpoint];
-        finalUrl = newBase + urlObj.search;
-      }
-    } catch (e) {
-      console.error('[API] URL parsing error:', e);
     }
   }
 

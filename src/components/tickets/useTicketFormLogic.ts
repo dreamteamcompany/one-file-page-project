@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FIELD_GROUPS_URL, SERVICE_FIELD_MAPPINGS_URL, CLASSIFY_TICKET_URL, apiFetch, getApiUrl } from '@/utils/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFileUploader } from '@/hooks/useFileUploader';
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import {
   Service,
   CustomField,
@@ -102,7 +102,7 @@ export const useTicketFormLogic = ({
 
   const hasServiceItems = filteredServices.length > 0;
 
-  const AI_TRAINING_URL = func2url['api-ai-training'];
+  const AI_TRAINING_URL = FN.AI_TRAINING;
 
   const logClassifyError = async (description: string, errorMsg: string, durationMs: number) => {
     try {

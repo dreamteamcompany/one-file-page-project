@@ -4,7 +4,7 @@ import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import KBArticleList from './knowledge-base/KBArticleList';
 import KBArticleView from './knowledge-base/KBArticleView';
 import KBArticleEditor from './knowledge-base/KBArticleEditor';
@@ -18,7 +18,7 @@ import {
   getStoredAuthToken,
 } from './knowledge-base/types';
 
-const KB_URL = (func2url as Record<string, string>)['api-knowledge-base'];
+const KB_URL = FN.KNOWLEDGE_BASE;
 
  
 const _kbApiFetchRef = apiFetch;

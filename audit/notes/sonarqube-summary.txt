@@ -1,0 +1,333 @@
+=== SONARQUBE SUMMARY ===
+Issues in report: 1042
+Total according to API: 1042
+
+By type:
+    956  CODE_SMELL
+     58  BUG
+     28  VULNERABILITY
+
+By severity:
+    509  MAJOR
+    278  MINOR
+    252  CRITICAL
+      3  BLOCKER
+
+Top rules:
+    127  typescript:S9011
+    114  typescript:S3358
+     95  python:S3776
+     77  typescript:S7773
+     72  python:S1192
+     69  typescript:S6848
+     60  typescript:S6479
+     54  typescript:S1082
+     32  typescript:S1128
+     29  typescript:S1854
+     28  typescript:S3776
+     28  python:S5754
+     25  python:S1172
+     13  typescript:S6767
+     13  python:S3457
+     12  typescript:S6582
+     12  python:S4830
+     12  typescript:S6606
+      9  python:S1481
+      9  typescript:S7778
+      9  typescript:S6853
+      8  typescript:S6571
+      8  typescript:S6847
+      7  typescript:S6819
+      7  typescript:S6481
+      7  typescript:S6772
+      5  typescript:S7754
+      5  typescript:S6594
+      5  python:S5527
+      5  python:S4423
+      5  typescript:S6478
+      4  typescript:S2245
+      4  typescript:S6551
+      4  typescript:S4782
+      4  python:S6903
+      4  typescript:S3863
+      3  typescript:S7776
+      3  typescript:S4323
+      3  typescript:S8786
+      3  typescript:S7723
+
+Top files/components:
+     45  one-file-page-project:backend/create-employee-account/index.py
+     37  one-file-page-project:backend/api-tickets/index.py
+     21  one-file-page-project:backend/api-knowledge-base/index.py
+     20  one-file-page-project:src/pages/bitrix-inactive-users/BlockReportModal.tsx
+     19  one-file-page-project:backend/bitrix-inactive-users/index.py
+     18  one-file-page-project:backend/api-ai-training/index.py
+     15  one-file-page-project:src/pages/knowledge-base/KBArticleList.tsx
+     15  one-file-page-project:backend/api-classify-ticket/index.py
+     15  one-file-page-project:src/components/payments/PaymentsList.tsx
+     14  one-file-page-project:backend/api-ticket-comments/index.py
+     13  one-file-page-project:src/components/tickets/TicketCommentItem.tsx
+     12  one-file-page-project:src/hooks/useTicketsData.ts
+     12  one-file-page-project:src/components/dashboard2/Dashboard2Table.tsx
+     10  one-file-page-project:backend/bitrix-sync-departments/index.py
+     10  one-file-page-project:src/components/dashboard2/Dashboard2FullEditableLayout.tsx
+      9  one-file-page-project:src/components/tickets/TicketCustomFields.tsx
+      9  one-file-page-project:src/components/tickets/TicketCommentsInput.tsx
+      9  one-file-page-project:src/components/tickets/TicketsSidebar.tsx
+      9  one-file-page-project:src/components/dashboard2/EditableCard.tsx
+      8  one-file-page-project:src/pages/Departments.tsx
+      8  one-file-page-project:src/components/tickets/TicketApprovalBlock.tsx
+      8  one-file-page-project:src/pages/CategoryPayments.tsx
+      8  one-file-page-project:backend/collect-logs/index.py
+      8  one-file-page-project:src/pages/Savings.tsx
+      7  one-file-page-project:backend/api-tickets/max_bot_notifier.py
+      7  one-file-page-project:src/pages/KnowledgeBase.tsx
+      7  one-file-page-project:src/components/approvals/PaymentComments.tsx
+      7  one-file-page-project:src/pages/TicketServices.tsx
+      7  one-file-page-project:src/hooks/usePaymentForm.ts
+      6  one-file-page-project:src/components/tickets/TicketCard.tsx
+
+Important issues:
+  1. one-file-page-project:backend/api-ticket-comments/index.py:1016
+     [BLOCKER] [CODE_SMELL] python:S3516
+     Refactor this method to not always return the same value.
+  2. one-file-page-project:backend/bitrix-notify/index.py:123
+     [BLOCKER] [CODE_SMELL] python:S3516
+     Refactor this method to not always return the same value.
+  3. one-file-page-project:src/components/tickets/useTicketFormLogic.ts:182
+     [BLOCKER] [CODE_SMELL] typescript:S3516
+     Refactor this function to not always return the same value.
+  4. one-file-page-project:backend/api-ai-training/index.py:26
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'application/json' 3 times.
+  5. one-file-page-project:backend/api-ai-training/index.py:31
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+  6. one-file-page-project:backend/api-ai-training/index.py:55
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+  7. one-file-page-project:backend/api-ai-training/index.py:84
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+  8. one-file-page-project:backend/api-ai-training/index.py:156
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 17 to the 15 allowed.
+  9. one-file-page-project:backend/api-ai-training/index.py:229
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 22 to the 15 allowed.
+ 10. one-file-page-project:backend/api-ai-training/index.py:277
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'id обязателен' 8 times.
+ 11. one-file-page-project:backend/api-ai-training/index.py:285
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Method not allowed' 5 times.
+ 12. one-file-page-project:backend/api-ai-training/index.py:358
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 50 to the 15 allowed.
+ 13. one-file-page-project:backend/api-ai-training/index.py:486
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 38 to the 15 allowed.
+ 14. one-file-page-project:backend/api-ai-training/index.py:491
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 15. one-file-page-project:backend/api-ai-training/index.py:561
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 16. one-file-page-project:backend/api-ai-training/index.py:601
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 17. one-file-page-project:backend/api-ai-training/index.py:633
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.
+ 18. one-file-page-project:backend/api-ai-training/index.py:706
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 59 to the 15 allowed.
+ 19. one-file-page-project:backend/api-ai-training/index.py:758
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Запись не найдена или уже обработана' 3 times.
+ 20. one-file-page-project:backend/api-bulk-tickets/index.py:121
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Specify an exception class to catch or reraise the exception
+ 21. one-file-page-project:backend/api-bulk-tickets/index.py:124
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 139 to the 15 allowed.
+ 22. one-file-page-project:backend/api-bulk-tickets/index.py:592
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Specify an exception class to catch or reraise the exception
+ 23. one-file-page-project:backend/api-classify-ticket/index.py:19
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'application/json' 5 times.
+ 24. one-file-page-project:backend/api-classify-ticket/index.py:132
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+ 25. one-file-page-project:backend/api-classify-ticket/index.py:154
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+ 26. one-file-page-project:backend/api-classify-ticket/index.py:256
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allowed.
+ 27. one-file-page-project:backend/api-classify-ticket/index.py:442
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 28. one-file-page-project:backend/api-classify-ticket/index.py:452
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 29. one-file-page-project:backend/api-classify-ticket/index.py:457
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 25 to the 15 allowed.
+ 30. one-file-page-project:backend/api-classify-ticket/index.py:721
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 31. one-file-page-project:backend/api-classify-ticket/index.py:743
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 47 to the 15 allowed.
+ 32. one-file-page-project:backend/api-classify-ticket/index.py:817
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 33. one-file-page-project:backend/api-classify-ticket/index.py:869
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Catch a more specific exception or reraise the exception
+ 34. one-file-page-project:backend/api-executor-groups/index.py:41
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Specify an exception class to catch or reraise the exception
+ 35. one-file-page-project:backend/api-executor-groups/index.py:140
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Группа не найдена' 3 times.
+ 36. one-file-page-project:backend/api-general/index.py:17
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 19 to the 15 allowed.
+ 37. one-file-page-project:backend/api-general/notification_templates_handler.py:27
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 34 to the 15 allowed.
+ 38. one-file-page-project:backend/api-general/roles_handler.py:13
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 40 to the 15 allowed.
+ 39. one-file-page-project:backend/api-general/roles_handler.py:22
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Access denied' 4 times.
+ 40. one-file-page-project:backend/api-general/system_settings_handler.py:9
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 26 to the 15 allowed.
+ 41. one-file-page-project:backend/api-general/users_handler.py:32
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 118 to the 15 allowed.
+ 42. one-file-page-project:backend/api-general/users_handler.py:106
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Access denied' 3 times.
+ 43. one-file-page-project:backend/api-improve-comment/index.py:10
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'application/json' 3 times.
+ 44. one-file-page-project:backend/api-improve-comment/index.py:35
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+ 45. one-file-page-project:backend/api-improve-comment/index.py:65
+     [CRITICAL] [VULNERABILITY] python:S4830
+     Enable server certificate validation on this SSL/TLS connection.
+ 46. one-file-page-project:backend/api-knowledge-base/index.py:71
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Недостаточно прав' 3 times.
+ 47. one-file-page-project:backend/api-knowledge-base/index.py:92
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'id обязателен' 5 times.
+ 48. one-file-page-project:backend/api-knowledge-base/index.py:115
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'method not allowed' 9 times.
+ 49. one-file-page-project:backend/api-knowledge-base/index.py:183
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 46 to the 15 allowed.
+ 50. one-file-page-project:backend/api-knowledge-base/index.py:393
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'article_id обязателен' 5 times.
+ 51. one-file-page-project:backend/api-knowledge-base/index.py:429
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Нет прав' 4 times.
+ 52. one-file-page-project:backend/api-knowledge-base/index.py:439
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.
+ 53. one-file-page-project:backend/api-knowledge-base/index.py:621
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 16 to the 15 allowed.
+ 54. one-file-page-project:backend/api-reply-templates/index.py:22
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 41 to the 15 allowed.
+ 55. one-file-page-project:backend/api-services/index.py:9
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 36 to the 15 allowed.
+ 56. one-file-page-project:backend/api-services/index.py:198
+     [CRITICAL] [CODE_SMELL] python:S5754
+     Specify an exception class to catch or reraise the exception
+ 57. one-file-page-project:backend/api-ticket-comments/index.py:178
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 18 to the 15 allowed.
+ 58. one-file-page-project:backend/api-ticket-comments/index.py:187
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Требуется авторизация' 3 times.
+ 59. one-file-page-project:backend/api-ticket-comments/index.py:235
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Invalid JSON' 3 times.
+ 60. one-file-page-project:backend/api-ticket-comments/index.py:289
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'comment_id is required' 3 times.
+ 61. one-file-page-project:backend/api-ticket-comments/index.py:299
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Comment not found' 5 times.
+ 62. one-file-page-project:backend/api-ticket-comments/index.py:357
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 35 to the 15 allowed.
+ 63. one-file-page-project:backend/api-ticket-comments/index.py:506
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 39 to the 15 allowed.
+ 64. one-file-page-project:backend/api-ticket-comments/index.py:746
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 34 to the 15 allowed.
+ 65. one-file-page-project:backend/api-ticket-comments/index.py:1016
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 20 to the 15 allowed.
+ 66. one-file-page-project:backend/api-ticket-comments/max_bot_notifier.py:86
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 24 to the 15 allowed.
+ 67. one-file-page-project:backend/api-tickets/access_checklist_handler.py:235
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 27 to the 15 allowed.
+ 68. one-file-page-project:backend/api-tickets/access_checklist_handler.py:346
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 39 to the 15 allowed.
+ 69. one-file-page-project:backend/api-tickets/bitrix_bot_notifier.py:84
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 27 to the 15 allowed.
+ 70. one-file-page-project:backend/api-tickets/index.py:217
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 31 to the 15 allowed.
+ 71. one-file-page-project:backend/api-tickets/index.py:341
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Требуется авторизация' 19 times.
+ 72. one-file-page-project:backend/api-tickets/index.py:344
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'Только GET запросы' 9 times.
+ 73. one-file-page-project:backend/api-tickets/index.py:350
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "date_trunc('day', NOW())" 6 times.
+ 74. one-file-page-project:backend/api-tickets/index.py:351
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "date_trunc('week', NOW())" 6 times.
+ 75. one-file-page-project:backend/api-tickets/index.py:352
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "date_trunc('month', NOW())" 6 times.
+ 76. one-file-page-project:backend/api-tickets/index.py:353
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "date_trunc('year', NOW())" 6 times.
+ 77. one-file-page-project:backend/api-tickets/index.py:362
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal 'from_date и to_date обязательны для period=custom' 6 times.
+ 78. one-file-page-project:backend/api-tickets/index.py:492
+     [CRITICAL] [CODE_SMELL] python:S3776
+     Refactor this function to reduce its Cognitive Complexity from 44 to the 15 allowed.
+ 79. one-file-page-project:backend/api-tickets/index.py:522
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "%(from_date)s::date" 7 times.
+ 80. one-file-page-project:backend/api-tickets/index.py:523
+     [CRITICAL] [CODE_SMELL] python:S1192
+     Define a constant instead of duplicating this literal "(%(to_date)s::date + INTERVAL '1 day')" 4 times.
+
+Verdict:
+  REVIEW REQUIRED — 255 BLOCKER/CRITICAL issues

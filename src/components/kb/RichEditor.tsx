@@ -16,9 +16,9 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
 import { useEffect, useRef, useState } from 'react';
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-const UPLOAD_FILE_URL = (func2url as Record<string, string>)['upload-file'];
+const UPLOAD_FILE_URL = FN.UPLOAD_FILE;
 
 const IMAGE_EXT = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'];
 

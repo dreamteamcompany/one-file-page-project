@@ -1,0 +1,87 @@
+=== RUFF BACKEND SUMMARY ===
+Total findings: 1143
+
+Top rules:
+    466  UP006
+    249  BLE001
+    102  I001
+     89  UP045
+     64  UP035
+     36  RUF010
+     23  S110
+     20  F401
+     16  RUF013
+     13  F541
+     10  E722
+     10  UP032
+      7  S112
+      7  RUF059
+      6  F841
+      4  DTZ003
+      4  FURB167
+      2  SIM118
+      2  SIM102
+      2  DTZ007
+      1  PLC0206
+      1  TRY002
+      1  B033
+      1  RUF046
+      1  PLR1730
+      1  F823
+      1  RUF015
+      1  C400
+      1  C401
+      1  DTZ005
+      1  TRY201
+
+Top files:
+    154  /home/fluxx/one-file-page-project/backend/api-tickets/index.py
+     67  /home/fluxx/one-file-page-project/backend/api-ticket-comments/index.py
+     64  /home/fluxx/one-file-page-project/backend/api-watcher-rules/index.py
+     59  /home/fluxx/one-file-page-project/backend/create-employee-account/index.py
+     57  /home/fluxx/one-file-page-project/backend/bitrix-sync-departments/index.py
+     44  /home/fluxx/one-file-page-project/backend/api-knowledge-base/index.py
+     42  /home/fluxx/one-file-page-project/backend/api-bulk-tickets/index.py
+     34  /home/fluxx/one-file-page-project/backend/departments/orgchart.py
+     32  /home/fluxx/one-file-page-project/backend/api-tickets/sla_handler.py
+     26  /home/fluxx/one-file-page-project/backend/bitrix-sync-positions/index.py
+     23  /home/fluxx/one-file-page-project/backend/bitrix-sync-heads/index.py
+     19  /home/fluxx/one-file-page-project/backend/collect-logs/index.py
+     18  /home/fluxx/one-file-page-project/backend/api-knowledge-base/shared_utils.py
+     17  /home/fluxx/one-file-page-project/backend/api-tickets/group_tracking_service.py
+     14  /home/fluxx/one-file-page-project/backend/auth/data_service.py
+     14  /home/fluxx/one-file-page-project/backend/log-analyzer/index.py
+     13  /home/fluxx/one-file-page-project/backend/api-tickets/sla_group_budgets_handler.py
+     13  /home/fluxx/one-file-page-project/backend/auth/auth_service.py
+     12  /home/fluxx/one-file-page-project/backend/api-classify-ticket/index.py
+     12  /home/fluxx/one-file-page-project/backend/api-tickets/sla_service_mappings_handler.py
+     12  /home/fluxx/one-file-page-project/backend/bitrix-inactive-users/index.py
+     11  /home/fluxx/one-file-page-project/backend/api-general/shared_utils.py
+     11  /home/fluxx/one-file-page-project/backend/api-general/users_handler.py
+     11  /home/fluxx/one-file-page-project/backend/api-services/shared_utils.py
+     11  /home/fluxx/one-file-page-project/backend/api-tickets/executor_assignment_resolver.py
+     11  /home/fluxx/one-file-page-project/backend/api-tickets/shared_utils.py
+     11  /home/fluxx/one-file-page-project/backend/shared_utils.py
+     10  /home/fluxx/one-file-page-project/backend/api-executor-assignments/shared_utils.py
+     10  /home/fluxx/one-file-page-project/backend/api-executor-groups/shared_utils.py
+     10  /home/fluxx/one-file-page-project/backend/api-tickets/access_checklist_handler.py
+
+By category:
+     34  Security
+    294  Bugs/correctness
+    249  Exception handling
+      2  Complexity/design
+     69  Code quality
+    112  Style/imports
+    629  Modernization
+
+Verdict:
+  REVIEW REQUIRED — 34 security findings
+
+Most important rules:
+  S: 34
+  B: 250
+  BLE: 249
+  F: 44
+  RUF: 61
+  UP: 629

@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-SYNC_POSITIONS_URL = 'https://functions.poehali.dev/554d2115-1c37-4955-b544-bc0a5df0b466'
-INACTIVE_USERS_URL = 'https://functions.poehali.dev/7bf1dc65-32dd-447a-a33e-8b1a7bed5b07'
-REASSIGN_BY_SCHEDULE_URL = 'https://functions.poehali.dev/42295d4a-eb89-4bd6-b915-d94a2a734b16'
+FUNCTIONS_BASE_URL = os.environ.get('FUNCTIONS_BASE_URL', 'https://functions.poehali.dev').rstrip('/')
+SYNC_POSITIONS_URL = os.environ.get('SYNC_POSITIONS_URL', f'{FUNCTIONS_BASE_URL}/554d2115-1c37-4955-b544-bc0a5df0b466')
+INACTIVE_USERS_URL = os.environ.get('INACTIVE_USERS_URL', f'{FUNCTIONS_BASE_URL}/7bf1dc65-32dd-447a-a33e-8b1a7bed5b07')
+REASSIGN_BY_SCHEDULE_URL = os.environ.get('REASSIGN_BY_SCHEDULE_URL', f'{FUNCTIONS_BASE_URL}/42295d4a-eb89-4bd6-b915-d94a2a734b16')
 
 CORS_HEADERS = {
     'Content-Type': 'application/json',

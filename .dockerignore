@@ -1,0 +1,12 @@
+.git
+.env
+audit
+dist
+node_modules
+tmp
+*.log
+**/__pycache__
+*.py[cod]
+docker/postgres/*.dump
+docker/postgres/*.tsv
+docker/postgres/*.sha256

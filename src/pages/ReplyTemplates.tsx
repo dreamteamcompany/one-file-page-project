@@ -18,9 +18,9 @@ import Icon from '@/components/ui/icon';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-const API_URL = (func2url as Record<string, string>)['api-reply-templates'];
+const API_URL = FN.REPLY_TEMPLATES;
 
 interface ReplyTemplate {
   id: number;

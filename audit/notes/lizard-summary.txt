@@ -1,0 +1,42 @@
+=== LIZARD COMPLEXITY SUMMARY ===
+Report: audit/quality/lizard-backend.txt
+Parsed warning rows: 139
+Files with warnings: 55
+
+Metrics:
+  Max NLOC:   708
+  Max CCN:    337
+  Max length: 1485
+  Max PARAM:  15
+
+Top complexity findings:
+  backend/api-tickets/index.py:1805 handle_tickets — NLOC=708, CCN=337, length=1485, PARAM=3
+  backend/api-bulk-tickets/index.py:124 handler — NLOC=329, CCN=84, length=470, PARAM=2
+  backend/api-general/users_handler.py:32 handle_users — NLOC=210, CCN=66, length=295, PARAM=4
+  backend/bitrix-inactive-users/index.py:589 handler — NLOC=208, CCN=59, length=232, PARAM=2
+  backend/create-employee-account/index.py:245 handle_create — NLOC=124, CCN=48, length=138, PARAM=1
+  backend/api-ticket-comments/index.py:506 handle_create_comment — NLOC=108, CCN=46, length=206, PARAM=3
+  backend/api-tickets/index.py:4632 handle_tickets_full — NLOC=96, CCN=46, length=173, PARAM=3
+  backend/api-watcher-rules/index.py:583 backfill_rules — NLOC=112, CCN=45, length=173, PARAM=2
+  backend/api-tickets/index.py:3640 handle_ticket_statuses — NLOC=139, CCN=43, length=169, PARAM=3
+  backend/bitrix-sync-positions/index.py:82 sync_positions_and_users — NLOC=129, CCN=42, length=182, PARAM=2
+  backend/api-tickets/index.py:492 handle_dashboard_ops — NLOC=75, CCN=40, length=232, PARAM=3
+  backend/bitrix-sync-departments/index.py:370 sync_positions_and_users — NLOC=118, CCN=39, length=191, PARAM=2
+  backend/create-employee-account/index.py:816 lancloud_login — NLOC=97, CCN=39, length=111, PARAM=3
+  backend/api-ticket-comments/index.py:357 handle_get_comments — NLOC=68, CCN=39, length=147, PARAM=3
+  backend/api-tickets/index.py:1020 handle_dashboard_team — NLOC=98, CCN=37, length=394, PARAM=3
+
+Worst files:
+  24 warnings  max CCN=337  max NLOC=708  backend/api-tickets/index.py
+  17 warnings  max CCN=48  max NLOC=124  backend/create-employee-account/index.py
+   8 warnings  max CCN=36  max NLOC=118  backend/api-ai-training/index.py
+   7 warnings  max CCN=46  max NLOC=108  backend/api-ticket-comments/index.py
+   6 warnings  max CCN=59  max NLOC=208  backend/bitrix-inactive-users/index.py
+   6 warnings  max CCN=45  max NLOC=112  backend/api-watcher-rules/index.py
+   5 warnings  max CCN=39  max NLOC=118  backend/bitrix-sync-departments/index.py
+   5 warnings  max CCN=32  max NLOC=100  backend/api-knowledge-base/index.py
+   4 warnings  max CCN=29  max NLOC= 73  backend/automation/index.py
+   4 warnings  max CCN=28  max NLOC=118  backend/api-classify-ticket/index.py
+
+Verdict:
+  REFACTOR RECOMMENDED — several functions have high cyclomatic complexity and/or excessive size.

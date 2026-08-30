@@ -1,0 +1,22 @@
+[
+  {
+    "Description": "Generic API Key",
+    "StartLine": 347,
+    "EndLine": 347,
+    "StartColumn": 11,
+    "EndColumn": 60,
+    "Match": "REDACTED",
+    "Secret": "REDACTED",
+    "File": "backend/create-employee-account/index.py",
+    "SymlinkFile": "",
+    "Commit": "8edeaf4d58be3ecbcd1c2ceb36604ede666116cb",
+    "Entropy": 3.7873018,
+    "Author": "Poehali[bot]",
+    "Email": "1187840+poehali[bot]@users.noreply.github.com",
+    "Date": "2026-07-10T17:16:11Z",
+    "Message": "docs: добавить ограничения API LanCloud",
+    "Tags": [],
+    "RuleID": "generic-api-key",
+    "Fingerprint": "8edeaf4d58be3ecbcd1c2ceb36604ede666116cb:backend/create-employee-account/index.py:generic-api-key:347"
+  }
+]

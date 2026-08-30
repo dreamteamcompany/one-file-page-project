@@ -9,9 +9,9 @@ import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-const API_URL = (func2url as Record<string, string>)['create-employee-account'];
+const API_URL = FN.CREATE_ACCOUNT;
 
 interface SettingField {
   key: string;

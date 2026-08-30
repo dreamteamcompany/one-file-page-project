@@ -1,0 +1,169 @@
+=== JSCPD DUPLICATION SUMMARY ===
+Duplicate blocks: 472
+
+Statistics:
+  detectionDate: 2026-08-28T10:04:12.013Z
+  formats:
+    javascript: {'clones': 0, 'duplicatedLines': 0, 'duplicatedTokens': 0, 'lines': 108, 'newClones': 0, 'newDuplicatedLines': 0, 'percentage': 0.0, 'percentageTokens': 0.0, 'sources': 2, 'tokens': 552}
+    python: {'clones': 147, 'duplicatedLines': 2901, 'duplicatedTokens': 16854, 'lines': 26017, 'newClones': 0, 'newDuplicatedLines': 0, 'percentage': 11.150401660452781, 'percentageTokens': 10.44749288685292, 'sources': 100, 'tokens': 161321}
+    tsx: {'clones': 286, 'duplicatedLines': 4844, 'duplicatedTokens': 27032, 'lines': 66407, 'newClones': 0, 'newDuplicatedLines': 0, 'percentage': 7.2944117337027725, 'percentageTokens': 6.88809896928232, 'sources': 401, 'tokens': 392445}
+    typescript: {'clones': 39, 'duplicatedLines': 475, 'duplicatedTokens': 2758, 'lines': 11001, 'newClones': 0, 'newDuplicatedLines': 0, 'percentage': 4.317789291882556, 'percentageTokens': 4.554762848460827, 'sources': 81, 'tokens': 60552}
+  total:
+    clones: 472
+    duplicatedLines: 8220
+    duplicatedTokens: 46644
+    lines: 103533
+    newClones: 0
+    newDuplicatedLines: 0
+    percentage: 7.939497551505317
+    percentageTokens: 7.585993787304633
+    sources: 584
+    tokens: 614870
+
+Top duplicated files:
+    54 duplicates    822 duplicate-lines  backend/api-tickets/index.py
+    30 duplicates    672 duplicate-lines  src/pages/Categories.tsx
+    24 duplicates    410 duplicate-lines  src/pages/ApprovalsHistory.tsx
+    19 duplicates    253 duplicate-lines  backend/api-ticket-comments/index.py
+    18 duplicates    358 duplicate-lines  src/pages/ServiceProviders.tsx
+    16 duplicates    217 duplicate-lines  backend/api-watcher-rules/index.py
+    16 duplicates    355 duplicate-lines  src/pages/ApprovedPayments.tsx
+    15 duplicates    261 duplicate-lines  src/pages/CustomFields.tsx
+    14 duplicates    282 duplicate-lines  src/pages/Contractors.tsx
+    14 duplicates    172 duplicate-lines  src/pages/Index.tsx
+    14 duplicates    294 duplicate-lines  src/pages/TicketServices.tsx
+    12 duplicates    232 duplicate-lines  backend/bitrix-sync-departments/index.py
+    11 duplicates    159 duplicate-lines  src/pages/AuditLogs.tsx
+    10 duplicates    191 duplicate-lines  backend/automation/index.py
+    10 duplicates    167 duplicate-lines  src/components/layout/PageLayout.tsx
+    10 duplicates    142 duplicate-lines  src/pages/Companies.tsx
+    10 duplicates    100 duplicate-lines  src/services/bulkTicketsService.ts
+     9 duplicates    557 duplicate-lines  backend/api-general/shared_utils.py
+     9 duplicates    208 duplicate-lines  backend/api-tickets/max_bot_notifier.py
+     9 duplicates    206 duplicate-lines  backend/bitrix-sync-positions/index.py
+     9 duplicates    230 duplicate-lines  src/pages/RejectedPayments.tsx
+     9 duplicates    127 duplicate-lines  src/pages/Users.tsx
+     9 duplicates    125 duplicate-lines  src/pages/Positions.tsx
+     8 duplicates    205 duplicate-lines  backend/api-bulk-tickets/bitrix_bot_notifier.py
+     8 duplicates    141 duplicate-lines  backend/automation-dispatcher/index.py
+     8 duplicates     99 duplicate-lines  src/components/dashboard2/Dashboard2TeamPerformance.tsx
+     8 duplicates    144 duplicate-lines  src/pages/LegalEntities.tsx
+     8 duplicates    169 duplicate-lines  src/pages/SavingReasons.tsx
+     7 duplicates    155 duplicate-lines  backend/api-ticket-comments/max_bot_notifier.py
+     7 duplicates     85 duplicate-lines  backend/api-tickets/sla_handler.py
+
+Top duplicated file pairs:
+    21  backend/api-tickets/index.py <-> backend/api-tickets/index.py
+    13  src/pages/ServiceProviders.tsx <-> src/pages/TicketServices.tsx
+     9  src/pages/Companies.tsx <-> src/pages/Positions.tsx
+     8  backend/bitrix-sync-departments/index.py <-> backend/bitrix-sync-positions/index.py
+     8  src/pages/ApprovedPayments.tsx <-> src/pages/RejectedPayments.tsx
+     7  backend/automation-dispatcher/index.py <-> backend/automation/index.py
+     6  src/components/dashboard2/team/TeamEscalationRow.tsx <-> src/components/dashboard2/team/TeamTimeToL3Row.tsx
+     6  src/pages/Categories.tsx <-> src/pages/SavingReasons.tsx
+     6  src/pages/Categories.tsx <-> src/pages/TicketServiceCategories.tsx
+     5  backend/api-ticket-comments/index.py <-> backend/api-tickets/index.py
+     5  backend/api-ticket-comments/max_bot_notifier.py <-> backend/api-tickets/max_bot_notifier.py
+     5  backend/api-watcher-rules/index.py <-> backend/api-watcher-rules/index.py
+     5  src/components/dashboard2/blocks/AverageRatingCard.tsx <-> src/components/dashboard2/blocks/TicketsCreatedCard.tsx
+     5  src/services/bulkTicketsService.ts <-> src/services/bulkTicketsService.ts
+     4  backend/api-bulk-tickets/bitrix_bot_notifier.py <-> backend/api-watcher-rules/bitrix_bot_notifier.py
+     4  backend/api-ticket-comments/index.py <-> backend/api-ticket-comments/index.py
+     4  backend/api-tickets/index.py <-> backend/api-watcher-rules/index.py
+     4  src/components/approvals/PaymentAuditLog.tsx <-> src/pages/AuditLogs.tsx
+     4  src/components/dashboard2/Dashboard2EditableLayout.tsx <-> src/components/dashboard2/Dashboard2FullEditableLayout.tsx
+     4  src/pages/Categories.tsx <-> src/pages/CustomFields.tsx
+     4  src/pages/CustomFields.tsx <-> src/pages/LegalEntities.tsx
+     4  src/pages/Index.tsx <-> src/pages/Index.tsx
+     3  backend/api-ai-training/index.py <-> backend/api-classify-ticket/index.py
+     3  backend/api-ticket-history/index.py <-> backend/api-tickets/index.py
+     3  backend/api-tickets/bitrix_bot_notifier.py <-> backend/api-tickets/max_bot_notifier.py
+     3  backend/api-tickets/sla_handler.py <-> backend/api-tickets/sla_handler.py
+     3  backend/companies/index.py <-> backend/positions/index.py
+     3  src/components/dashboard2/AllDashboardCards.tsx <-> src/components/dashboard2/DashboardCardsData.tsx
+     3  src/components/dashboard2/ops/useOpsDashboard.ts <-> src/components/dashboard2/services/useServicesDashboard.ts
+     3  src/components/payments/ApprovedPaymentDetailsModal.tsx <-> src/components/payments/PaymentDetailsModal.tsx
+
+Largest duplicate blocks:
+  1. src/components/dashboard2/AllDashboardCards.tsx:88-156 <-> src/components/dashboard2/DashboardCardsData.tsx:58-123 tokens=525
+  2. backend/api-general/shared_utils.py:1-98 <-> backend/api-services/shared_utils.py:1-98 tokens=473
+  3. backend/api-general/shared_utils.py:1-98 <-> backend/api-tickets/shared_utils.py:1-98 tokens=473
+  4. backend/api-general/shared_utils.py:1-98 <-> backend/shared_utils.py:1-98 tokens=473
+  5. src/components/payments/ApprovedPaymentDetailsModal.tsx:101-164 <-> src/components/payments/PaymentDetailsModal.tsx:73-136 tokens=429
+  6. src/pages/Categories.tsx:124-196 <-> src/pages/TicketServiceCategories.tsx:123-195 tokens=362
+  7. backend/api-general/shared_utils.py:1-77 <-> backend/api-ticket-comments/shared_utils.py:1-77 tokens=347
+  8. backend/api-general/shared_utils.py:1-77 <-> backend/api-ticket-history/shared_utils.py:1-77 tokens=347
+  9. src/components/dashboard2/Dashboard2EditableLayout.tsx:144-211 <-> src/components/dashboard2/Dashboard2FullEditableLayout.tsx:164-231 tokens=339
+ 10. src/components/payments/ApprovedPaymentDetailsModal.tsx:250-289 <-> src/components/payments/PaymentDetailsModal.tsx:178-225 tokens=324
+ 11. backend/api-general/shared_utils.py:1-69 <-> backend/api-reply-templates/shared_utils.py:1-66 tokens=312
+ 12. src/components/dashboard2/blocks/ContractorComparisonChart.tsx:121-194 <-> src/components/dashboard2/blocks/LegalEntityComparisonChart.tsx:84-157 tokens=298
+ 13. src/components/dashboard2/AllDashboardCards.tsx:8-25 <-> src/components/dashboard2/DashboardCardsData.tsx:14-31 tokens=284
+ 14. backend/tickets-counters/shared_utils.py:1-56 <-> backend/tickets-mark-read/shared_utils.py:1-56 tokens=282
+ 15. backend/api-knowledge-base/shared_utils.py:1-59 <-> backend/tickets-counters/shared_utils.py:1-56 tokens=280
+ 16. backend/bitrix-sync-departments/index.py:513-551 <-> backend/bitrix-sync-positions/index.py:216-254 tokens=275
+ 17. src/components/tickets/TicketFormStepService.tsx:174-218 <-> src/components/tickets/TicketFormStepServiceItems.tsx:134-178 tokens=270
+ 18. src/pages/ApprovedPayments.tsx:227-260 <-> src/pages/RejectedPayments.tsx:210-243 tokens=270
+ 19. src/components/dashboard2/team/TeamEscalationRow.tsx:144-186 <-> src/components/dashboard2/team/TeamTimeToL3Row.tsx:119-161 tokens=268
+ 20. src/pages/Payments.tsx:77-127 <-> src/pages/PlannedPayments.tsx:92-142 tokens=264
+ 21. backend/api-ai-training/shared_utils.py:1-55 <-> backend/api-executor-assignments/shared_utils.py:1-55 tokens=262
+ 22. src/components/dashboard2/team/TeamEscalationRow.tsx:114-125 <-> src/components/dashboard2/team/TeamTimeToL3Row.tsx:91-102 tokens=254
+ 23. backend/api-knowledge-base/shared_utils.py:1-51 <-> backend/api-watcher-rules/shared_utils.py:1-51 tokens=247
+ 24. backend/api-tickets/index.py:499-537 <-> backend/api-tickets/index.py:1024-1062 tokens=247
+ 25. src/pages/ApprovedPayments.tsx:85-125 <-> src/pages/RejectedPayments.tsx:78-118 tokens=245
+ 26. backend/api-tickets/index.py:499-534 <-> backend/api-tickets/index.py:855-890 tokens=238
+ 27. src/components/payments/ApprovedPaymentDetailsModal.tsx:164-203 <-> src/components/payments/PaymentDetailsModal.tsx:139-178 tokens=237
+ 28. backend/api-tickets/index.py:187-217 <-> backend/api-watcher-rules/index.py:357-387 tokens=226
+ 29. backend/automation/index.py:50-95 <-> backend/bitrix-inactive-users/index.py:37-82 tokens=225
+ 30. src/pages/Categories.tsx:38-67 <-> src/pages/TicketServiceCategories.tsx:37-66 tokens=220
+ 31. backend/api-bulk-tickets/bitrix_bot_notifier.py:1-44 <-> backend/api-tickets/bitrix_bot_notifier.py:1-40 tokens=217
+ 32. src/pages/ServiceProviders.tsx:272-304 <-> src/pages/TicketServices.tsx:341-373 tokens=207
+ 33. backend/api-ticket-comments/max_bot_notifier.py:88-115 <-> backend/api-tickets/max_bot_notifier.py:243-271 tokens=206
+ 34. backend/api-tickets/max_bot_notifier.py:28-71 <-> backend/api-watcher-rules/max_bot_notifier.py:20-60 tokens=205
+ 35. backend/bitrix-sync-heads/index.py:274-311 <-> backend/bitrix-sync-positions/index.py:269-307 tokens=202
+ 36. backend/bitrix-sync-departments/index.py:454-489 <-> backend/bitrix-sync-positions/index.py:142-177 tokens=202
+ 37. backend/bitrix-auth/index.py:253-268 <-> backend/bitrix-auth/index.py:342-357 tokens=201
+ 38. src/pages/ServiceProviders.tsx:184-227 <-> src/pages/TicketServices.tsx:246-289 tokens=198
+ 39. src/pages/Categories.tsx:214-241 <-> src/pages/TicketServiceCategories.tsx:213-240 tokens=198
+ 40. backend/bitrix-auth/index.py:255-268 <-> backend/bitrix-auth/index.py:275-288 tokens=197
+ 41. backend/api-bulk-tickets/bitrix_bot_notifier.py:37-69 <-> backend/api-tickets/bitrix_bot_notifier.py:40-73 tokens=186
+ 42. src/pages/Categories.tsx:88-123 <-> src/pages/TicketServiceCategories.tsx:87-122 tokens=181
+ 43. src/components/payments/PaymentsSidebar.tsx:34-58 <-> src/components/tickets/TicketsSidebar.tsx:30-54 tokens=180
+ 44. src/pages/ApprovedPayments.tsx:164-195 <-> src/pages/RejectedPayments.tsx:153-184 tokens=179
+ 45. backend/api-executor-assignments/shared_utils.py:48-76 <-> backend/api-executor-groups/shared_utils.py:48-76 tokens=175
+ 46. src/pages/TicketServicesManagement.tsx:61-104 <-> src/pages/TicketStatuses.tsx:49-84 tokens=170
+ 47. src/pages/Categories.tsx:143-179 <-> src/pages/LegalEntities.tsx:141-177 tokens=170
+ 48. src/pages/Categories.tsx:143-179 <-> src/pages/SavingReasons.tsx:143-179 tokens=170
+ 49. src/pages/Categories.tsx:143-179 <-> src/pages/TicketPriorities.tsx:188-224 tokens=170
+ 50. src/pages/ServiceProviders.tsx:42-62 <-> src/pages/Services.tsx:17-41 tokens=168
+ 51. src/pages/Categories.tsx:145-179 <-> src/pages/CustomFields.tsx:201-235 tokens=165
+ 52. backend/api-knowledge-base/shared_utils.py:27-59 <-> backend/users-search/shared_utils.py:27-56 tokens=160
+ 53. backend/bitrix-sync-departments/index.py:572-600 <-> backend/bitrix-sync-heads/index.py:277-305 tokens=160
+ 54. src/pages/CustomFieldGroups.tsx:25-47 <-> src/pages/TicketTemplates.tsx:27-49 tokens=160
+ 55. backend/api-tickets/index.py:499-523 <-> backend/api-tickets/index.py:731-755 tokens=157
+ 56. backend/api-ai-training/shared_utils.py:4-38 <-> backend/api-knowledge-base/shared_utils.py:2-36 tokens=156
+ 57. src/pages/ServiceProviders.tsx:227-248 <-> src/pages/TicketServices.tsx:290-311 tokens=154
+ 58. src/pages/CustomFieldGroups.tsx:25-47 <-> src/pages/FieldRegistry.tsx:60-82 tokens=153
+ 59. backend/api-tickets/index.py:1275-1292 <-> backend/api-tickets/index.py:1527-1544 tokens=151
+ 60. src/pages/ServiceProviders.tsx:41-57 <-> src/pages/TicketServices.tsx:50-64 tokens=150
+ 61. backend/api-tickets/index.py:1340-1359 <-> backend/api-tickets/index.py:1454-1471 tokens=149
+ 62. src/components/approvals/PendingApprovalsList.tsx:3-38 <-> src/pages/ApprovedPayments.tsx:12-47 tokens=148
+ 63. backend/api-bulk-tickets/bitrix_bot_notifier.py:45-66 <-> backend/api-ticket-comments/index.py:1081-1103 tokens=148
+ 64. src/pages/ApprovedPayments.tsx:49-62 <-> src/pages/RejectedPayments.tsx:49-62 tokens=146
+ 65. backend/api-bulk-tickets/bitrix_bot_notifier.py:23-50 <-> backend/api-watcher-rules/bitrix_bot_notifier.py:22-46 tokens=145
+ 66. src/pages/ApprovedPayments.tsx:128-159 <-> src/pages/RejectedPayments.tsx:117-148 tokens=143
+ 67. backend/api-ticket-comments/max_bot_notifier.py:38-66 <-> backend/api-tickets/max_bot_notifier.py:31-67 tokens=143
+ 68. backend/api-ticket-comments/max_bot_notifier.py:119-143 <-> backend/api-tickets/max_bot_notifier.py:271-295 tokens=142
+ 69. backend/api-ticket-comments/max_bot_notifier.py:145-161 <-> backend/api-tickets/max_bot_notifier.py:298-314 tokens=142
+ 70. backend/companies/index.py:137-167 <-> backend/positions/index.py:133-163 tokens=140
+ 71. src/pages/ApprovalsHistory.tsx:26-47 <-> src/pages/CustomerDepartments.tsx:47-68 tokens=139
+ 72. src/components/tickets/TicketCommentsTypes.ts:85-104 <-> src/components/tickets/comments/types.ts:30-49 tokens=136
+ 73. src/components/approvals/PendingApprovalsList.tsx:3-37 <-> src/pages/PendingApprovals.tsx:12-45 tokens=135
+ 74. backend/api-tickets/index.py:1233-1246 <-> backend/api-tickets/index.py:1434-1443 tokens=135
+ 75. src/components/approvals/PendingApprovalsList.tsx:2-36 <-> src/components/payments/ApprovedPaymentDetailsModal.tsx:8-40 tokens=134
+ 76. src/components/approvals/PendingApprovalsList.tsx:2-36 <-> src/pages/RejectedPayments.tsx:11-43 tokens=134
+ 77. src/components/payments/PaymentForm.tsx:291-308 <-> src/components/payments/PaymentForm.tsx:308-325 tokens=134
+ 78. backend/api-watcher-rules/index.py:236-248 <-> backend/api-watcher-rules/index.py:284-296 tokens=132
+ 79. src/pages/CustomFields.tsx:54-74 <-> src/pages/LegalEntities.tsx:40-61 tokens=131
+ 80. backend/api-tickets/index.py:1479-1492 <-> backend/api-tickets/index.py:1553-1567 tokens=130
+
+Verdict: DUPLICATION REVIEW REQUIRED

@@ -22,7 +22,9 @@ def handler(event: dict, context) -> dict:
         }
 
     params = event.get('queryStringParameters') or {}
-    entity = params.get('entity', 'groups')
+    entity = params.get('entity') or (
+        'fields' if params.get('endpoint') == 'custom-fields' else 'groups'
+    )
 
     try:
         conn = get_db_connection()

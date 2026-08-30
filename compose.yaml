@@ -1,0 +1,75 @@
+name: dreamdesk
+
+services:
+  db:
+    image: postgres:18-bookworm
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MAIN_DB_SCHEMA: ${MAIN_DB_SCHEMA}
+    volumes:
+      - dreamdesk-db:/var/lib/postgresql
+      - ${DB_SEED_PATH:-./docker/postgres/seed.dump}:/seed/current.dump:ro
+      - ./docker/postgres/init/10-restore-current-db.sh:/docker-entrypoint-initdb.d/10-restore-current-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      MAIN_DB_SCHEMA: ${MAIN_DB_SCHEMA}
+      FUNCTIONS_BASE_URL: http://backend:8000/api
+      CLASSIFY_URL: http://backend:8000/api/b1d49417-fb02-4b11-9656-d30b68924b54
+      EXPECTED_HANDLERS: "43"
+      EXPECTED_TABLES: "102"
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      args:
+        VITE_FUNCTIONS_BASE: /api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  dreamdesk-db:

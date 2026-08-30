@@ -29,6 +29,10 @@ def handler(event, context):
     params = event.get('queryStringParameters', {}) or {}
     # Поддержка обоих параметров: resource и endpoint (для совместимости)
     resource = params.get('resource', '') or params.get('endpoint', '')
+    resource = {
+        'legal-entities': 'legal_entities',
+        'customer-departments': 'customer_departments',
+    }.get(resource, resource)
     
     if not resource:
         return response(400, {'error': 'Resource or endpoint parameter required'})

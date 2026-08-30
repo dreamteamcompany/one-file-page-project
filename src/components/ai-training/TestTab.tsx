@@ -6,9 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-const CLASSIFY_URL = func2url['api-classify-ticket'];
+const CLASSIFY_URL = FN.CLASSIFY_TICKET;
 
 interface TestResult {
   result: {

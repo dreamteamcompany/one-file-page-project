@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+__pycache__/
+*.py[cod]
 package-lock.json
 bun.lockb
 
@@ -25,6 +27,12 @@ bun.lockb
 *.sln
 *.sw?
 builds
+
+# Локальное Docker-окружение: содержит секреты и данные пользователей
+.env
+docker/postgres/*.dump
+docker/postgres/*.tsv
+docker/postgres/*.sha256
 
 # warmup/handoff артефакты
 tmp/

@@ -1,0 +1,94 @@
+=== SEMGREP SECURITY SUMMARY ===
+Report: audit/security/semgrep.json
+
+Real findings: 991
+
+By severity:
+   734  ERROR
+   255  WARNING
+     1  MEDIUM
+     1  INFO
+
+Top rules:
+   715  python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+   171  python.lang.security.audit.formatted-sql-query.formatted-sql-query
+    41  python.lang.security.audit.sqli.psycopg-sqli.psycopg-sqli
+    21  python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    13  python.aws-lambda.security.psycopg-sqli.psycopg-sqli
+    12  generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash
+     7  python.requests.security.disabled-cert-validation.disabled-cert-validation
+     6  html.security.audit.missing-integrity.missing-integrity
+     2  typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
+     1  package_managers.npm.npm-missing-minimum-release-age.npm-missing-minimum-release-age
+     1  javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+     1  javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
+
+Top files:
+   268  backend/api-tickets/index.py
+    82  backend/api-ai-training/index.py
+    50  backend/api-ticket-comments/index.py
+    49  backend/api-watcher-rules/index.py
+    41  backend/api-bulk-tickets/index.py
+    27  backend/api-executor-groups/index.py
+    25  backend/api-general/users_handler.py
+    23  backend/api-classify-ticket/index.py
+    22  backend/api-executor-assignments/index.py
+    21  backend/api-tickets/access_checklist_handler.py
+    21  backend/api-tickets/sla_analytics_handler.py
+    19  backend/bitrix-sync-heads/index.py
+    17  backend/api-tickets/sla_handler.py
+    16  backend/bitrix-auth/index.py
+    16  backend/bitrix-sync-departments/index.py
+
+Security-sensitive findings:
+  988 findings
+  backend/api-ai-training/index.py:22 [ERROR] python.requests.security.disabled-cert-validation.disabled-cert-validation
+  backend/api-ai-training/index.py:44 [ERROR] python.requests.security.disabled-cert-validation.disabled-cert-validation
+  backend/api-ai-training/index.py:150 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:150 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:169 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:180 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:180 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:199 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:199 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:231 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:231 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:244 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:259 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:278 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:289 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:289 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:303 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:303 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  backend/api-ai-training/index.py:317 [WARNING] python.lang.security.audit.formatted-sql-query.formatted-sql-query
+  backend/api-ai-training/index.py:317 [ERROR] python.sqlalchemy.security.sqlalchemy-execute-raw-query.sqlalchemy-execute-raw-query
+  ... and 968 more
+
+Semgrep engine errors/warnings:
+  Total: 983
+  By code:
+     978  code=2
+       5  code=3
+
+  Affected files:
+       4  src/components/tickets/TicketCommentsTypes.ts
+       4  src/components/tickets/useTicketFormLogic.ts
+       3  public/sw.js
+       3  src/components/ErrorBoundary.tsx
+       3  src/components/ProtectedRoute.tsx
+       3  src/components/ai-training/AddExistingTicketsDialog.tsx
+       3  src/components/ai-training/CorrectReviewDialog.tsx
+       3  src/components/ai-training/DefinitionsTab.tsx
+       3  src/components/ai-training/ExamplesTab.tsx
+       3  src/components/ai-training/RulesTab.tsx
+
+  Main error types:
+     977  metavariable-name:module(s) operator is only supported in the Pro engine
+       3  `import('@/hooks/useFileUploader').UploadedAttachment` was unexpected
+       1  
+       1  `import('./PendingReviewItem').PendingReview` was unexpected
+       1  `import('./TicketEventItem').HistoryLog` was unexpected
+
+Verdict:
+  FAIL / REVIEW REQUIRED — security findings require triage and remediation.
+  NOTE — Semgrep also reported engine/rule limitations; the scan is not equivalent to a fully successful Pro scan.

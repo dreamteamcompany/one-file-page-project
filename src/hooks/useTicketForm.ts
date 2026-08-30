@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { API_URL, apiFetch, CLASSIFY_TICKET_URL } from '@/utils/api';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import { UploadedAttachment } from '@/hooks/useFileUploader';
 
 interface CustomField {
@@ -13,7 +13,7 @@ interface CustomField {
   is_required: boolean;
 }
 
-const COMMENTS_URL = (func2url as Record<string, string>)['api-ticket-comments'];
+const COMMENTS_URL = FN.TICKET_COMMENTS;
 
 export const useTicketForm = (customFields: CustomField[], loadTickets: () => void) => {
   const { token, hasPermission } = useAuth();

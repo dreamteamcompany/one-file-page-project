@@ -14,9 +14,9 @@ import {
 import Icon from '@/components/ui/icon';
 import { apiFetch } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-const AI_TRAINING_URL = func2url['api-ai-training'];
+const AI_TRAINING_URL = FN.AI_TRAINING;
 
 export interface TrainingRule {
   id: number;

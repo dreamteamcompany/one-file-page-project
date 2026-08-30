@@ -1,7 +1,7 @@
-import func2url from '../../../backend/func2url.json';
+import { FN } from '@/config/backend';
 
-export const TEMPLATES_URL = (func2url as Record<string, string>)['api-reply-templates'];
-export const IMPROVE_COMMENT_URL = (func2url as Record<string, string>)['api-improve-comment'];
+export const TEMPLATES_URL = FN.REPLY_TEMPLATES;
+export const IMPROVE_COMMENT_URL = FN.IMPROVE_COMMENT;
 
 export const MAX_IMG_HEIGHT = 320;
 

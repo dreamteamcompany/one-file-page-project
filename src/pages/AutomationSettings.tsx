@@ -6,11 +6,11 @@ import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import { AutomationJob, AutomationRun, Company } from '@/components/automation/types';
 import AutomationJobCard from '@/components/automation/AutomationJobCard';
 
-const AUTOMATION_URL = (func2url as Record<string, string>)['automation'];
+const AUTOMATION_URL = FN.AUTOMATION;
 
 const AutomationSettings = () => {
   const { hasPermission, user } = useAuth();

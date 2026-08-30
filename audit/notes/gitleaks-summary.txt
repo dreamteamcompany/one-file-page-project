@@ -1,0 +1,12 @@
+=== GITLEAKS SUMMARY ===
+Total findings: 1
+Verdict: FINDINGS
+
+Top rules/secrets:
+     1  generic-api-key
+
+Top files:
+     1  backend/create-employee-account/index.py
+
+Findings:
+  1. backend/create-employee-account/index.py:347 [generic-api-key] Generic API Key

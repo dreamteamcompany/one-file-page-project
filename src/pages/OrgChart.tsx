@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import {
   DndContext,
   DragEndEvent,
@@ -26,7 +26,7 @@ import OrgChartHeader from './org-chart/OrgChartHeader';
 import OrgChartContent from './org-chart/OrgChartContent';
 import OrgChartDragOverlay from './org-chart/OrgChartDragOverlay';
 
-const API_URL = (func2url as Record<string, string>)['departments'];
+const API_URL = FN.DEPARTMENTS;
 
 const getStoredAuthToken = (): string => {
   const rememberMe = localStorage.getItem('remember_me') === 'true';

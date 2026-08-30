@@ -8,7 +8,7 @@ import Icon from '@/components/ui/icon';
 import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch } from '@/utils/api';
-import func2url from '../../backend/func2url.json';
+import { FN } from '@/config/backend';
 import ExamplesTab from '@/components/ai-training/ExamplesTab';
 import RulesTab from '@/components/ai-training/RulesTab';
 import DefinitionsTab from '@/components/ai-training/DefinitionsTab';
@@ -19,7 +19,7 @@ import type { TrainingRule } from '@/components/ai-training/RulesTab';
 import type { PendingReview } from '@/components/ai-training/PendingReviewsTab';
 import { useToast } from '@/hooks/use-toast';
 
-const AI_TRAINING_URL = func2url['api-ai-training'];
+const AI_TRAINING_URL = FN.AI_TRAINING;
 const USE_EMBEDDINGS_UI = false;
 
 const AiTraining = () => {

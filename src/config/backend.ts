@@ -70,6 +70,16 @@ const FUNCTION_IDS = {
   UPLOAD_FILE: '3d20e803-c39e-4d0f-84c2-6c5eb7bb1af7',
   /** Создание учётной записи сотрудника */
   CREATE_ACCOUNT: '30868c2a-0677-4a5e-b668-e78c5d7f918a',
+  /** Шаблоны ответов */
+  REPLY_TEMPLATES: 'e8c6cf6d-aedc-4045-a4ba-aa51437849c1',
+  /** База знаний */
+  KNOWLEDGE_BASE: '4927dd34-be70-4780-94dd-35622fc7d8fd',
+  /** Настройки автоматизации */
+  AUTOMATION: '2aacfd88-8589-4d6e-ace1-540fb6324434',
+  /** Обучение классификатора */
+  AI_TRAINING: '1c8f10ba-1def-440e-b5b8-b36840076c65',
+  /** Улучшение текста комментария */
+  IMPROVE_COMMENT: '1af31b9b-b0f5-4104-9def-0de1fcd0d53d',
 
   /** Авторизация через Битрикс24 */
   BITRIX_AUTH: '1ba4ba6c-50e0-4458-b7e4-4464ffcff093',
@@ -79,6 +89,8 @@ const FUNCTION_IDS = {
   BITRIX_SYNC_POSITIONS: '554d2115-1c37-4955-b544-bc0a5df0b466',
   /** Синхронизация руководителей из Битрикс24 */
   BITRIX_SYNC_HEADS: 'd76a8ec5-152f-427f-802c-ebf292c0f3e8',
+  /** Неактивные пользователи Битрикс24 */
+  BITRIX_INACTIVE_USERS: '7bf1dc65-32dd-447a-a33e-8b1a7bed5b07',
 
   /** Анализатор логов */
   LOG_ANALYZER: 'dd221a88-cc33-4a30-a59f-830b0a41862f',
