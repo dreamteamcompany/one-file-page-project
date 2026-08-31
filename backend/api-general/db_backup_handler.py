@@ -16,6 +16,7 @@ import gzip
 import hashlib
 import io
 import json
+import zlib
 import os
 import re
 from datetime import datetime, timezone
@@ -35,9 +36,11 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 # Ссылка даёт доступ к персональным данным, поэтому живёт ограниченное время.
 LINK_TTL_SECONDS = 3600
 DUMP_PREFIX = 'db-backups'
-# Размер страницы при чтении данных. 5000 строк — компромисс между
-# числом запросов и объёмом, который единовременно держится в памяти.
-DATA_PAGE_SIZE = 5000
+# Размер страницы при чтении данных. Небольшой намеренно: у функции
+# всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
+DATA_PAGE_SIZE = 1000
+# Размер части при потоковой отправке в хранилище (минимум S3 — 5 МБ).
+UPLOAD_PART_SIZE = 8 * 1024 * 1024
 
 # Журнальные таблицы: не нужны для восстановления работы сервиса,
 # но составляют заметную часть объёма.
@@ -285,6 +288,67 @@ def _dump_constraints(constraints: List[Dict[str, Any]],
     return '\n'.join(out) + ('\n' if out else '')
 
 
+class _S3StreamWriter:
+    """Отправка дампа в хранилище по частям, без накопления в памяти.
+
+    Готовый файл может весить сотни мегабайт, а у функции 256 МБ — собрать
+    его целиком в памяти нельзя. Поэтому сжатые данные копятся в буфере и,
+    как только он дорастает до размера части, уходят в хранилище и
+    выбрасываются из памяти. Заодно на лету считается контрольная сумма.
+    """
+
+    def __init__(self, s3, bucket: str, key: str, content_type: str):
+        self._s3 = s3
+        self._bucket = bucket
+        self._key = key
+        self._buf = bytearray()
+        self._parts: List[Dict[str, Any]] = []
+        self._digest = hashlib.sha256()
+        self.size = 0
+        self._upload_id = s3.create_multipart_upload(
+            Bucket=bucket, Key=key, ContentType=content_type
+        )['UploadId']
+
+    def write(self, data: bytes) -> None:
+        self._digest.update(data)
+        self.size += len(data)
+        self._buf.extend(data)
+        while len(self._buf) >= UPLOAD_PART_SIZE:
+            self._flush_part(UPLOAD_PART_SIZE)
+
+    def _flush_part(self, length: int) -> None:
+        chunk = bytes(self._buf[:length])
+        del self._buf[:length]
+        part_number = len(self._parts) + 1
+        result = self._s3.upload_part(
+            Bucket=self._bucket,
+            Key=self._key,
+            UploadId=self._upload_id,
+            PartNumber=part_number,
+            Body=chunk,
+        )
+        self._parts.append({'PartNumber': part_number, 'ETag': result['ETag']})
+
+    def finish(self) -> str:
+        if self._buf or not self._parts:
+            self._flush_part(len(self._buf))
+        self._s3.complete_multipart_upload(
+            Bucket=self._bucket,
+            Key=self._key,
+            UploadId=self._upload_id,
+            MultipartUpload={'Parts': self._parts},
+        )
+        return self._digest.hexdigest()
+
+    def abort(self) -> None:
+        try:
+            self._s3.abort_multipart_upload(
+                Bucket=self._bucket, Key=self._key, UploadId=self._upload_id
+            )
+        except Exception:
+            pass
+
+
 def _copy_escape(value: Optional[str]) -> str:
     """Экранирование значения для текстового формата COPY."""
     if value is None:
@@ -408,52 +472,76 @@ def _verify_dump(s3, key: str, sha256: str, tables: List[str],
     def add(name: str, ok: bool, detail: str) -> None:
         checks.append({'name': name, 'ok': bool(ok), 'detail': detail})
 
+    # Файл читается и распаковывается ПОТОКОМ: он может весить сотни
+    # мегабайт, а памяти у функции 256 МБ — целиком в неё он не поместится.
+    digest = hashlib.sha256()
+    stored_size = 0
+    created = copies = terms = begins = commits = 0
+    in_copy = False
+    tail = ''
+    text_len = 0
+    remainder = ''
+
+    def scan(chunk: str) -> None:
+        """Разбор очередного куска текста по строкам."""
+        nonlocal created, copies, terms, begins, commits, in_copy
+        for line in chunk.split('\n'):
+            if in_copy:
+                if line == '\\.':
+                    terms += 1
+                    in_copy = False
+                continue
+            if line.startswith('COPY '):
+                copies += 1
+                in_copy = True
+            elif line.startswith('CREATE TABLE '):
+                created += 1
+            elif line == 'BEGIN;':
+                begins += 1
+            elif line == 'COMMIT;':
+                commits += 1
+
     try:
-        stored = s3.get_object(Bucket='files', Key=key)['Body'].read()
+        body = s3.get_object(Bucket='files', Key=key)['Body']
+        decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+        while True:
+            raw = body.read(1024 * 1024)
+            if not raw:
+                break
+            digest.update(raw)
+            stored_size += len(raw)
+            piece = decompressor.decompress(raw).decode('utf-8', 'replace')
+            if not piece:
+                continue
+            text_len += len(piece)
+            data = remainder + piece
+            # Последняя строка куска может быть оборвана — переносим её
+            # в следующий проход, иначе счётчики собьются.
+            head, sep, remainder = data.rpartition('\n')
+            if sep:
+                scan(head)
+            tail = (tail + piece)[-64:]
+        if remainder:
+            scan(remainder)
+            tail = (tail + remainder)[-64:]
+        body.close()
     except Exception as exc:
         add('Файл читается из хранилища', False, str(exc))
         return checks
 
-    add('Файл читается из хранилища', True, f'{len(stored)} байт')
+    add('Файл читается из хранилища', True, f'{stored_size} байт')
 
-    same = hashlib.sha256(stored).hexdigest() == sha256
+    same = digest.hexdigest() == sha256
     add('Контрольная сумма совпадает', same,
         'файл не повреждён при передаче' if same else 'файл повреждён')
     if not same:
         return checks
 
-    try:
-        text = gzip.decompress(stored).decode('utf-8', 'replace')
-    except Exception as exc:
-        add('Архив распаковывается', False, str(exc))
-        return checks
+    add('Архив распаковывается', text_len > 0, f'{text_len} символов')
 
-    add('Архив распаковывается', True, f'{len(text)} символов')
-
-    complete = text.rstrip().endswith('COMMIT;')
+    complete = tail.rstrip().endswith('COMMIT;')
     add('Дамп завершён полностью', complete,
         'файл не оборван' if complete else 'файл оборван — данные неполные')
-
-    # Структура считается ТОЛЬКО вне блоков данных: текст заявки или
-    # комментария, начинающийся со слов «CREATE TABLE» или «COMMIT;»,
-    # иначе исказил бы подсчёт и забраковал исправный дамп.
-    created = copies = terms = begins = commits = 0
-    in_copy = False
-    for line in text.split('\n'):
-        if in_copy:
-            if line == '\\.':
-                terms += 1
-                in_copy = False
-            continue
-        if line.startswith('COPY '):
-            copies += 1
-            in_copy = True
-        elif line.startswith('CREATE TABLE '):
-            created += 1
-        elif line == 'BEGIN;':
-            begins += 1
-        elif line == 'COMMIT;':
-            commits += 1
 
     add('Все таблицы выгружены', created == len(tables),
         f'{created} из {len(tables)}')
@@ -501,14 +589,20 @@ def handle_db_backup(method, event, conn, payload):
     include_logs = mode == 'full'
     with_data = mode != 'schema'
 
-    buf = io.BytesIO()
-    gz = gzip.GzipFile(fileobj=buf, mode='wb', compresslevel=6)
-
     started = datetime.now(timezone.utc)
     stats: List[Dict[str, Any]] = []
     total_rows = 0
     tables: List[str] = []
     snapshot_at = None
+
+    stamp = started.strftime('%Y%m%d-%H%M%S')
+    key = f'{DUMP_PREFIX}/dreamdesk-{mode}-{stamp}.sql.gz'
+
+    s3 = _s3_client()
+    # Пишем сразу в хранилище: сжатые данные уходят частями и не копятся
+    # в памяти функции.
+    stream = _S3StreamWriter(s3, 'files', key, 'application/gzip')
+    gz = gzip.GzipFile(fileobj=stream, mode='wb', compresslevel=6)
 
     # ВАЖНО: отдельное соединение только для чтения.
     dump_conn = _connect_readonly()
@@ -573,27 +667,19 @@ def handle_db_backup(method, event, conn, payload):
             gz.write(b'\nSET session_replication_role = DEFAULT;\nCOMMIT;\n')
         finally:
             cur.close()
+    except Exception:
+        # Незавершённая отправка иначе осталась бы висеть в хранилище
+        # и занимать место.
+        stream.abort()
+        raise
     finally:
         # rollback, а не commit: транзакция была только на чтение.
         dump_conn.rollback()
         dump_conn.close()
 
     gz.close()
-    dump_bytes = buf.getvalue()
-    buf.close()
-
-    sha256 = hashlib.sha256(dump_bytes).hexdigest()
-    stamp = started.strftime('%Y%m%d-%H%M%S')
-    key = f'{DUMP_PREFIX}/dreamdesk-{mode}-{stamp}.sql.gz'
-
-    s3 = _s3_client()
-    s3.put_object(
-        Bucket='files',
-        Key=key,
-        Body=dump_bytes,
-        ContentType='application/gzip',
-        Metadata={'sha256': sha256, 'rows': str(total_rows), 'mode': mode},
-    )
+    sha256 = stream.finish()
+    dump_size = stream.size
 
     checks = _verify_dump(s3, key, sha256, tables, with_data)
     ok = all(c['ok'] for c in checks)
@@ -605,7 +691,7 @@ def handle_db_backup(method, event, conn, payload):
         'snapshot_at': str(snapshot_at),
         'tables': len(tables),
         'rows': total_rows,
-        'size_bytes': len(dump_bytes),
+        'size_bytes': dump_size,
         'sha256': sha256,
         'checks': checks,
         'duration_sec': round((datetime.now(timezone.utc) - started).total_seconds(), 1),
