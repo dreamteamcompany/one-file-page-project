@@ -1,0 +1,5 @@
+{"tests": [
+  {"name": "OPTIONS preflight", "method": "OPTIONS", "path": "/", "expectedStatus": 200},
+  {"name": "DELETE not allowed", "method": "DELETE", "path": "/", "expectedStatus": 405},
+  {"name": "POST without token returns 401", "method": "POST", "path": "/", "body": {"mode": "schema"}, "expectedStatus": 401}
+]}
