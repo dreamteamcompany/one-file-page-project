@@ -35,7 +35,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 # Ссылка даёт доступ к персональным данным, поэтому живёт ограниченное время.
 LINK_TTL_SECONDS = 3600
 DUMP_PREFIX = 'db-backups'
-COPY_CHUNK = 1 << 16
+# Размер страницы при чтении данных. 5000 строк — компромисс между
+# числом запросов и объёмом, который единовременно держится в памяти.
+DATA_PAGE_SIZE = 5000
 
 # Журнальные таблицы: не нужны для восстановления работы сервиса,
 # но составляют заметную часть объёма.
@@ -317,30 +319,41 @@ def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
 
     writer(f'COPY "{table}" ({quoted}) FROM stdin;\n'.encode())
 
-    # Серверный курсор: строки приходят порциями, вся таблица целиком
-    # в память функции не поднимается.
-    name = 'dump_' + hashlib.md5(table.encode()).hexdigest()[:16]
-    cur = conn.cursor(name=name)
-    cur.itersize = 2000
+    # Читаем страницами через LIMIT/OFFSET.
+    # Именованный (серверный) курсор здесь неприменим: платформа
+    # пропускает только простые запросы, а DECLARE/FETCH отклоняются
+    # с ошибкой «object not found».
+    # ORDER BY по физическому адресу строки ctid: он есть у любой таблицы,
+    # не требует первичного ключа и не заставляет базу сортировать данные.
     rows = 0
-    try:
-        cur.execute(
-            sql.SQL('SELECT {} FROM {}').format(
-                sql.SQL(select_list),
-                sql.Identifier(SCHEMA, table),
+    offset = 0
+    while True:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                sql.SQL('SELECT {} FROM {} ORDER BY ctid LIMIT %s OFFSET %s').format(
+                    sql.SQL(select_list),
+                    sql.Identifier(SCHEMA, table),
+                ),
+                (DATA_PAGE_SIZE, offset),
             )
-        )
-        while True:
-            batch = cur.fetchmany(2000)
-            if not batch:
-                break
-            chunk = []
-            for row in batch:
-                chunk.append('\t'.join(_copy_escape(row[c]) for c in col_names))
-            writer(('\n'.join(chunk) + '\n').encode())
-            rows += len(batch)
-    finally:
-        cur.close()
+            batch = cur.fetchall()
+        finally:
+            cur.close()
+
+        if not batch:
+            break
+
+        chunk = [
+            '\t'.join(_copy_escape(row[c]) for c in col_names)
+            for row in batch
+        ]
+        writer(('\n'.join(chunk) + '\n').encode())
+        rows += len(batch)
+
+        if len(batch) < DATA_PAGE_SIZE:
+            break
+        offset += DATA_PAGE_SIZE
 
     writer(b'\\.\n')
     return rows
