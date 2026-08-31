@@ -30,6 +30,7 @@ import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_REPEATABLE_READ
 from psycopg2.extras import RealDictCursor
+from psycopg2.extensions import cursor as PlainCursor
 
 from shared_utils import response, SCHEMA
 
@@ -45,13 +46,14 @@ DATA_PAGE_SIZE = 20000
 # у таблиц очень разная «толщина» строки (от десятков байт до килобайтов),
 # и фиксированное число строк либо съело бы память, либо дало бы лишние
 # запросы и упёрлось в ограничение частоты обращений к базе.
-# 6 МБ «сырых» данных: в объектах Python они разбухают в несколько раз,
-# а память функции ограничена 256 МБ.
-PAGE_TARGET_BYTES = 6 * 1024 * 1024
-MIN_PAGE_ROWS = 200
-# Размер тома. 16 МБ: достаточно крупно, чтобы томов было немного,
-# и достаточно мелко, чтобы не упереться в 256 МБ памяти функции.
-VOLUME_SIZE = 16 * 1024 * 1024
+# 2 МБ «сырых» данных. В объектах Python они разбухают в несколько раз,
+# а из 256 МБ памяти функции около 125 МБ уже занято окружением —
+# свободного места остаётся немного.
+PAGE_TARGET_BYTES = 2 * 1024 * 1024
+MIN_PAGE_ROWS = 100
+# Размер тома: крупнее — меньше файлов на скачивание, мельче — меньше
+# памяти под текущий том.
+VOLUME_SIZE = 8 * 1024 * 1024
 # База ограничивает частоту запросов. При превышении она отвечает
 # «rate limit exceeded», поэтому запрос повторяется с нарастающей паузой.
 DB_RETRY_DELAYS = (0.5, 1.5, 3.0, 6.0)
@@ -376,7 +378,7 @@ class _VolumeDumpWriter:
         self.keys = []
 
 
-def _execute_with_retry(conn, query, params=None):
+def _execute_with_retry(conn, query, params=None, tuples: bool = False):
     """Выполнение запроса с повтором при ограничении частоты обращений.
 
     База отвечает «rate limit exceeded», когда запросов приходит слишком
@@ -391,7 +393,11 @@ def _execute_with_retry(conn, query, params=None):
     """
     last_error = None
     for attempt in range(len(DB_RETRY_DELAYS) + 1):
-        cur = conn.cursor()
+        # Для выгрузки данных берём обычный курсор (кортежи): словари
+        # RealDictCursor на тех же строках занимают в разы больше памяти,
+        # а имена колонок там всё равно не нужны.
+        cur = (conn.cursor(cursor_factory=PlainCursor) if tuples
+               else conn.cursor())
         try:
             cur.execute(query, params)
             rows = cur.fetchall()
@@ -468,19 +474,27 @@ def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
                 sql.Identifier(SCHEMA, table),
             ),
             (page_rows, offset),
+            tuples=True,
         )
 
         if not batch:
             break
 
-        chunk = [
-            '\t'.join(_copy_escape(row[c]) for c in col_names)
-            for row in batch
-        ]
-        writer(('\n'.join(chunk) + '\n').encode())
-        rows += len(batch)
+        got = len(batch)
+        rows += got
 
-        if len(batch) < page_rows:
+        # Строки превращаем в текст и сразу отдаём писателю порциями,
+        # освобождая память по ходу: собирать весь блок целиком нельзя,
+        # у функции 256 МБ и около половины уже занято.
+        while batch:
+            piece = batch[:500]
+            del batch[:500]
+            writer(('\n'.join(
+                '\t'.join(_copy_escape(v) for v in row) for row in piece
+            ) + '\n').encode())
+            del piece
+
+        if got < page_rows:
             break
         offset += page_rows
 
