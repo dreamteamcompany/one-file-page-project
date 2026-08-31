@@ -40,6 +40,9 @@ DUMP_PREFIX = 'db-backups'
 # Размер страницы при чтении данных. Небольшой намеренно: у функции
 # всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
 DATA_PAGE_SIZE = 1000
+# Размер тома. 16 МБ: достаточно крупно, чтобы томов было немного,
+# и достаточно мелко, чтобы не упереться в 256 МБ памяти функции.
+VOLUME_SIZE = 16 * 1024 * 1024
 
 
 # Журнальные таблицы: не нужны для восстановления работы сервиса,
@@ -288,64 +291,63 @@ def _dump_constraints(constraints: List[Dict[str, Any]],
     return '\n'.join(out) + ('\n' if out else '')
 
 
-class _SpooledDumpWriter:
-    """Дамп пишется во временный файл на диске, затем уходит одной отправкой.
+class _VolumeDumpWriter:
+    """Дамп пишется в хранилище томами по несколько мегабайт.
 
-    Держать готовый файл в памяти нельзя: у функции 256 МБ, а данных
-    больше. Многочастная отправка тоже отпадает — хранилище отвечает на неё
-    «Method Not Allowed». Поэтому сжатые данные копятся на диске (/tmp),
-    а в хранилище передаются потоком из файла: память при этом занята
-    только буфером записи. Контрольная сумма считается на лету.
+    Почему именно так — все прямые пути закрыты:
+    - собрать файл в памяти нельзя: у функции 256 МБ, данных больше;
+    - многочастная отправка запрещена (хранилище отвечает 405);
+    - временный файл в /tmp тоже не спасает: у облачной функции это
+      не диск, а та же оперативная память, и её съедает так же.
+
+    Поэтому сжатый поток режется на тома фиксированного размера, каждый
+    уходит отдельной отправкой и тут же освобождает память. Режется
+    именно поток байтов, поэтому склейка томов по порядку даёт
+    в точности исходный архив: cat part-* > dump.sql.gz
     """
 
-    def __init__(self, s3, bucket: str, key: str, content_type: str):
+    def __init__(self, s3, bucket: str, key_prefix: str):
         self._s3 = s3
         self._bucket = bucket
-        self._key = key
-        self._content_type = content_type
+        self._prefix = key_prefix
+        self._buf = bytearray()
         self._digest = hashlib.sha256()
         self.size = 0
-        self._file = tempfile.NamedTemporaryFile(
-            prefix='dbdump-', suffix='.sql.gz', dir='/tmp', delete=False
-        )
-        self._path = self._file.name
+        self.keys: List[str] = []
 
     def write(self, data: bytes) -> None:
         self._digest.update(data)
         self.size += len(data)
-        self._file.write(data)
+        self._buf.extend(data)
+        while len(self._buf) >= VOLUME_SIZE:
+            self._flush(VOLUME_SIZE)
+
+    def _flush(self, length: int) -> None:
+        chunk = bytes(self._buf[:length])
+        del self._buf[:length]
+        key = f'{self._prefix}.part{len(self.keys) + 1:03d}'
+        self._s3.put_object(
+            Bucket=self._bucket,
+            Key=key,
+            Body=chunk,
+            ContentType='application/octet-stream',
+        )
+        self.keys.append(key)
 
     def finish(self) -> str:
-        self._file.flush()
-        self._file.close()
-        try:
-            with open(self._path, 'rb') as fh:
-                self._s3.put_object(
-                    Bucket=self._bucket,
-                    Key=self._key,
-                    Body=fh,
-                    ContentType=self._content_type,
-                    ContentLength=self.size,
-                )
-        finally:
-            self._cleanup()
+        if self._buf or not self.keys:
+            self._flush(len(self._buf))
         return self._digest.hexdigest()
 
     def abort(self) -> None:
-        try:
-            if not self._file.closed:
-                self._file.close()
-        except Exception:
-            pass
-        self._cleanup()
-
-    def _cleanup(self) -> None:
-        # Диск функции переиспользуется между вызовами: не убрав файл,
-        # следующая выгрузка упрётся в нехватку места.
-        try:
-            os.unlink(self._path)
-        except OSError:
-            pass
+        # Уже отправленные тома без остальных бесполезны — убираем,
+        # чтобы не занимали место и не выглядели готовой копией.
+        for key in self.keys:
+            try:
+                self._s3.delete_object(Bucket=self._bucket, Key=key)
+            except Exception:
+                pass
+        self.keys = []
 
 
 def _copy_escape(value: Optional[str]) -> str:
@@ -459,7 +461,7 @@ def _dump_sequences(cur) -> Tuple[str, str]:
     return joined(create), joined(setval)
 
 
-def _verify_dump(s3, key: str, sha256: str, tables: List[str],
+def _verify_dump(s3, keys: List[str], sha256: str, tables: List[str],
                  with_data: bool) -> List[Dict[str, Any]]:
     """Проверка пригодности дампа к восстановлению.
 
@@ -501,34 +503,40 @@ def _verify_dump(s3, key: str, sha256: str, tables: List[str],
                 commits += 1
 
     try:
-        body = s3.get_object(Bucket='files', Key=key)['Body']
         decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
-        while True:
-            raw = body.read(1024 * 1024)
-            if not raw:
-                break
-            digest.update(raw)
-            stored_size += len(raw)
-            piece = decompressor.decompress(raw).decode('utf-8', 'replace')
-            if not piece:
-                continue
-            text_len += len(piece)
-            data = remainder + piece
-            # Последняя строка куска может быть оборвана — переносим её
-            # в следующий проход, иначе счётчики собьются.
-            head, sep, remainder = data.rpartition('\n')
-            if sep:
-                scan(head)
-            tail = (tail + piece)[-64:]
+        # Тома читаются строго по порядку: вместе они составляют один архив,
+        # и перепутанный порядок сделал бы его нечитаемым.
+        for volume_key in keys:
+            body = s3.get_object(Bucket='files', Key=volume_key)['Body']
+            try:
+                while True:
+                    raw = body.read(1024 * 1024)
+                    if not raw:
+                        break
+                    digest.update(raw)
+                    stored_size += len(raw)
+                    piece = decompressor.decompress(raw).decode('utf-8', 'replace')
+                    if not piece:
+                        continue
+                    text_len += len(piece)
+                    data = remainder + piece
+                    # Последняя строка куска может быть оборвана — переносим
+                    # её в следующий проход, иначе счётчики собьются.
+                    head, sep, remainder = data.rpartition('\n')
+                    if sep:
+                        scan(head)
+                    tail = (tail + piece)[-64:]
+            finally:
+                body.close()
         if remainder:
             scan(remainder)
             tail = (tail + remainder)[-64:]
-        body.close()
     except Exception as exc:
         add('Файл читается из хранилища', False, str(exc))
         return checks
 
-    add('Файл читается из хранилища', True, f'{stored_size} байт')
+    add('Файл читается из хранилища', True,
+        f'{stored_size} байт, томов: {len(keys)}')
 
     same = digest.hexdigest() == sha256
     add('Контрольная сумма совпадает', same,
@@ -598,8 +606,8 @@ def handle_db_backup(method, event, conn, payload):
     key = f'{DUMP_PREFIX}/dreamdesk-{mode}-{stamp}.sql.gz'
 
     s3 = _s3_client()
-    # Дамп копится во временном файле на диске, а не в памяти функции.
-    stream = _SpooledDumpWriter(s3, 'files', key, 'application/gzip')
+    # Дамп уходит в хранилище томами, в памяти держится только текущий том.
+    stream = _VolumeDumpWriter(s3, 'files', key)
     gz = gzip.GzipFile(fileobj=stream, mode='wb', compresslevel=6)
 
     # ВАЖНО: отдельное соединение только для чтения.
@@ -679,7 +687,8 @@ def handle_db_backup(method, event, conn, payload):
     sha256 = stream.finish()
     dump_size = stream.size
 
-    checks = _verify_dump(s3, key, sha256, tables, with_data)
+    volume_keys = stream.keys
+    checks = _verify_dump(s3, volume_keys, sha256, tables, with_data)
     ok = all(c['ok'] for c in checks)
 
     result = {
@@ -697,18 +706,28 @@ def handle_db_backup(method, event, conn, payload):
     }
 
     if not ok:
-        # Непройденная проверка — не успех. Файл удаляем, чтобы им
+        # Непройденная проверка — не успех. Тома удаляем, чтобы ими
         # не воспользовались как резервной копией.
-        s3.delete_object(Bucket='files', Key=key)
+        stream.abort()
         result['error'] = 'Дамп не прошёл проверку целостности и был удалён'
         result['failed_checks'] = [c['name'] for c in checks if not c['ok']]
         return response(500, result)
 
-    result['download_url'] = s3.generate_presigned_url(
-        'get_object',
-        Params={'Bucket': 'files', 'Key': key},
-        ExpiresIn=LINK_TTL_SECONDS,
-    )
+    base_name = key.split('/')[-1]
+    result['parts'] = [
+        {
+            'filename': f'{base_name}.part{i + 1:03d}',
+            'url': s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': 'files', 'Key': vkey},
+                ExpiresIn=LINK_TTL_SECONDS,
+            ),
+        }
+        for i, vkey in enumerate(volume_keys)
+    ]
+    # Один том — обычный файл, ссылка ведёт прямо на него.
+    if len(result['parts']) == 1:
+        result['download_url'] = result['parts'][0]['url']
     result['expires_in_sec'] = LINK_TTL_SECONDS
-    result['filename'] = key.split('/')[-1]
+    result['filename'] = base_name
     return response(200, result)

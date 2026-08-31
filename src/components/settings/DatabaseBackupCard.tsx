@@ -19,6 +19,7 @@ type BackupResult = {
   checks: Check[];
   duration_sec: number;
   download_url?: string;
+  parts?: { filename: string; url: string }[];
   expires_in_sec?: number;
   filename?: string;
   error?: string;
@@ -181,16 +182,42 @@ const DatabaseBackupCard = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  <Button asChild size="sm" variant="outline" className="gap-2">
-                    <a href={result.download_url} download={result.filename}>
-                      <Icon name="Download" size={14} />
-                      Скачать файл
-                    </a>
-                  </Button>
+                <div className="space-y-2 pt-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {(result.parts && result.parts.length > 0
+                      ? result.parts
+                      : [{ filename: result.filename || 'dump.sql.gz', url: result.download_url || '' }]
+                    ).map((p, i) => (
+                      <Button key={p.filename} asChild size="sm" variant="outline" className="gap-2">
+                        <a href={p.url} download={p.filename}>
+                          <Icon name="Download" size={14} />
+                          {result.parts && result.parts.length > 1
+                            ? `Часть ${i + 1}`
+                            : 'Скачать файл'}
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Ссылка действует 1 час и доступна только вам
+                    Ссылки действуют 1 час и доступны только вам
                   </p>
+                  {result.parts && result.parts.length > 1 && (
+                    <div className="rounded-md bg-muted/40 border border-border/50 p-2.5 space-y-1">
+                      <p className="text-xs font-medium">
+                        Копия разбита на {result.parts.length} частей
+                      </p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Скачайте все части в одну папку и склейте их в один файл.
+                        Порядок важен.
+                      </p>
+                      <code className="block text-[11px] bg-background/60 rounded px-2 py-1 mt-1 overflow-x-auto">
+                        cat {result.filename}.part* &gt; {result.filename}
+                      </code>
+                      <p className="text-[11px] text-muted-foreground">
+                        Windows: copy /b {result.filename}.part* {result.filename}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <p className="text-[11px] text-muted-foreground/80 leading-relaxed pt-1">
