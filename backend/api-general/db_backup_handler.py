@@ -17,6 +17,7 @@ import hashlib
 import io
 import json
 import tempfile
+import time
 import zlib
 import os
 import re
@@ -39,10 +40,21 @@ LINK_TTL_SECONDS = 3600
 DUMP_PREFIX = 'db-backups'
 # Размер страницы при чтении данных. Небольшой намеренно: у функции
 # всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
-DATA_PAGE_SIZE = 1000
+DATA_PAGE_SIZE = 20000
+# Целевой объём одной страницы данных. Число строк подбирается под него:
+# у таблиц очень разная «толщина» строки (от десятков байт до килобайтов),
+# и фиксированное число строк либо съело бы память, либо дало бы лишние
+# запросы и упёрлось в ограничение частоты обращений к базе.
+# 6 МБ «сырых» данных: в объектах Python они разбухают в несколько раз,
+# а память функции ограничена 256 МБ.
+PAGE_TARGET_BYTES = 6 * 1024 * 1024
+MIN_PAGE_ROWS = 200
 # Размер тома. 16 МБ: достаточно крупно, чтобы томов было немного,
 # и достаточно мелко, чтобы не упереться в 256 МБ памяти функции.
 VOLUME_SIZE = 16 * 1024 * 1024
+# База ограничивает частоту запросов. При превышении она отвечает
+# «rate limit exceeded», поэтому запрос повторяется с нарастающей паузой.
+DB_RETRY_DELAYS = (0.5, 1.5, 3.0, 6.0)
 
 
 # Журнальные таблицы: не нужны для восстановления работы сервиса,
@@ -110,18 +122,32 @@ def _s3_client():
     )
 
 
-def _fetch_tables(cur, include_logs: bool) -> List[str]:
+def _fetch_tables(cur, include_logs: bool) -> Tuple[List[str], Dict[str, float]]:
+    """Список таблиц и оценка среднего размера строки в каждой.
+
+    Оценка берётся из статистики самой базы (без чтения данных) и нужна,
+    чтобы подобрать размер страницы при выгрузке.
+    """
     cur.execute(
-        "SELECT c.relname FROM pg_class c "
+        "SELECT c.relname, c.reltuples, "
+        "       pg_table_size(c.oid) AS bytes "
+        "FROM pg_class c "
         "JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = %s AND c.relkind = 'r' "
         "ORDER BY c.relname",
         (SCHEMA,),
     )
-    tables = [r['relname'] for r in cur.fetchall()]
+    tables: List[str] = []
+    avg_bytes: Dict[str, float] = {}
+    for row in cur.fetchall():
+        name = row['relname']
+        tables.append(name)
+        tuples = float(row['reltuples'] or 0)
+        size = float(row['bytes'] or 0)
+        avg_bytes[name] = (size / tuples) if tuples > 0 else 0.0
     if not include_logs:
         tables = [t for t in tables if t not in LOG_TABLES]
-    return tables
+    return tables, avg_bytes
 
 
 def _load_columns(cur) -> Dict[str, List[Dict[str, Any]]]:
@@ -350,6 +376,40 @@ class _VolumeDumpWriter:
         self.keys = []
 
 
+def _execute_with_retry(conn, query, params=None):
+    """Выполнение запроса с повтором при ограничении частоты обращений.
+
+    База отвечает «rate limit exceeded», когда запросов приходит слишком
+    много подряд. Это не ошибка данных — достаточно подождать и повторить.
+
+    ВАЖНО: откат транзакции здесь недопустим. Снимок данных живёт ровно
+    столько, сколько живёт транзакция; откат начал бы новую, и вторая
+    половина дампа отражала бы уже другой момент времени — требование
+    «снимок на один момент» было бы нарушено незаметно для глаза.
+    Поэтому запрос повторяется в той же транзакции, а если она всё же
+    оказалась испорчена, выгрузка честно прерывается с ошибкой.
+    """
+    last_error = None
+    for attempt in range(len(DB_RETRY_DELAYS) + 1):
+        cur = conn.cursor()
+        try:
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            cur.close()
+            return rows
+        except psycopg2.Error as exc:
+            try:
+                cur.close()
+            except psycopg2.Error:
+                pass
+            message = str(exc).lower()
+            if 'rate limit' not in message or attempt == len(DB_RETRY_DELAYS):
+                raise
+            last_error = exc
+            time.sleep(DB_RETRY_DELAYS[attempt])
+    raise last_error
+
+
 def _copy_escape(value: Optional[str]) -> str:
     """Экранирование значения для текстового формата COPY."""
     if value is None:
@@ -363,7 +423,7 @@ def _copy_escape(value: Optional[str]) -> str:
 
 
 def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
-                     writer) -> int:
+                     writer, avg_row_bytes: float) -> int:
     """Выгрузка строк таблицы в текстовом формате COPY.
 
     Данные читаются обычным SELECT, а не командой COPY: на этой платформе
@@ -390,21 +450,25 @@ def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
     # с ошибкой «object not found».
     # ORDER BY по физическому адресу строки ctid: он есть у любой таблицы,
     # не требует первичного ключа и не заставляет базу сортировать данные.
+    # Размер страницы подбирается под «толщину» строки: у тонких таблиц
+    # берём помногу (меньше запросов — не упираемся в ограничение частоты),
+    # у толстых помалу (не переполняем память).
+    page_rows = DATA_PAGE_SIZE
+    if avg_row_bytes > 0:
+        page_rows = int(PAGE_TARGET_BYTES / avg_row_bytes)
+    page_rows = max(MIN_PAGE_ROWS, min(DATA_PAGE_SIZE, page_rows))
+
     rows = 0
     offset = 0
     while True:
-        cur = conn.cursor()
-        try:
-            cur.execute(
-                sql.SQL('SELECT {} FROM {} ORDER BY ctid LIMIT %s OFFSET %s').format(
-                    sql.SQL(select_list),
-                    sql.Identifier(SCHEMA, table),
-                ),
-                (DATA_PAGE_SIZE, offset),
-            )
-            batch = cur.fetchall()
-        finally:
-            cur.close()
+        batch = _execute_with_retry(
+            conn,
+            sql.SQL('SELECT {} FROM {} ORDER BY ctid LIMIT %s OFFSET %s').format(
+                sql.SQL(select_list),
+                sql.Identifier(SCHEMA, table),
+            ),
+            (page_rows, offset),
+        )
 
         if not batch:
             break
@@ -416,9 +480,9 @@ def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
         writer(('\n'.join(chunk) + '\n').encode())
         rows += len(batch)
 
-        if len(batch) < DATA_PAGE_SIZE:
+        if len(batch) < page_rows:
             break
-        offset += DATA_PAGE_SIZE
+        offset += page_rows
 
     writer(b'\\.\n')
     return rows
@@ -625,7 +689,7 @@ def handle_db_backup(method, event, conn, payload):
             cur.execute('SELECT now() AS ts')
             snapshot_at = cur.fetchone()['ts']
 
-            tables = _fetch_tables(cur, include_logs)
+            tables, avg_row_bytes = _fetch_tables(cur, include_logs)
 
             # Метаданные всей схемы читаются заранее, тремя запросами.
             # Иначе на 99 таблиц пришлось бы ~300 медленных запросов.
@@ -657,7 +721,8 @@ def handle_db_backup(method, event, conn, payload):
                 rows = 0
                 if with_data:
                     rows = _dump_table_data(
-                        dump_conn, table, columns_map.get(table, []), gz.write
+                        dump_conn, table, columns_map.get(table, []), gz.write,
+                        avg_row_bytes.get(table, 0.0),
                     )
 
                 gz.write(_dump_constraints(
