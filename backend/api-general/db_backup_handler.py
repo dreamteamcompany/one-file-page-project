@@ -174,75 +174,63 @@ def _dump_ddl(columns: List[Dict[str, Any]], table: str) -> str:
     )
 
 
+# Коды правил внешнего ключа в системном каталоге.
+FK_ACTIONS = {
+    'a': 'NO ACTION',
+    'r': 'RESTRICT',
+    'c': 'CASCADE',
+    'n': 'SET NULL',
+    'd': 'SET DEFAULT',
+}
+
+
 def _load_constraints(cur) -> Dict[str, List[Dict[str, Any]]]:
-    """Ключи ВСЕХ таблиц схемы за два запроса.
+    """Ключи ВСЕХ таблиц схемы ОДНИМ запросом.
 
-    Определения собираются вручную: готовая функция pg_get_constraintdef
-    на этой платформе запрещена. Запросы к каталогу медленные, поэтому
-    читаем схему целиком, а не по таблице за раз.
+    Читаем системный каталог напрямую. Представления information_schema
+    здесь работают на порядки медленнее: запрос по внешним ключам через
+    них не укладывался даже в 30 секунд и обрывался по таймауту.
+    Готовая функция pg_get_constraintdef на платформе запрещена, поэтому
+    определения собираются вручную.
+
+    Колонки разворачиваются через WITH ORDINALITY: порядок в составном
+    ключе обязан сохраниться, иначе ключ будет собран неверно.
     """
-    # Колонки ключей в порядке ordinal_position — для составных ключей
-    # порядок принципиален.
     cur.execute(
-        "SELECT tc.table_name, tc.constraint_name, tc.constraint_type, "
-        "       kcu.column_name, rc.update_rule, rc.delete_rule "
-        "FROM information_schema.table_constraints tc "
-        "JOIN information_schema.key_column_usage kcu "
-        "  ON kcu.constraint_name = tc.constraint_name "
-        " AND kcu.constraint_schema = tc.constraint_schema "
-        "LEFT JOIN information_schema.referential_constraints rc "
-        "  ON rc.constraint_name = tc.constraint_name "
-        " AND rc.constraint_schema = tc.constraint_schema "
-        "WHERE tc.table_schema = %s "
-        "  AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY') "
-        "ORDER BY tc.table_name, tc.constraint_type, tc.constraint_name, "
-        "         kcu.ordinal_position",
+        "SELECT c.conname, c.contype, tc.relname AS tbl, "
+        "       rc.relname AS ref_tbl, c.confupdtype, c.confdeltype, "
+        "       (SELECT array_agg(ta.attname ORDER BY k.ord) "
+        "          FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord) "
+        "          JOIN pg_attribute ta ON ta.attrelid = c.conrelid "
+        "           AND ta.attnum = k.attnum) AS cols, "
+        "       (SELECT array_agg(fa.attname ORDER BY k.ord) "
+        "          FROM unnest(c.confkey) WITH ORDINALITY AS k(attnum, ord) "
+        "          JOIN pg_attribute fa ON fa.attrelid = c.confrelid "
+        "           AND fa.attnum = k.attnum) AS ref_cols "
+        "FROM pg_constraint c "
+        "JOIN pg_namespace n ON n.oid = c.connamespace "
+        "JOIN pg_class tc ON tc.oid = c.conrelid "
+        "LEFT JOIN pg_class rc ON rc.oid = c.confrelid "
+        "WHERE n.nspname = %s AND c.contype IN ('p', 'u', 'f') "
+        "ORDER BY tc.relname, c.contype DESC, c.conname",
         (SCHEMA,),
     )
 
-    grouped: Dict[str, Dict[str, Any]] = {}
-    per_table: Dict[str, List[str]] = {}
-    for row in cur.fetchall():
-        name = row['constraint_name']
-        if name not in grouped:
-            grouped[name] = {
-                'table': row['table_name'],
-                'type': row['constraint_type'],
-                'cols': [],
-                'update_rule': row['update_rule'],
-                'delete_rule': row['delete_rule'],
-            }
-            per_table.setdefault(row['table_name'], []).append(name)
-        grouped[name]['cols'].append(row['column_name'])
-
-    # Куда ссылаются внешние ключи — отдельным запросом: соединение всех
-    # трёх таблиц каталога сразу даёт дубли строк для составных ключей.
-    cur.execute(
-        "SELECT rc.constraint_name, ccu.table_name AS ref_table, "
-        "       ccu.column_name AS ref_column "
-        "FROM information_schema.referential_constraints rc "
-        "JOIN information_schema.key_column_usage kcu "
-        "  ON kcu.constraint_name = rc.unique_constraint_name "
-        " AND kcu.constraint_schema = rc.unique_constraint_schema "
-        "JOIN information_schema.constraint_column_usage ccu "
-        "  ON ccu.constraint_name = rc.unique_constraint_name "
-        " AND ccu.constraint_schema = rc.unique_constraint_schema "
-        " AND ccu.column_name = kcu.column_name "
-        "WHERE rc.constraint_schema = %s "
-        "ORDER BY rc.constraint_name, kcu.ordinal_position",
-        (SCHEMA,),
-    )
-    for row in cur.fetchall():
-        entry = grouped.get(row['constraint_name'])
-        if entry is None:
-            continue
-        ref = entry.setdefault('ref', {'table': row['ref_table'], 'cols': []})
-        if row['ref_column'] not in ref['cols']:
-            ref['cols'].append(row['ref_column'])
-
+    type_map = {'p': 'PRIMARY KEY', 'u': 'UNIQUE', 'f': 'FOREIGN KEY'}
     result: Dict[str, List[Dict[str, Any]]] = {}
-    for table, names in per_table.items():
-        result[table] = [grouped[n] | {'name': n} for n in names]
+    for row in cur.fetchall():
+        if not row['cols']:
+            continue
+        entry: Dict[str, Any] = {
+            'name': row['conname'],
+            'type': type_map[row['contype']],
+            'cols': list(row['cols']),
+        }
+        if row['contype'] == 'f' and row['ref_tbl'] and row['ref_cols']:
+            entry['ref'] = {'table': row['ref_tbl'], 'cols': list(row['ref_cols'])}
+            entry['update_rule'] = FK_ACTIONS.get(row['confupdtype'], 'NO ACTION')
+            entry['delete_rule'] = FK_ACTIONS.get(row['confdeltype'], 'NO ACTION')
+        result.setdefault(row['tbl'], []).append(entry)
     return result
 
 
