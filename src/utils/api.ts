@@ -34,6 +34,7 @@ const ENDPOINT_MAP: Record<string, string> = {
   'customer_departments': GENERAL_API,
   'system_settings': GENERAL_API,
   'notification_templates': GENERAL_API,
+  'db_backup': GENERAL_API,
   'tickets': TICKETS_API,
   'tickets-full': TICKETS_API,
   'tickets-bootstrap': TICKETS_API,

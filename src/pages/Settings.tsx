@@ -10,9 +10,10 @@ import PageLayout from '@/components/layout/PageLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
+import DatabaseBackupCard from '@/components/settings/DatabaseBackupCard';
 
 const Settings = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasSystemRole } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [classificationMode, setClassificationMode] = useState<'ai' | 'manual'>('ai');
@@ -415,6 +416,8 @@ const Settings = () => {
           </CardContent>
         </Card>
       )}
+
+      {hasSystemRole('admin') && <DatabaseBackupCard />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {settingsSections.map((section) => {
