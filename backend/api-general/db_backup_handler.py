@@ -19,9 +19,10 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
+from botocore.config import Config as BotoConfig
 import psycopg2
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_REPEATABLE_READ
@@ -90,11 +91,14 @@ def _is_admin(conn, user_id: int) -> bool:
 
 
 def _s3_client():
+    # signature_version='s3v4' обязателен: со схемой подписи по умолчанию
+    # хранилище отвечает Unauthorized на временную ссылку скачивания.
     return boto3.client(
         's3',
         endpoint_url='https://bucket.poehali.dev',
         aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
         aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+        config=BotoConfig(signature_version='s3v4', s3={'addressing_style': 'path'}),
     )
 
 
@@ -277,6 +281,69 @@ def _dump_constraints(constraints: List[Dict[str, Any]],
         out.append(definition.replace(f'{SCHEMA}.', '') + ';')
 
     return '\n'.join(out) + ('\n' if out else '')
+
+
+def _copy_escape(value: Optional[str]) -> str:
+    """Экранирование значения для текстового формата COPY."""
+    if value is None:
+        return '\\N'
+    return (
+        value.replace('\\', '\\\\')
+        .replace('\n', '\\n')
+        .replace('\r', '\\r')
+        .replace('\t', '\\t')
+    )
+
+
+def _dump_table_data(conn, table: str, columns: List[Dict[str, Any]],
+                     writer) -> int:
+    """Выгрузка строк таблицы в текстовом формате COPY.
+
+    Данные читаются обычным SELECT, а не командой COPY: на этой платформе
+    COPY запрещён (отклоняется валидатором запросов). Формат файла при этом
+    остаётся стандартным, восстановление идёт через COPY ... FROM stdin.
+
+    Каждое поле приводится к тексту силами самой СУБД: так значения дат,
+    массивов, JSON и двоичных данных получают ровно то представление,
+    которое COPY ожидает на входе. Ручное преобразование в Python здесь
+    легко исказило бы данные.
+    """
+    col_names = [c['column_name'] for c in columns]
+    if not col_names:
+        return 0
+
+    quoted = ', '.join(f'"{c}"' for c in col_names)
+    select_list = ', '.join(f'"{c}"::text' for c in col_names)
+
+    writer(f'COPY "{table}" ({quoted}) FROM stdin;\n'.encode())
+
+    # Серверный курсор: строки приходят порциями, вся таблица целиком
+    # в память функции не поднимается.
+    name = 'dump_' + hashlib.md5(table.encode()).hexdigest()[:16]
+    cur = conn.cursor(name=name)
+    cur.itersize = 2000
+    rows = 0
+    try:
+        cur.execute(
+            sql.SQL('SELECT {} FROM {}').format(
+                sql.SQL(select_list),
+                sql.Identifier(SCHEMA, table),
+            )
+        )
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            chunk = []
+            for row in batch:
+                chunk.append('\t'.join(_copy_escape(row[c]) for c in col_names))
+            writer(('\n'.join(chunk) + '\n').encode())
+            rows += len(batch)
+    finally:
+        cur.close()
+
+    writer(b'\\.\n')
+    return rows
 
 
 def _dump_sequences(cur) -> Tuple[str, str]:
@@ -476,20 +543,9 @@ def handle_db_backup(method, event, conn, payload):
 
                 rows = 0
                 if with_data:
-                    gz.write(f'COPY "{table}" FROM stdin;\n'.encode())
-                    copy_buf = io.BytesIO()
-                    cur.copy_expert(
-                        sql.SQL('COPY {} TO STDOUT').format(
-                            sql.Identifier(SCHEMA, table)
-                        ).as_string(cur),
-                        copy_buf,
-                        size=COPY_CHUNK,
+                    rows = _dump_table_data(
+                        dump_conn, table, columns_map.get(table, []), gz.write
                     )
-                    data = copy_buf.getvalue()
-                    gz.write(data)
-                    gz.write(b'\\.\n')
-                    rows = data.count(b'\n')
-                    copy_buf.close()
 
                 gz.write(_dump_constraints(
                     constraints_map.get(table, []),
