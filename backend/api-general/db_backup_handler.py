@@ -16,6 +16,7 @@ import gzip
 import hashlib
 import io
 import json
+import tempfile
 import zlib
 import os
 import re
@@ -39,8 +40,7 @@ DUMP_PREFIX = 'db-backups'
 # Размер страницы при чтении данных. Небольшой намеренно: у функции
 # всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
 DATA_PAGE_SIZE = 1000
-# Размер части при потоковой отправке в хранилище (минимум S3 — 5 МБ).
-UPLOAD_PART_SIZE = 8 * 1024 * 1024
+
 
 # Журнальные таблицы: не нужны для восстановления работы сервиса,
 # но составляют заметную часть объёма.
@@ -288,64 +288,63 @@ def _dump_constraints(constraints: List[Dict[str, Any]],
     return '\n'.join(out) + ('\n' if out else '')
 
 
-class _S3StreamWriter:
-    """Отправка дампа в хранилище по частям, без накопления в памяти.
+class _SpooledDumpWriter:
+    """Дамп пишется во временный файл на диске, затем уходит одной отправкой.
 
-    Готовый файл может весить сотни мегабайт, а у функции 256 МБ — собрать
-    его целиком в памяти нельзя. Поэтому сжатые данные копятся в буфере и,
-    как только он дорастает до размера части, уходят в хранилище и
-    выбрасываются из памяти. Заодно на лету считается контрольная сумма.
+    Держать готовый файл в памяти нельзя: у функции 256 МБ, а данных
+    больше. Многочастная отправка тоже отпадает — хранилище отвечает на неё
+    «Method Not Allowed». Поэтому сжатые данные копятся на диске (/tmp),
+    а в хранилище передаются потоком из файла: память при этом занята
+    только буфером записи. Контрольная сумма считается на лету.
     """
 
     def __init__(self, s3, bucket: str, key: str, content_type: str):
         self._s3 = s3
         self._bucket = bucket
         self._key = key
-        self._buf = bytearray()
-        self._parts: List[Dict[str, Any]] = []
+        self._content_type = content_type
         self._digest = hashlib.sha256()
         self.size = 0
-        self._upload_id = s3.create_multipart_upload(
-            Bucket=bucket, Key=key, ContentType=content_type
-        )['UploadId']
+        self._file = tempfile.NamedTemporaryFile(
+            prefix='dbdump-', suffix='.sql.gz', dir='/tmp', delete=False
+        )
+        self._path = self._file.name
 
     def write(self, data: bytes) -> None:
         self._digest.update(data)
         self.size += len(data)
-        self._buf.extend(data)
-        while len(self._buf) >= UPLOAD_PART_SIZE:
-            self._flush_part(UPLOAD_PART_SIZE)
-
-    def _flush_part(self, length: int) -> None:
-        chunk = bytes(self._buf[:length])
-        del self._buf[:length]
-        part_number = len(self._parts) + 1
-        result = self._s3.upload_part(
-            Bucket=self._bucket,
-            Key=self._key,
-            UploadId=self._upload_id,
-            PartNumber=part_number,
-            Body=chunk,
-        )
-        self._parts.append({'PartNumber': part_number, 'ETag': result['ETag']})
+        self._file.write(data)
 
     def finish(self) -> str:
-        if self._buf or not self._parts:
-            self._flush_part(len(self._buf))
-        self._s3.complete_multipart_upload(
-            Bucket=self._bucket,
-            Key=self._key,
-            UploadId=self._upload_id,
-            MultipartUpload={'Parts': self._parts},
-        )
+        self._file.flush()
+        self._file.close()
+        try:
+            with open(self._path, 'rb') as fh:
+                self._s3.put_object(
+                    Bucket=self._bucket,
+                    Key=self._key,
+                    Body=fh,
+                    ContentType=self._content_type,
+                    ContentLength=self.size,
+                )
+        finally:
+            self._cleanup()
         return self._digest.hexdigest()
 
     def abort(self) -> None:
         try:
-            self._s3.abort_multipart_upload(
-                Bucket=self._bucket, Key=self._key, UploadId=self._upload_id
-            )
+            if not self._file.closed:
+                self._file.close()
         except Exception:
+            pass
+        self._cleanup()
+
+    def _cleanup(self) -> None:
+        # Диск функции переиспользуется между вызовами: не убрав файл,
+        # следующая выгрузка упрётся в нехватку места.
+        try:
+            os.unlink(self._path)
+        except OSError:
             pass
 
 
@@ -599,9 +598,8 @@ def handle_db_backup(method, event, conn, payload):
     key = f'{DUMP_PREFIX}/dreamdesk-{mode}-{stamp}.sql.gz'
 
     s3 = _s3_client()
-    # Пишем сразу в хранилище: сжатые данные уходят частями и не копятся
-    # в памяти функции.
-    stream = _S3StreamWriter(s3, 'files', key, 'application/gzip')
+    # Дамп копится во временном файле на диске, а не в памяти функции.
+    stream = _SpooledDumpWriter(s3, 'files', key, 'application/gzip')
     gz = gzip.GzipFile(fileobj=stream, mode='wb', compresslevel=6)
 
     # ВАЖНО: отдельное соединение только для чтения.
