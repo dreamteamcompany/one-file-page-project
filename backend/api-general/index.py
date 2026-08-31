@@ -11,6 +11,7 @@ from customer_departments_handler import handle_customer_departments
 from system_settings_handler import handle_system_settings
 from notification_templates_handler import handle_notification_templates
 from db_backup_handler import handle_db_backup
+from files_backup_handler import handle_files_backup
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -61,6 +62,8 @@ def handler(event, context):
             return handle_notification_templates(method, event, conn, payload)
         elif resource == 'db_backup':
             return handle_db_backup(method, event, conn, payload)
+        elif resource == 'files_backup':
+            return handle_files_backup(method, event, conn, payload)
         else:
             return response(400, {'error': f'Unknown resource: {resource}'})
     

@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import DatabaseBackupCard from '@/components/settings/DatabaseBackupCard';
+import FilesBackupCard from '@/components/settings/FilesBackupCard';
 
 const Settings = () => {
   const { hasPermission, hasSystemRole } = useAuth();
@@ -418,6 +419,7 @@ const Settings = () => {
       )}
 
       {hasSystemRole('admin') && <DatabaseBackupCard />}
+      {hasSystemRole('admin') && <FilesBackupCard />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {settingsSections.map((section) => {
