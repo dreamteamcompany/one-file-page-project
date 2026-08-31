@@ -112,18 +112,31 @@ def _fetch_tables(cur, include_logs: bool) -> List[str]:
     return tables
 
 
-def _dump_ddl(cur, table: str) -> str:
-    """Определение таблицы: колонки, типы, NOT NULL, значения по умолчанию."""
+def _load_columns(cur) -> Dict[str, List[Dict[str, Any]]]:
+    """Колонки ВСЕХ таблиц схемы за один запрос.
+
+    Запросы к information_schema на этой платформе медленные (секунды).
+    При 99 таблицах отдельный запрос на каждую гарантированно упёрся бы
+    в таймаут функции, поэтому метаданные читаются разом.
+    """
     cur.execute(
-        "SELECT column_name, data_type, character_maximum_length, "
+        "SELECT table_name, column_name, data_type, character_maximum_length, "
         "numeric_precision, numeric_scale, is_nullable, column_default "
         "FROM information_schema.columns "
-        "WHERE table_schema = %s AND table_name = %s "
-        "ORDER BY ordinal_position",
-        (SCHEMA, table),
+        "WHERE table_schema = %s "
+        "ORDER BY table_name, ordinal_position",
+        (SCHEMA,),
     )
-    cols = []
+    result: Dict[str, List[Dict[str, Any]]] = {}
     for row in cur.fetchall():
+        result.setdefault(row['table_name'], []).append(dict(row))
+    return result
+
+
+def _dump_ddl(columns: List[Dict[str, Any]], table: str) -> str:
+    """Определение таблицы: колонки, типы, NOT NULL, значения по умолчанию."""
+    cols = []
+    for row in columns:
         name = row['column_name']
         dtype = row['data_type']
         maxlen = row['character_maximum_length']
@@ -161,27 +174,117 @@ def _dump_ddl(cur, table: str) -> str:
     )
 
 
-def _dump_constraints(cur, table: str) -> str:
+def _load_constraints(cur) -> Dict[str, List[Dict[str, Any]]]:
+    """Ключи ВСЕХ таблиц схемы за два запроса.
+
+    Определения собираются вручную: готовая функция pg_get_constraintdef
+    на этой платформе запрещена. Запросы к каталогу медленные, поэтому
+    читаем схему целиком, а не по таблице за раз.
+    """
+    # Колонки ключей в порядке ordinal_position — для составных ключей
+    # порядок принципиален.
+    cur.execute(
+        "SELECT tc.table_name, tc.constraint_name, tc.constraint_type, "
+        "       kcu.column_name, rc.update_rule, rc.delete_rule "
+        "FROM information_schema.table_constraints tc "
+        "JOIN information_schema.key_column_usage kcu "
+        "  ON kcu.constraint_name = tc.constraint_name "
+        " AND kcu.constraint_schema = tc.constraint_schema "
+        "LEFT JOIN information_schema.referential_constraints rc "
+        "  ON rc.constraint_name = tc.constraint_name "
+        " AND rc.constraint_schema = tc.constraint_schema "
+        "WHERE tc.table_schema = %s "
+        "  AND tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY') "
+        "ORDER BY tc.table_name, tc.constraint_type, tc.constraint_name, "
+        "         kcu.ordinal_position",
+        (SCHEMA,),
+    )
+
+    grouped: Dict[str, Dict[str, Any]] = {}
+    per_table: Dict[str, List[str]] = {}
+    for row in cur.fetchall():
+        name = row['constraint_name']
+        if name not in grouped:
+            grouped[name] = {
+                'table': row['table_name'],
+                'type': row['constraint_type'],
+                'cols': [],
+                'update_rule': row['update_rule'],
+                'delete_rule': row['delete_rule'],
+            }
+            per_table.setdefault(row['table_name'], []).append(name)
+        grouped[name]['cols'].append(row['column_name'])
+
+    # Куда ссылаются внешние ключи — отдельным запросом: соединение всех
+    # трёх таблиц каталога сразу даёт дубли строк для составных ключей.
+    cur.execute(
+        "SELECT rc.constraint_name, ccu.table_name AS ref_table, "
+        "       ccu.column_name AS ref_column "
+        "FROM information_schema.referential_constraints rc "
+        "JOIN information_schema.key_column_usage kcu "
+        "  ON kcu.constraint_name = rc.unique_constraint_name "
+        " AND kcu.constraint_schema = rc.unique_constraint_schema "
+        "JOIN information_schema.constraint_column_usage ccu "
+        "  ON ccu.constraint_name = rc.unique_constraint_name "
+        " AND ccu.constraint_schema = rc.unique_constraint_schema "
+        " AND ccu.column_name = kcu.column_name "
+        "WHERE rc.constraint_schema = %s "
+        "ORDER BY rc.constraint_name, kcu.ordinal_position",
+        (SCHEMA,),
+    )
+    for row in cur.fetchall():
+        entry = grouped.get(row['constraint_name'])
+        if entry is None:
+            continue
+        ref = entry.setdefault('ref', {'table': row['ref_table'], 'cols': []})
+        if row['ref_column'] not in ref['cols']:
+            ref['cols'].append(row['ref_column'])
+
+    result: Dict[str, List[Dict[str, Any]]] = {}
+    for table, names in per_table.items():
+        result[table] = [grouped[n] | {'name': n} for n in names]
+    return result
+
+
+def _load_indexes(cur) -> Dict[str, List[str]]:
+    """Индексы всех таблиц схемы за один запрос."""
+    cur.execute(
+        "SELECT tablename, indexdef FROM pg_indexes WHERE schemaname = %s",
+        (SCHEMA,),
+    )
+    result: Dict[str, List[str]] = {}
+    for row in cur.fetchall():
+        result.setdefault(row['tablename'], []).append(row['indexdef'])
+    return result
+
+
+def _dump_constraints(constraints: List[Dict[str, Any]],
+                      indexes: List[str], table: str) -> str:
     """Ключи и индексы идут после данных — так загрузка быстрее."""
     out = []
-    cur.execute(
-        "SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint "
-        "WHERE conrelid = %s::regclass ORDER BY contype DESC, conname",
-        (f'{SCHEMA}.{table}',),
-    )
-    for row in cur.fetchall():
-        out.append(
-            f'ALTER TABLE "{table}" ADD CONSTRAINT "{row["conname"]}" {row["def"]};'
-        )
 
-    cur.execute(
-        "SELECT indexdef FROM pg_indexes WHERE schemaname = %s AND tablename = %s",
-        (SCHEMA, table),
-    )
-    for row in cur.fetchall():
-        definition = row['indexdef']
-        # Индекс первичного ключа уже создан вместе с ограничением выше.
-        if ' UNIQUE INDEX ' in definition and '_pkey' in definition:
+    for c in constraints:
+        name = c['name']
+        cols = ', '.join(f'"{x}"' for x in c['cols'])
+        if c['type'] == 'PRIMARY KEY':
+            out.append(f'ALTER TABLE "{table}" ADD CONSTRAINT "{name}" PRIMARY KEY ({cols});')
+        elif c['type'] == 'UNIQUE':
+            out.append(f'ALTER TABLE "{table}" ADD CONSTRAINT "{name}" UNIQUE ({cols});')
+        elif c['type'] == 'FOREIGN KEY' and c.get('ref'):
+            ref = c['ref']
+            ref_cols = ', '.join(f'"{x}"' for x in ref['cols'])
+            clause = (f'ALTER TABLE "{table}" ADD CONSTRAINT "{name}" '
+                      f'FOREIGN KEY ({cols}) REFERENCES "{ref["table"]}" ({ref_cols})')
+            if c.get('update_rule') and c['update_rule'] != 'NO ACTION':
+                clause += f' ON UPDATE {c["update_rule"]}'
+            if c.get('delete_rule') and c['delete_rule'] != 'NO ACTION':
+                clause += f' ON DELETE {c["delete_rule"]}'
+            out.append(clause + ';')
+
+    for definition in indexes:
+        # Индексы первичного и уникального ключей создаются вместе с самими
+        # ключами выше — повторное создание вызвало бы ошибку.
+        if ' UNIQUE INDEX ' in definition:
             continue
         out.append(definition.replace(f'{SCHEMA}.', '') + ';')
 
@@ -344,19 +447,30 @@ def handle_db_backup(method, event, conn, payload):
     try:
         cur = dump_conn.cursor()
         try:
-            # Фиксируем снимок: все запросы ниже видят одно состояние базы.
-            cur.execute('SELECT pg_export_snapshot() AS snap, now() AS ts')
-            snap_row = cur.fetchone()
-            snapshot_id = snap_row['snap']
-            snapshot_at = snap_row['ts']
+            # Открываем снимок первым же запросом в транзакции. В режиме
+            # REPEATABLE READ момент фиксируется на первом обращении к данным,
+            # и все запросы ниже видят базу одинаковой.
+            # pg_export_signal здесь не используется: он нужен только чтобы
+            # ПЕРЕДАТЬ снимок в другое соединение (параллельная выгрузка),
+            # а мы читаем всё одним соединением. На консистентность его
+            # отсутствие не влияет, к тому же платформа его запрещает.
+            cur.execute('SELECT now() AS ts')
+            snapshot_at = cur.fetchone()['ts']
 
             tables = _fetch_tables(cur, include_logs)
+
+            # Метаданные всей схемы читаются заранее, тремя запросами.
+            # Иначе на 99 таблиц пришлось бы ~300 медленных запросов.
+            columns_map = _load_columns(cur)
+            constraints_map = _load_constraints(cur)
+            indexes_map = _load_indexes(cur)
 
             gz.write((
                 '-- DreamDesk database backup\n'
                 f'-- created_at: {started.isoformat()}\n'
                 f'-- mode: {mode}\n'
-                f'-- snapshot: {snapshot_id} @ {snapshot_at}\n'
+                f'-- snapshot_at: {snapshot_at}\n'
+                f'-- isolation: REPEATABLE READ (read-only)\n'
                 f'-- source_schema: {SCHEMA}\n'
                 '-- restore: psql -d <db> -f <file>\n\n'
                 'BEGIN;\n'
@@ -370,7 +484,7 @@ def handle_db_backup(method, event, conn, payload):
 
             for table in tables:
                 gz.write(f'\n-- ---------- {table} ----------\n'.encode())
-                gz.write(_dump_ddl(cur, table).encode())
+                gz.write(_dump_ddl(columns_map.get(table, []), table).encode())
 
                 rows = 0
                 if with_data:
@@ -389,7 +503,11 @@ def handle_db_backup(method, event, conn, payload):
                     rows = data.count(b'\n')
                     copy_buf.close()
 
-                gz.write(_dump_constraints(cur, table).encode())
+                gz.write(_dump_constraints(
+                    constraints_map.get(table, []),
+                    indexes_map.get(table, []),
+                    table,
+                ).encode())
                 stats.append({'table': table, 'rows': rows})
                 total_rows += rows
 
