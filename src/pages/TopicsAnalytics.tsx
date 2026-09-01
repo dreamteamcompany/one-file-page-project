@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import PageLayout from '@/components/layout/PageLayout';
@@ -27,32 +27,6 @@ export interface TopicsData {
   total: number;
   lines: LineRow[];
 }
-
-const LINE_ICONS: Record<string, string> = {
-  '1-я линия': 'Headset',
-  '2-я линия ТП': 'Wrench',
-  'Отдел Ильи': 'ServerCog',
-  'Отдел МИС': 'Stethoscope',
-  'Прочие исполнители': 'Users',
-  'Исполнитель не назначен': 'CircleHelp',
-};
-
-const SERVICE_ICONS: Record<string, string> = {
-  'МИС': 'Stethoscope',
-  'Битрикс / CRM': 'LayoutGrid',
-  'Телефония и рассылки': 'Phone',
-  '1С / Бухгалтерия / ЗУП': 'Calculator',
-  'VPN / сеть / удалёнка': 'Network',
-  'Серверы и инфраструктура': 'Server',
-  'Сайты и домены': 'Globe',
-  'Боты и автоматизации': 'Bot',
-  'Почта': 'Mail',
-  'Оборудование': 'Printer',
-  'Сервис не определён': 'CircleHelp',
-};
-
-const percent = (part: number, whole: number) =>
-  whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
 const VISIBLE_LINES = ['1-я линия', '2-я линия ТП', 'Отдел Ильи', 'Отдел МИС'];
@@ -144,119 +118,93 @@ const TopicsAnalytics = () => {
 
       {!loading && !error && data && (
         <>
-          <Card className="mb-6">
-            <CardContent className="py-6 flex items-center gap-5">
-              <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <Icon name="Inbox" size={28} className="text-primary" />
-              </div>
-              <div>
-                <p className="text-muted-foreground text-sm">Всего заявок за август</p>
-                <p className="text-4xl font-bold">{visibleTotal}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
 
-          <div className="space-y-3">
-            {visibleLines.map((line) => {
-              const lineOpen = !!openLines[line.name];
-              return (
-                <Card key={line.name} className="overflow-hidden">
-                  <button
-                    onClick={() => toggleLine(line.name)}
-                    className="w-full flex items-center gap-3 px-4 py-4 hover:bg-accent/20 transition-colors text-left"
-                  >
-                    <Icon
-                      name={lineOpen ? 'ChevronDown' : 'ChevronRight'}
-                      size={18}
-                      className="text-muted-foreground shrink-0"
-                    />
-                    <Icon
-                      name={LINE_ICONS[line.name] || 'Users'}
-                      fallback="Users"
-                      size={20}
-                      className="text-primary shrink-0"
-                    />
-                    <span className="font-semibold flex-1">{line.name}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {percent(line.count, visibleTotal)}%
-                    </span>
-                    <span className="text-lg font-bold tabular-nums w-16 text-right">
-                      {line.count}
-                    </span>
-                  </button>
+          <div className="rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-accent/30 [.light_&]:bg-black/[0.04]">
+                  <th className="text-left font-semibold px-4 py-3">Подразделение</th>
+                  <th className="text-left font-semibold px-4 py-3 w-40">Заявок</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleLines.map((line) => {
+                  const lineOpen = !!openLines[line.name];
+                  return (
+                    <Fragment key={line.name}>
+                      <tr
+                        onClick={() => toggleLine(line.name)}
+                        className="border-t border-border cursor-pointer hover:bg-accent/20 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-2">
+                            <Icon
+                              name={lineOpen ? 'ChevronDown' : 'ChevronRight'}
+                              size={16}
+                              className="text-muted-foreground shrink-0"
+                            />
+                            {line.name}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 tabular-nums">{line.count}</td>
+                      </tr>
 
-                  {lineOpen && (
-                    <div className="border-t border-border/60 bg-black/5 [.light_&]:bg-black/[0.02]">
-                      {line.services.map((service) => {
-                        const key = `${line.name}::${service.name}`;
-                        const serviceOpen = !!openServices[key];
-                        return (
-                          <div key={key} className="border-b border-border/40 last:border-b-0">
-                            <button
-                              onClick={() => toggleService(key)}
-                              className="w-full flex items-center gap-3 pl-10 pr-4 py-3 hover:bg-accent/20 transition-colors text-left"
-                            >
-                              <Icon
-                                name={serviceOpen ? 'ChevronDown' : 'ChevronRight'}
-                                size={16}
-                                className="text-muted-foreground shrink-0"
-                              />
-                              <Icon
-                                name={SERVICE_ICONS[service.name] || 'Box'}
-                                fallback="Box"
-                                size={18}
-                                className="text-muted-foreground shrink-0"
-                              />
-                              <span className="flex-1 text-sm">{service.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {percent(service.count, line.count)}%
-                              </span>
-                              <span className="font-semibold tabular-nums w-16 text-right">
-                                {service.count}
-                              </span>
-                            </button>
+                      {lineOpen &&
+                        line.services.map((service) => {
+                          const key = `${line.name}::${service.name}`;
+                          const serviceOpen = !!openServices[key];
+                          return (
+                            <Fragment key={key}>
+                              <tr
+                                onClick={() => toggleService(key)}
+                                className="border-t border-border/50 cursor-pointer bg-black/10 [.light_&]:bg-black/[0.02] hover:bg-accent/20 transition-colors"
+                              >
+                                <td className="px-4 py-2.5 pl-10">
+                                  <span className="flex items-center gap-2 text-muted-foreground">
+                                    <Icon
+                                      name={serviceOpen ? 'ChevronDown' : 'ChevronRight'}
+                                      size={14}
+                                      className="shrink-0"
+                                    />
+                                    {service.name}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
+                                  {service.count}
+                                </td>
+                              </tr>
 
-                            {serviceOpen && (
-                              <div className="pb-2">
-                                {service.issues.map((issue) => (
-                                  <div
+                              {serviceOpen &&
+                                service.issues.map((issue) => (
+                                  <tr
                                     key={`${key}::${issue.name}`}
-                                    className="flex items-center gap-3 pl-[4.5rem] pr-4 py-2"
+                                    className="border-t border-border/30 bg-black/20 [.light_&]:bg-black/[0.04]"
                                   >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-                                    <span className="flex-1 text-sm text-muted-foreground">
+                                    <td className="px-4 py-2 pl-[4.5rem] text-muted-foreground">
                                       {issue.name}
-                                    </span>
-                                    <span className="text-sm tabular-nums w-16 text-right">
+                                    </td>
+                                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
                                       {issue.count}
-                                    </span>
-                                  </div>
+                                    </td>
+                                  </tr>
                                 ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
+                            </Fragment>
+                          );
+                        })}
+                    </Fragment>
+                  );
+                })}
+
+                <tr className="border-t border-border bg-accent/20 [.light_&]:bg-black/[0.03]">
+                  <td className="px-4 py-3 font-bold">Итого</td>
+                  <td className="px-4 py-3 font-bold tabular-nums">{visibleTotal}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          <Card className="mt-3">
-            <div className="flex items-center gap-3 px-4 py-4">
-              <span className="w-[18px] shrink-0" />
-              <Icon name="Sigma" size={20} className="text-primary shrink-0" />
-              <span className="font-bold flex-1">Итого</span>
-              <span className="text-sm text-muted-foreground">100%</span>
-              <span className="text-lg font-bold tabular-nums w-16 text-right">
-                {visibleTotal}
-              </span>
-            </div>
-          </Card>
-
-          <p className="text-xs text-muted-foreground mt-6 leading-relaxed">
+          <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
             Август 2026. Подразделение определяется по исполнителю заявки, сервис и тип
             вопроса — по тексту обращения; каждая заявка учтена один раз. Заявки без
             исполнителя и у сотрудников вне списков подразделений не учитываются.
