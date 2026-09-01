@@ -31,7 +31,7 @@ export interface TopicsData {
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
 const VISIBLE_LINES = ['1-я линия', '2-я линия ТП', 'Отдел Ильи', 'Отдел МИС'];
 
-const MONTH = '2026-08';
+const PERIOD = 'all';
 
 const TopicsAnalytics = () => {
   const navigate = useNavigate();
@@ -49,7 +49,7 @@ const TopicsAnalytics = () => {
       setError(false);
       try {
         const res = await apiFetch(
-          `${getApiUrl('topics-analytics')}?endpoint=topics-analytics&month=${MONTH}`
+          `${getApiUrl('topics-analytics')}?endpoint=topics-analytics&month=${PERIOD}`
         );
         if (!res.ok) throw new Error('bad response');
         const json = await res.json();
@@ -96,7 +96,7 @@ const TopicsAnalytics = () => {
         <div className="flex-1">
           <h1 className="text-2xl md:text-3xl font-bold">Аналитика обращений</h1>
           <p className="text-muted-foreground text-sm">
-            Август 2026 — по сути вопроса, а не по выбранному сервису
+            За всё время — по сути вопроса, а не по выбранному сервису
           </p>
         </div>
       </div>
@@ -205,7 +205,7 @@ const TopicsAnalytics = () => {
           </div>
 
           <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-            Август 2026. Подразделение определяется по исполнителю заявки, сервис и тип
+            За всё время. Подразделение определяется по исполнителю заявки, сервис и тип
             вопроса — по тексту обращения; каждая заявка учтена один раз. Заявки без
             исполнителя и у сотрудников вне списков подразделений не учитываются.
           </p>
