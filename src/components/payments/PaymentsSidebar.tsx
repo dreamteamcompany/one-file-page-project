@@ -111,6 +111,14 @@ const PaymentsSidebar = ({
             </Link>
           </li>
         )}
+        {hasPermission('dashboard', 'read') && (
+          <li>
+            <Link to="/topics-analytics" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/topics-analytics') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Обращения">
+              <Icon name="ChartPie" size={22} />
+              {!collapsed && <span>Обращения</span>}
+            </Link>
+          </li>
+        )}
         {(hasPermission('tickets', 'view_all') || hasPermission('tickets', 'view_own_only')) && (
           <li>
             <Link to="/tickets" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/tickets') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Мои заявки">

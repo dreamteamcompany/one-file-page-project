@@ -49,6 +49,7 @@ const AiTraining = lazy(() => import("./pages/AiTraining"));
 const BitrixInactiveUsers = lazy(() => import("./pages/BitrixInactiveUsers"));
 const OrgChart = lazy(() => import("./pages/OrgChart"));
 const ReplyTemplates = lazy(() => import("./pages/ReplyTemplates"));
+const TopicsAnalytics = lazy(() => import("./pages/TopicsAnalytics"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const RouteFallback = () => (
@@ -110,6 +111,7 @@ const App = () => {
             <Route path="/bitrix-inactive-users" element={<ProtectedRoute><BitrixInactiveUsers /></ProtectedRoute>} />
             <Route path="/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
             <Route path="/reply-templates" element={<ProtectedRoute><ReplyTemplates /></ProtectedRoute>} />
+            <Route path="/topics-analytics" element={<ProtectedRoute><TopicsAnalytics /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
