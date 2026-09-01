@@ -258,6 +258,16 @@
         "error": "Требуется авторизация"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get topics analytics all time (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=topics-analytics&month=all",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }

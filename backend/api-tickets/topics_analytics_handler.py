@@ -70,12 +70,17 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
     params = event.get('queryStringParameters') or {}
     month = params.get('month') or '2026-08'
 
-    if (len(month) != 7 or month[4] != '-'
-            or not month[:4].isdigit() or not month[5:].isdigit()
-            or not 1 <= int(month[5:]) <= 12):
-        return response(400, {'error': 'Некорректный месяц, ожидается YYYY-MM'})
+    # month=all — разрез за всю историю заявок, без ограничения по датам.
+    all_time = month == 'all'
 
-    start, end = _month_bounds(month)
+    if not all_time:
+        if (len(month) != 7 or month[4] != '-'
+                or not month[:4].isdigit() or not month[5:].isdigit()
+                or not 1 <= int(month[5:]) <= 12):
+            return response(400, {'error': 'Некорректный месяц, ожидается YYYY-MM или all'})
+
+    where_sql = '' if all_time else 'WHERE created_at >= %s AND created_at < %s'
+    args = () if all_time else _month_bounds(month)
 
     cur = conn.cursor()
     cur.execute(f"""
@@ -89,11 +94,11 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                        LOWER(COALESCE(title, '') || ' ' ||
                              COALESCE(REGEXP_REPLACE(description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
                 FROM {SCHEMA}.tickets
-                WHERE created_at >= %s AND created_at < %s
+                {where_sql}
             ) s
         ) q
         GROUP BY line, service, issue
-    """, (start, end))
+    """, args)
     rows = cur.fetchall()
 
     total = 0

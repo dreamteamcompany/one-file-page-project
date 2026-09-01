@@ -55,6 +55,7 @@ const percent = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
 
 const MONTHS = [
+  { value: 'all', label: 'За всё время' },
   { value: '2026-08', label: 'Август 2026' },
   { value: '2026-07', label: 'Июль 2026' },
   { value: '2026-06', label: 'Июнь 2026' },
@@ -65,7 +66,7 @@ const TopicsAnalytics = () => {
   const [data, setData] = useState<TopicsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [month, setMonth] = useState('2026-08');
+  const [month, setMonth] = useState('all');
   const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
   const [openServices, setOpenServices] = useState<Record<string, boolean>>({});
 
@@ -155,7 +156,9 @@ const TopicsAnalytics = () => {
                 <Icon name="Inbox" size={28} className="text-primary" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">Всего заявок за период</p>
+                <p className="text-muted-foreground text-sm">
+                  {month === 'all' ? 'Всего заявок за всё время' : 'Всего заявок за период'}
+                </p>
                 <p className="text-4xl font-bold">{data.total}</p>
               </div>
             </CardContent>
