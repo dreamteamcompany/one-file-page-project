@@ -54,19 +54,16 @@ const SERVICE_ICONS: Record<string, string> = {
 const percent = (part: number, whole: number) =>
   whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0;
 
-const MONTHS = [
-  { value: 'all', label: 'За всё время' },
-  { value: '2026-08', label: 'Август 2026' },
-  { value: '2026-07', label: 'Июль 2026' },
-  { value: '2026-06', label: 'Июнь 2026' },
-];
+/** Показываем только подразделения из утверждённых списков, в этом порядке. */
+const VISIBLE_LINES = ['1-я линия', '2-я линия ТП', 'Отдел Ильи', 'Отдел МИС'];
+
+const MONTH = '2026-08';
 
 const TopicsAnalytics = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<TopicsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [month, setMonth] = useState('all');
   const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
   const [openServices, setOpenServices] = useState<Record<string, boolean>>({});
 
@@ -78,7 +75,7 @@ const TopicsAnalytics = () => {
       setError(false);
       try {
         const res = await apiFetch(
-          `${getApiUrl('topics-analytics')}?endpoint=topics-analytics&month=${month}`
+          `${getApiUrl('topics-analytics')}?endpoint=topics-analytics&month=${MONTH}`
         );
         if (!res.ok) throw new Error('bad response');
         const json = await res.json();
@@ -96,13 +93,21 @@ const TopicsAnalytics = () => {
     return () => {
       cancelled = true;
     };
-  }, [month]);
+  }, []);
 
   const toggleLine = (name: string) =>
     setOpenLines((prev) => ({ ...prev, [name]: !prev[name] }));
 
   const toggleService = (key: string) =>
     setOpenServices((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // Оставляем только утверждённые подразделения; заявки без исполнителя
+  // и у сотрудников вне списков в отчёт не попадают.
+  const visibleLines = (data?.lines ?? [])
+    .filter((l) => VISIBLE_LINES.includes(l.name))
+    .sort((a, b) => VISIBLE_LINES.indexOf(a.name) - VISIBLE_LINES.indexOf(b.name));
+
+  const visibleTotal = visibleLines.reduce((sum, l) => sum + l.count, 0);
 
   return (
     <PageLayout>
@@ -117,20 +122,9 @@ const TopicsAnalytics = () => {
         <div className="flex-1">
           <h1 className="text-2xl md:text-3xl font-bold">Аналитика обращений</h1>
           <p className="text-muted-foreground text-sm">
-            По сути вопроса, а не по выбранному сервису
+            Август 2026 — по сути вопроса, а не по выбранному сервису
           </p>
         </div>
-        <select
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="bg-background border border-border rounded-lg px-3 py-2 text-sm"
-        >
-          {MONTHS.map((m) => (
-            <option key={m.value} value={m.value}>
-              {m.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {loading && (
@@ -156,16 +150,14 @@ const TopicsAnalytics = () => {
                 <Icon name="Inbox" size={28} className="text-primary" />
               </div>
               <div>
-                <p className="text-muted-foreground text-sm">
-                  {month === 'all' ? 'Всего заявок за всё время' : 'Всего заявок за период'}
-                </p>
-                <p className="text-4xl font-bold">{data.total}</p>
+                <p className="text-muted-foreground text-sm">Всего заявок за август</p>
+                <p className="text-4xl font-bold">{visibleTotal}</p>
               </div>
             </CardContent>
           </Card>
 
           <div className="space-y-3">
-            {data.lines.map((line) => {
+            {visibleLines.map((line) => {
               const lineOpen = !!openLines[line.name];
               return (
                 <Card key={line.name} className="overflow-hidden">
@@ -186,7 +178,7 @@ const TopicsAnalytics = () => {
                     />
                     <span className="font-semibold flex-1">{line.name}</span>
                     <span className="text-sm text-muted-foreground">
-                      {percent(line.count, data.total)}%
+                      {percent(line.count, visibleTotal)}%
                     </span>
                     <span className="text-lg font-bold tabular-nums w-16 text-right">
                       {line.count}
@@ -252,9 +244,22 @@ const TopicsAnalytics = () => {
             })}
           </div>
 
+          <Card className="mt-3">
+            <div className="flex items-center gap-3 px-4 py-4">
+              <span className="w-[18px] shrink-0" />
+              <Icon name="Sigma" size={20} className="text-primary shrink-0" />
+              <span className="font-bold flex-1">Итого</span>
+              <span className="text-sm text-muted-foreground">100%</span>
+              <span className="text-lg font-bold tabular-nums w-16 text-right">
+                {visibleTotal}
+              </span>
+            </div>
+          </Card>
+
           <p className="text-xs text-muted-foreground mt-6 leading-relaxed">
-            Линия определяется по исполнителю заявки. Сервис и тип вопроса — по тексту
-            обращения, каждая заявка учтена один раз.
+            Август 2026. Подразделение определяется по исполнителю заявки, сервис и тип
+            вопроса — по тексту обращения; каждая заявка учтена один раз. Заявки без
+            исполнителя и у сотрудников вне списков подразделений не учитываются.
           </p>
         </>
       )}
