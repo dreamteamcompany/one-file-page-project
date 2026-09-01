@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiFetch } from '@/utils/api';
-import { FUNCTIONS_BASE } from '@/config/backend';
+import { apiFetch, getApiUrl } from '@/utils/api';
 import PageLayout from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
-import { AUGUST_2026_TOPICS } from '@/data/topicsAugust2026';
 
 export interface IssueRow {
   name: string;
@@ -29,8 +27,6 @@ export interface TopicsData {
   total: number;
   lines: LineRow[];
 }
-
-const ANALYTICS_TOPICS_URL = `${FUNCTIONS_BASE}/analytics-topics`;
 
 const LINE_ICONS: Record<string, string> = {
   '1-я линия': 'Headset',
@@ -69,7 +65,6 @@ const TopicsAnalytics = () => {
   const [data, setData] = useState<TopicsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [offline, setOffline] = useState(false);
   const [month, setMonth] = useState('2026-08');
   const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
   const [openServices, setOpenServices] = useState<Record<string, boolean>>({});
@@ -80,22 +75,17 @@ const TopicsAnalytics = () => {
     const load = async () => {
       setLoading(true);
       setError(false);
-      setOffline(false);
       try {
-        const res = await apiFetch(`${ANALYTICS_TOPICS_URL}?month=${month}`);
+        const res = await apiFetch(
+          `${getApiUrl('topics-analytics')}?endpoint=topics-analytics&month=${month}`
+        );
         if (!res.ok) throw new Error('bad response');
         const json = await res.json();
         if (!cancelled) setData(json);
       } catch {
         if (cancelled) return;
-        // Пока функция аналитики недоступна — показываем сохранённый расчёт за август.
-        if (month === AUGUST_2026_TOPICS.month) {
-          setData(AUGUST_2026_TOPICS);
-          setOffline(true);
-        } else {
-          setData(null);
-          setError(true);
-        }
+        setData(null);
+        setError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -262,7 +252,6 @@ const TopicsAnalytics = () => {
           <p className="text-xs text-muted-foreground mt-6 leading-relaxed">
             Линия определяется по исполнителю заявки. Сервис и тип вопроса — по тексту
             обращения, каждая заявка учтена один раз.
-            {offline && ' Показан сохранённый расчёт за август 2026.'}
           </p>
         </>
       )}

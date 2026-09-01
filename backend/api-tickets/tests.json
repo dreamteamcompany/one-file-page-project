@@ -248,6 +248,16 @@
         "error": "Требуется авторизация"
       },
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get topics analytics (requires auth)",
+      "method": "GET",
+      "path": "/?endpoint=topics-analytics&month=2026-08",
+      "expectedStatus": 401,
+      "expectedBody": {
+        "error": "Требуется авторизация"
+      },
+      "bodyMatcher": "partial"
     }
   ]
 }

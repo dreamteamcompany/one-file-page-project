@@ -1,15 +1,9 @@
-"""
-Аналитика заявок по факту обращения.
-GET /analytics-topics?month=2026-08 → всего заявок, разбивка по линиям,
-внутри каждой линии — по сервисам, внутри сервиса — по типу вопроса.
-Линия определяется по исполнителю заявки (состав отделов задан в LINE_MEMBERS).
-"""
+"""Аналитика обращений по факту вопроса: линии → сервисы → типы вопросов"""
 from typing import Dict, Any, List
 from datetime import date
-from shared_utils import response, get_db_connection, verify_token, handle_options, SCHEMA
+from shared_utils import response, verify_token, SCHEMA
 
-# Состав отделов (id пользователей). Задан вручную по факту работы сотрудников,
-# а не по группам исполнителей в справочнике.
+# Состав отделов (id пользователей) — по факту работы, а не по справочнику групп.
 LINE_MEMBERS: Dict[str, List[int]] = {
     '1-я линия': [3, 4, 20, 393, 381],
     '2-я линия ТП': [5],
@@ -51,69 +45,63 @@ END
 def _month_bounds(month: str) -> tuple:
     year, mon = int(month[:4]), int(month[5:7])
     start = date(year, mon, 1)
-    end = date(year + (mon == 12), 1 if mon == 12 else mon + 1, 1)
+    end = date(year + 1, 1, 1) if mon == 12 else date(year, mon + 1, 1)
     return start.isoformat(), end.isoformat()
 
 
-def _line_sql() -> str:
+def _line_case() -> str:
     parts = []
     for line, ids in LINE_MEMBERS.items():
-        ids_str = ','.join(str(i) for i in ids)
+        ids_str = ','.join(str(int(i)) for i in ids)
         parts.append(f"WHEN assigned_to IN ({ids_str}) THEN '{line}'")
     return ('CASE ' + ' '.join(parts) +
             " WHEN assigned_to IS NULL THEN 'Исполнитель не назначен'"
             " ELSE 'Прочие исполнители' END")
 
 
-def handler(event: dict, context) -> dict:
+def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Аналитика заявок за месяц: линии → сервисы → типы вопросов"""
-    method = event.get('httpMethod', 'GET')
-
-    if method == 'OPTIONS':
-        return handle_options()
-
-    if method != 'GET':
-        return response(405, {'error': 'Method not allowed'})
-
     if not verify_token(event):
         return response(401, {'error': 'Требуется авторизация'})
 
+    if method != 'GET':
+        return response(405, {'error': 'Метод не поддерживается'})
+
     params = event.get('queryStringParameters') or {}
     month = params.get('month') or '2026-08'
-    if len(month) != 7 or month[4] != '-' or not month[:4].isdigit() or not month[5:].isdigit():
+
+    if (len(month) != 7 or month[4] != '-'
+            or not month[:4].isdigit() or not month[5:].isdigit()
+            or not 1 <= int(month[5:]) <= 12):
         return response(400, {'error': 'Некорректный месяц, ожидается YYYY-MM'})
 
     start, end = _month_bounds(month)
 
-    conn = get_db_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute(f"""
-            SELECT line, service, issue, COUNT(*) AS cnt
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT line, service, issue, COUNT(*) AS cnt
+        FROM (
+            SELECT {_line_case()} AS line,
+                   {SERVICE_CASE} AS service,
+                   {ISSUE_CASE} AS issue
             FROM (
-                SELECT {_line_sql()} AS line,
-                       {SERVICE_CASE} AS service,
-                       {ISSUE_CASE} AS issue
-                FROM (
-                    SELECT assigned_to,
-                           LOWER(COALESCE(title, '') || ' ' ||
-                                 COALESCE(REGEXP_REPLACE(description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
-                    FROM {SCHEMA}.tickets
-                    WHERE created_at >= %s AND created_at < %s
-                ) s
-            ) q
-            GROUP BY line, service, issue
-        """, (start, end))
-        rows = cur.fetchall()
-        cur.close()
-    finally:
-        conn.close()
+                SELECT assigned_to,
+                       LOWER(COALESCE(title, '') || ' ' ||
+                             COALESCE(REGEXP_REPLACE(description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
+                FROM {SCHEMA}.tickets
+                WHERE created_at >= %s AND created_at < %s
+            ) s
+        ) q
+        GROUP BY line, service, issue
+    """, (start, end))
+    rows = cur.fetchall()
 
     total = 0
     lines: Dict[str, Dict[str, Any]] = {}
 
     for r in rows:
-        line, service, issue, cnt = r['line'], r['service'], r['issue'], int(r['cnt'])
+        line, service, issue = r['line'], r['service'], r['issue']
+        cnt = int(r['cnt'])
         total += cnt
         ln = lines.setdefault(line, {'name': line, 'count': 0, '_services': {}})
         ln['count'] += cnt
@@ -121,15 +109,13 @@ def handler(event: dict, context) -> dict:
         sv['count'] += cnt
         sv['_issues'][issue] = sv['_issues'].get(issue, 0) + cnt
 
-    result_lines = []
+    ordered = []
     for name in LINE_ORDER:
-        if name not in lines:
-            continue
-        ln = lines.pop(name)
-        result_lines.append(ln)
-    result_lines.extend(sorted(lines.values(), key=lambda l: -l['count']))
+        if name in lines:
+            ordered.append(lines.pop(name))
+    ordered.extend(sorted(lines.values(), key=lambda l: -l['count']))
 
-    for ln in result_lines:
+    for ln in ordered:
         services = sorted(ln.pop('_services').values(), key=lambda s: -s['count'])
         for sv in services:
             sv['issues'] = sorted(
@@ -138,4 +124,4 @@ def handler(event: dict, context) -> dict:
             )
         ln['services'] = services
 
-    return response(200, {'month': month, 'total': total, 'lines': result_lines})
+    return response(200, {'month': month, 'total': total, 'lines': ordered})

@@ -174,6 +174,7 @@ from sla_handler import handle_sla, handle_sla_priority_times
 from sla_group_budgets_handler import handle_sla_group_budgets
 from sla_service_mappings_handler import handle_sla_service_mappings, resolve_sla_for_ticket
 from sla_analytics_handler import handle_sla_analytics
+from topics_analytics_handler import handle_topics_analytics
 from response_control_handler import handle_response_control
 from executor_assignment_resolver import resolve_executor, resolve_executor_group
 from bitrix_bot_notifier import notify_executor_assigned, notify_watcher_added
@@ -1632,6 +1633,8 @@ def _route(endpoint: str, method: str, event: dict, conn) -> dict:
         return handle_sla_priority_times(method, event, conn)
     elif endpoint == 'sla-analytics':
         return handle_sla_analytics(method, event, conn)
+    elif endpoint == 'topics-analytics':
+        return handle_topics_analytics(method, event, conn)
     elif endpoint == 'ticket-approvals':
         return handle_ticket_approvals(method, event, conn)
     elif endpoint == 'ticket_service_mappings':
