@@ -70,13 +70,17 @@ def _weeks_rows(conn, month: str) -> List[Dict[str, Any]]:
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT GREATEST(DATE_TRUNC('week', created_at)::date, %s::date) AS w_start,
-               LEAST((DATE_TRUNC('week', created_at) + INTERVAL '6 days')::date,
+        SELECT GREATEST(DATE_TRUNC('week', t.created_at)::date, %s::date) AS w_start,
+               LEAST((DATE_TRUNC('week', t.created_at) + INTERVAL '6 days')::date,
                      (%s::date - 1)) AS w_end,
-               COUNT(*) AS cnt
-        FROM {SCHEMA}.tickets
-        WHERE created_at >= %s AND created_at < %s
-          AND assigned_to IN ({ids})
+               COUNT(*) AS cnt,
+               COUNT(*) FILTER (
+                   WHERE s.name IS NULL OR s.name NOT IN ('Решена', 'Отменена')
+               ) AS unresolved
+        FROM {SCHEMA}.tickets t
+        LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
+        WHERE t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
         GROUP BY 1, 2
         ORDER BY 1
     """, (start, end, start, end))
@@ -85,8 +89,9 @@ def _weeks_rows(conn, month: str) -> List[Dict[str, Any]]:
     for r in cur.fetchall():
         a, b = r['w_start'], r['w_end']
         label = f"{a.day}–{b.day} {RU_MONTHS_GEN[b.month - 1]}"
-        weeks.append({'label': label, 'count': int(r['cnt']),
-                      'days': (b - a).days + 1})
+        cnt, unresolved = int(r['cnt']), int(r['unresolved'])
+        weeks.append({'label': label, 'count': cnt, 'unresolved': unresolved,
+                      'resolved': cnt - unresolved, 'days': (b - a).days + 1})
     return weeks
 
 
