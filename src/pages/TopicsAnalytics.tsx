@@ -4,6 +4,7 @@ import { apiFetch, getApiUrl } from '@/utils/api';
 import PageLayout from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import WeeklyTicketsChart from '@/components/analytics/WeeklyTicketsChart';
 
 export interface IssueRow {
   name: string;
@@ -22,10 +23,18 @@ export interface LineRow {
   services: ServiceRow[];
 }
 
+export interface WeekRow {
+  label: string;
+  count: number;
+  days: number;
+}
+
 export interface TopicsData {
   month: string;
   total: number;
   lines: LineRow[];
+  weeksMonth?: string;
+  weeks?: WeekRow[];
 }
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
@@ -118,6 +127,8 @@ const TopicsAnalytics = () => {
 
       {!loading && !error && data && (
         <>
+          <WeeklyTicketsChart weeks={data.weeks ?? []} />
+
           <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
 
           <div className="rounded-lg border border-border overflow-hidden">

@@ -59,6 +59,37 @@ def _line_case() -> str:
             " ELSE 'Прочие исполнители' END")
 
 
+WEEKS_MONTH = '2026-08'
+RU_MONTHS_GEN = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+                 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+
+
+def _weeks_rows(conn, month: str) -> List[Dict[str, Any]]:
+    """Недельная динамика заявок внутри месяца, только по нашим подразделениям."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT GREATEST(DATE_TRUNC('week', created_at)::date, %s::date) AS w_start,
+               LEAST((DATE_TRUNC('week', created_at) + INTERVAL '6 days')::date,
+                     (%s::date - 1)) AS w_end,
+               COUNT(*) AS cnt
+        FROM {SCHEMA}.tickets
+        WHERE created_at >= %s AND created_at < %s
+          AND assigned_to IN ({ids})
+        GROUP BY 1, 2
+        ORDER BY 1
+    """, (start, end, start, end))
+
+    weeks = []
+    for r in cur.fetchall():
+        a, b = r['w_start'], r['w_end']
+        label = f"{a.day}–{b.day} {RU_MONTHS_GEN[b.month - 1]}"
+        weeks.append({'label': label, 'count': int(r['cnt']),
+                      'days': (b - a).days + 1})
+    return weeks
+
+
 def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Аналитика заявок за месяц: линии → сервисы → типы вопросов"""
     if not verify_token(event):
@@ -129,4 +160,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
             )
         ln['services'] = services
 
-    return response(200, {'month': month, 'total': total, 'lines': ordered})
+    weeks = _weeks_rows(conn, WEEKS_MONTH)
+
+    return response(200, {'month': month, 'total': total, 'lines': ordered,
+                          'weeksMonth': WEEKS_MONTH, 'weeks': weeks})
