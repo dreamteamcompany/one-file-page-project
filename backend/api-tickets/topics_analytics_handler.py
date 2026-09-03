@@ -214,43 +214,54 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
     done = ', '.join(DONE_STATUSES)
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT LEAST((EXTRACT(DAY FROM s.created_at)::int - 1) / 7 + 1, 5) AS wk,
-               COUNT(*) AS n,
-               ROUND(AVG(hrs)::numeric, 1) AS avg_h,
-               ROUND((PERCENTILE_CONT(0.5)
-                      WITHIN GROUP (ORDER BY hrs))::numeric, 1) AS med_h
-        FROM (
-            SELECT t.id, t.created_at,
-                   EXTRACT(EPOCH FROM (
-                       MIN(h.created_at) FILTER (
-                           WHERE h.field_name = 'status_id' AND h.new_value IN ({done})
-                       ) - t.created_at)) / 3600 AS hrs
-            FROM {SCHEMA}.tickets t
-            LEFT JOIN {SCHEMA}.ticket_history h ON h.ticket_id = t.id
-            WHERE t.created_at >= %s AND t.created_at < %s
-              AND t.assigned_to IN ({ids})
-            GROUP BY t.id, t.created_at
-        ) s
-        WHERE s.hrs IS NOT NULL AND s.hrs >= 0
-        GROUP BY wk
-        ORDER BY wk
+        SELECT t.id, t.created_at, t.assigned_to,
+               MIN(h.created_at) FILTER (
+                   WHERE h.field_name = 'status_id' AND h.new_value IN ({done})
+               ) AS solved_at
+        FROM {SCHEMA}.tickets t
+        LEFT JOIN {SCHEMA}.ticket_history h ON h.ticket_id = t.id
+        WHERE t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
+        GROUP BY t.id, t.created_at, t.assigned_to
     """, (start, end))
+    rows = cur.fetchall()
+
+    schedules = _load_schedules(conn)
+    buckets: Dict[int, List[tuple]] = {}
+    for r in rows:
+        if not r['solved_at'] or r['solved_at'] < r['created_at']:
+            continue
+        cal = (r['solved_at'] - r['created_at']).total_seconds() / 3600
+        sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
+        work = _business_minutes(r['created_at'], r['solved_at'], sched) / 60
+        wk = min((r['created_at'].day - 1) // 7 + 1, 5)
+        buckets.setdefault(wk, []).append((cal, work))
 
     last_day = (date.fromisoformat(end) - timedelta(days=1)).day
     mon_name = RU_MONTHS_GEN[int(month[5:7]) - 1]
-    weeks, total_n, total_sum = [], 0, 0.0
-    for r in cur.fetchall():
-        wk, n = int(r['wk']), int(r['n'])
-        avg_h = float(r['avg_h'])
+    weeks, all_cal, all_work = [], [], []
+    for wk in sorted(buckets):
+        vals = buckets[wk]
+        n = len(vals)
+        cal = sorted(v[0] for v in vals)
+        work = sorted(v[1] for v in vals)
+        mid = n // 2
+        med_cal = cal[mid] if n % 2 else (cal[mid - 1] + cal[mid]) / 2
+        med_work = work[mid] if n % 2 else (work[mid - 1] + work[mid]) / 2
         d1 = (wk - 1) * 7 + 1
         weeks.append({'label': f"{d1}–{min(d1 + 6, last_day)} {mon_name}",
-                      'avgHours': avg_h, 'medianHours': float(r['med_h']),
+                      'avgHours': round(sum(cal) / n, 1),
+                      'medianHours': round(med_cal, 1),
+                      'avgWorkHours': round(sum(work) / n, 1),
+                      'medianWorkHours': round(med_work, 1),
                       'count': n})
-        total_n += n
-        total_sum += avg_h * n
+        all_cal += cal
+        all_work += work
 
-    return {'weeks': weeks, 'count': total_n,
-            'avgHours': round(total_sum / total_n, 1) if total_n else 0}
+    n = len(all_cal)
+    return {'weeks': weeks, 'count': n,
+            'avgHours': round(sum(all_cal) / n, 1) if n else 0,
+            'avgWorkHours': round(sum(all_work) / n, 1) if n else 0}
 
 
 def _delay_reasons(conn, month: str) -> Dict[str, Any]:
@@ -259,12 +270,8 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT h.new_value AS status,
-               COUNT(*) AS periods,
-               ROUND(SUM(EXTRACT(EPOCH FROM (h.nxt - h.created_at))
-                         / 3600)::numeric, 1) AS total_h,
-               ROUND(AVG(EXTRACT(EPOCH FROM (h.nxt - h.created_at))
-                         / 3600)::numeric, 1) AS avg_h
+        SELECT h.new_value AS status, h.created_at AS from_at, h.nxt AS to_at,
+               t.assigned_to
         FROM (
             SELECT hh.*, LEAD(hh.created_at) OVER (
                        PARTITION BY hh.ticket_id ORDER BY hh.created_at) AS nxt
@@ -275,46 +282,67 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
         WHERE t.created_at >= %s AND t.created_at < %s
           AND t.assigned_to IN ({ids})
           AND h.nxt IS NOT NULL
-        GROUP BY h.new_value
     """, (start, end))
 
-    groups = {
-        'our': {'side': 'our', 'label': 'Тянем мы', 'hours': 0.0, 'periods': 0, 'items': []},
-        'client': {'side': 'client', 'label': 'Ждём пользователя',
-                   'hours': 0.0, 'periods': 0, 'items': []},
-        'pause': {'side': 'pause', 'label': 'Пауза и прочее',
-                  'hours': 0.0, 'periods': 0, 'items': []},
-    }
-
+    schedules = _load_schedules(conn)
+    stats: Dict[str, Dict[str, float]] = {}
     for r in cur.fetchall():
         st = r['status']
         if st in DONE_STATUSES_PLAIN:
             continue
+        cal = (r['to_at'] - r['from_at']).total_seconds() / 3600
+        if cal < 0:
+            continue
+        sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
+        work = _business_minutes(r['from_at'], r['to_at'], sched) / 60
+        s = stats.setdefault(st, {'hours': 0.0, 'workHours': 0.0, 'periods': 0})
+        s['hours'] += cal
+        s['workHours'] += work
+        s['periods'] += 1
+
+    groups = {
+        'our': {'side': 'our', 'label': 'Тянем мы'},
+        'client': {'side': 'client', 'label': 'Ждём пользователя'},
+        'pause': {'side': 'pause', 'label': 'Пауза и прочее'},
+    }
+    for g in groups.values():
+        g.update({'hours': 0.0, 'workHours': 0.0, 'periods': 0, 'items': []})
+
+    for st, s in stats.items():
         key = ('our' if st in OUR_STATUSES
                else 'client' if st in CLIENT_STATUSES
                else 'pause')
         g = groups[key]
-        hours = float(r['total_h'] or 0)
-        g['hours'] += hours
-        g['periods'] += int(r['periods'])
-        g['items'].append({'status': st, 'hours': round(hours, 1),
-                           'avgHours': float(r['avg_h'] or 0),
-                           'periods': int(r['periods'])})
+        g['hours'] += s['hours']
+        g['workHours'] += s['workHours']
+        g['periods'] += s['periods']
+        g['items'].append({
+            'status': st,
+            'hours': round(s['hours'], 1),
+            'workHours': round(s['workHours'], 1),
+            'avgHours': round(s['hours'] / s['periods'], 1),
+            'avgWorkHours': round(s['workHours'] / s['periods'], 1),
+            'periods': s['periods'],
+        })
 
     out = []
     for g in groups.values():
         if g['periods'] == 0:
             continue
-        g['hours'] = round(g['hours'], 1)
         g['items'].sort(key=lambda i: -i['hours'])
         out.append(g)
 
     total = sum(g['hours'] for g in out)
+    total_work = sum(g['workHours'] for g in out)
     for g in out:
         g['share'] = round(g['hours'] / total * 100, 1) if total else 0
+        g['workShare'] = round(g['workHours'] / total_work * 100, 1) if total_work else 0
+        g['hours'] = round(g['hours'], 1)
+        g['workHours'] = round(g['workHours'], 1)
     out.sort(key=lambda g: -g['hours'])
 
-    return {'groups': out, 'totalHours': round(total, 1)}
+    return {'groups': out, 'totalHours': round(total, 1),
+            'totalWorkHours': round(total_work, 1)}
 
 
 def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:

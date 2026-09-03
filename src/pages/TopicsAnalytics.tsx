@@ -52,19 +52,24 @@ export interface ResolutionWeek {
   label: string;
   avgHours: number;
   medianHours: number;
+  avgWorkHours: number;
+  medianWorkHours: number;
   count: number;
 }
 
 export interface ResolutionData {
   weeks: ResolutionWeek[];
   avgHours: number;
+  avgWorkHours: number;
   count: number;
 }
 
 export interface DelayItem {
   status: string;
   hours: number;
+  workHours: number;
   avgHours: number;
+  avgWorkHours: number;
   periods: number;
 }
 
@@ -72,7 +77,9 @@ export interface DelayGroup {
   side: 'our' | 'client' | 'pause';
   label: string;
   hours: number;
+  workHours: number;
   share: number;
+  workShare: number;
   periods: number;
   items: DelayItem[];
 }
@@ -80,6 +87,7 @@ export interface DelayGroup {
 export interface DelayReasonsData {
   groups: DelayGroup[];
   totalHours: number;
+  totalWorkHours: number;
 }
 
 export interface TopicsData {

@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import { fmtHours } from '@/components/analytics/ResolutionTimeChart';
+import TimeModeToggle, { type TimeMode } from '@/components/analytics/TimeModeToggle';
 import type { DelayReasonsData, DelayGroup } from '@/pages/TopicsAnalytics';
 
 interface DelayReasonsChartProps {
@@ -14,8 +16,14 @@ const STYLE: Record<DelayGroup['side'], { bar: string; text: string; icon: strin
 };
 
 const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
+  const [mode, setMode] = useState<TimeMode>('calendar');
   const groups = data.groups ?? [];
   if (!groups.length) return null;
+
+  const work = mode === 'work';
+  const share = (g: DelayGroup) => (work ? g.workShare : g.share);
+  const hours = (g: DelayGroup) => (work ? g.workHours : g.hours);
+  const total = work ? data.totalWorkHours : data.totalHours;
 
   const our = groups.find((g) => g.side === 'our');
   const client = groups.find((g) => g.side === 'client');
@@ -23,20 +31,23 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
   return (
     <Card className="mb-6">
       <CardContent className="py-6">
-        <div className="mb-5">
-          <h2 className="font-bold">Причины длительного закрытия заявок</h2>
-          <p className="text-muted-foreground text-sm">
-            Где заявки простаивают: у нас или у пользователя, август
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="font-bold">Причины длительного закрытия заявок</h2>
+            <p className="text-muted-foreground text-sm">
+              Где заявки простаивают: у нас или у пользователя, август
+            </p>
+          </div>
+          <TimeModeToggle value={mode} onChange={setMode} />
         </div>
 
         <div className="flex h-4 rounded-full overflow-hidden mb-3">
           {groups.map((g) => (
             <div
               key={g.side}
-              className={STYLE[g.side].bar}
-              style={{ width: `${g.share}%` }}
-              title={`${g.label}: ${g.share}%`}
+              className={`${STYLE[g.side].bar} transition-all`}
+              style={{ width: `${share(g)}%` }}
+              title={`${g.label}: ${share(g)}%`}
             />
           ))}
         </div>
@@ -45,7 +56,7 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
           {groups.map((g) => (
             <span key={g.side} className="flex items-center gap-1.5">
               <span className={`w-3 h-3 rounded-sm ${STYLE[g.side].bar}`} />
-              {g.label} — <b>{g.share}%</b>
+              {g.label} — <b>{share(g)}%</b>
             </span>
           ))}
         </div>
@@ -57,7 +68,7 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
                 <Icon name={STYLE[g.side].icon} size={16} className={STYLE[g.side].text} />
                 <span className="font-semibold text-sm">{g.label}</span>
                 <span className="text-xs text-muted-foreground">
-                  {fmtHours(g.hours)} всего
+                  {fmtHours(hours(g))} всего
                 </span>
               </div>
               <div className="space-y-1.5 pl-6">
@@ -66,17 +77,17 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
                     <span className="w-40 shrink-0 truncate">{it.status}</span>
                     <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                       <div
-                        className={`h-full ${STYLE[g.side].bar}`}
+                        className={`h-full transition-all ${STYLE[g.side].bar}`}
                         style={{
                           width: `${Math.min(
-                            (it.hours / Math.max(data.totalHours, 1)) * 100,
+                            ((work ? it.workHours : it.hours) / Math.max(total, 1)) * 100,
                             100
                           )}%`,
                         }}
                       />
                     </div>
                     <span className="w-28 shrink-0 text-right text-muted-foreground tabular-nums">
-                      в среднем {fmtHours(it.avgHours)}
+                      в среднем {fmtHours(work ? it.avgWorkHours : it.avgHours)}
                     </span>
                   </div>
                 ))}
@@ -89,20 +100,23 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
           <div className="flex items-start gap-2.5 mt-6 p-3 rounded-lg bg-muted/50">
             <Icon name="Lightbulb" size={16} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed">
-              {client.share > our.share ? (
+              {share(client) > share(our) ? (
                 <>
                   Больше всего времени заявки висят в ожидании пользователя —{' '}
-                  <b>{client.share}%</b> против <b>{our.share}%</b> у нас. Это статус
+                  <b>{share(client)}%</b> против <b>{share(our)}%</b> у нас. Это статус
                   «Ожидает подтверждения»: работа сделана, но человек не закрывает заявку.
                   Ускорить можно автозакрытием по таймеру, а не силами сотрудников.
                 </>
               ) : (
                 <>
-                  Основная задержка на нашей стороне — <b>{our.share}%</b> времени против{' '}
-                  <b>{client.share}%</b> в ожидании пользователя. Смотреть нужно на загрузку
-                  исполнителей, а не на дисциплину заявителей.
+                  Основная задержка на нашей стороне — <b>{share(our)}%</b> времени против{' '}
+                  <b>{share(client)}%</b> в ожидании пользователя. Смотреть нужно на
+                  загрузку исполнителей, а не на дисциплину заявителей.
                 </>
-              )}
+              )}{' '}
+              {work
+                ? 'Показаны только рабочие часы исполнителей — ночи и выходные вычтены.'
+                : 'Показаны все часы подряд, включая ночи и выходные.'}
             </p>
           </div>
         )}

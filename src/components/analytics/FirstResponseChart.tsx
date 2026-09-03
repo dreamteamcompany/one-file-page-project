@@ -35,6 +35,9 @@ const FirstResponseChart = ({ data }: FirstResponseChartProps) => {
             <p className="text-muted-foreground text-sm">
               Только рабочие часы исполнителя, август
             </p>
+            <span className="inline-block mt-1.5 px-2 py-0.5 rounded text-[11px] bg-teal-500/10 text-teal-600 dark:text-teal-400">
+              рабочее время
+            </span>
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold tabular-nums">{fmt(data.avgMinutes)}</div>

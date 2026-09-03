@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import TimeModeToggle, { type TimeMode } from '@/components/analytics/TimeModeToggle';
 import type { ResolutionData } from '@/pages/TopicsAnalytics';
 
 interface ResolutionTimeChartProps {
@@ -20,15 +22,21 @@ export const fmtHours = (hours: number) => {
 };
 
 const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
+  const [mode, setMode] = useState<TimeMode>('calendar');
   const weeks = data.weeks ?? [];
   if (!weeks.length) return null;
 
-  const max = Math.max(...weeks.map((w) => w.avgHours), 1);
+  const work = mode === 'work';
+  const val = (w: (typeof weeks)[number]) => (work ? w.avgWorkHours : w.avgHours);
+  const med = (w: (typeof weeks)[number]) => (work ? w.medianWorkHours : w.medianHours);
+  const total = work ? data.avgWorkHours : data.avgHours;
+  const other = work ? data.avgHours : data.avgWorkHours;
+  const max = Math.max(...weeks.map(val), 1);
 
   return (
     <Card className="mb-6">
       <CardContent className="py-6">
-        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
             <h2 className="font-bold">Среднее время решения</h2>
             <p className="text-muted-foreground text-sm">
@@ -36,9 +44,18 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
             </p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold tabular-nums">{fmtHours(data.avgHours)}</div>
-            <div className="text-xs text-muted-foreground">в среднем за месяц</div>
+            <div className="text-2xl font-bold tabular-nums">{fmtHours(total)}</div>
+            <div className="text-xs text-muted-foreground">
+              {work ? 'рабочих часов' : 'календарного времени'} в среднем
+            </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3 mb-6">
+          <TimeModeToggle value={mode} onChange={setMode} />
+          <span className="text-xs text-muted-foreground">
+            {work ? 'календарное' : 'в рабочих часах'} — {fmtHours(other)}
+          </span>
         </div>
 
         <div className="flex items-end justify-between gap-2 sm:gap-4 h-52">
@@ -48,20 +65,20 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
               className="flex-1 flex flex-col items-center gap-2 h-full justify-end"
             >
               <span className="text-xs sm:text-sm font-semibold tabular-nums text-center">
-                {fmtHours(w.avgHours)}
+                {fmtHours(val(w))}
               </span>
               <div
-                className="w-full rounded-t-md bg-indigo-500"
-                style={{ height: `${Math.max((w.avgHours / max) * 100, 3)}%` }}
-                title={`${w.label}: среднее ${fmtHours(w.avgHours)}, медиана ${fmtHours(
-                  w.medianHours
+                className={`w-full rounded-t-md transition-all ${
+                  work ? 'bg-teal-500' : 'bg-indigo-500'
+                }`}
+                style={{ height: `${Math.max((val(w) / max) * 100, 3)}%` }}
+                title={`${w.label}: календарное ${fmtHours(w.avgHours)}, рабочее ${fmtHours(
+                  w.avgWorkHours
                 )}, заявок ${w.count}`}
               />
               <span className="text-[11px] sm:text-xs text-muted-foreground text-center leading-tight">
                 {w.label}
-                <span className="block opacity-70">
-                  медиана {fmtHours(w.medianHours)}
-                </span>
+                <span className="block opacity-70">медиана {fmtHours(med(w))}</span>
               </span>
             </div>
           ))}
@@ -70,9 +87,19 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
         <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
           <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed">
-            Календарное время целиком, включая ночи и выходные, — так его видит
-            пользователь. Учтены {data.count} решённых заявок; те, что ещё в работе, в
-            расчёт не попали.
+            {work ? (
+              <>
+                Ночи, выходные и время вне смены исполнителя вычтены — это чистая
+                загрузка ИТ. Календарное время выше в{' '}
+                {(data.avgHours / Math.max(data.avgWorkHours, 0.1)).toFixed(1)} раза.
+              </>
+            ) : (
+              <>
+                Все часы подряд, включая ночи и выходные, — так время видит пользователь.
+                Переключите на «Рабочее», чтобы увидеть чистую загрузку ИТ.
+              </>
+            )}{' '}
+            Учтены {data.count} решённых заявок; те, что ещё в работе, в расчёт не попали.
           </p>
         </div>
       </CardContent>
