@@ -196,6 +196,127 @@ def _first_response_rows(conn, month: str) -> Dict[str, Any]:
             'answered': len(replied), 'noReply': no_reply}
 
 
+# ---- Время решения и причины долгого закрытия ----
+
+DONE_STATUSES_PLAIN = ['Решена', 'Отменена']
+DONE_STATUSES = tuple(f"'{s}'" for s in DONE_STATUSES_PLAIN)
+
+# Кто держит заявку в каждом статусе: мы или пользователь.
+OUR_STATUSES = ['В работе', 'Новая', 'Открыта повторно', 'На согласовании']
+CLIENT_STATUSES = ['Ожидает подтверждения', 'Ожидает ответа']
+PAUSE_STATUSES = ['Приостановлена']
+
+
+def _resolution_rows(conn, month: str) -> Dict[str, Any]:
+    """Время от создания до решения по неделям месяца, в часах."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    done = ', '.join(DONE_STATUSES)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT LEAST((EXTRACT(DAY FROM s.created_at)::int - 1) / 7 + 1, 5) AS wk,
+               COUNT(*) AS n,
+               ROUND(AVG(hrs)::numeric, 1) AS avg_h,
+               ROUND((PERCENTILE_CONT(0.5)
+                      WITHIN GROUP (ORDER BY hrs))::numeric, 1) AS med_h
+        FROM (
+            SELECT t.id, t.created_at,
+                   EXTRACT(EPOCH FROM (
+                       MIN(h.created_at) FILTER (
+                           WHERE h.field_name = 'status_id' AND h.new_value IN ({done})
+                       ) - t.created_at)) / 3600 AS hrs
+            FROM {SCHEMA}.tickets t
+            LEFT JOIN {SCHEMA}.ticket_history h ON h.ticket_id = t.id
+            WHERE t.created_at >= %s AND t.created_at < %s
+              AND t.assigned_to IN ({ids})
+            GROUP BY t.id, t.created_at
+        ) s
+        WHERE s.hrs IS NOT NULL AND s.hrs >= 0
+        GROUP BY wk
+        ORDER BY wk
+    """, (start, end))
+
+    last_day = (date.fromisoformat(end) - timedelta(days=1)).day
+    mon_name = RU_MONTHS_GEN[int(month[5:7]) - 1]
+    weeks, total_n, total_sum = [], 0, 0.0
+    for r in cur.fetchall():
+        wk, n = int(r['wk']), int(r['n'])
+        avg_h = float(r['avg_h'])
+        d1 = (wk - 1) * 7 + 1
+        weeks.append({'label': f"{d1}–{min(d1 + 6, last_day)} {mon_name}",
+                      'avgHours': avg_h, 'medianHours': float(r['med_h']),
+                      'count': n})
+        total_n += n
+        total_sum += avg_h * n
+
+    return {'weeks': weeks, 'count': total_n,
+            'avgHours': round(total_sum / total_n, 1) if total_n else 0}
+
+
+def _delay_reasons(conn, month: str) -> Dict[str, Any]:
+    """Где заявки простаивают: на нашей стороне или в ожидании пользователя."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT h.new_value AS status,
+               COUNT(*) AS periods,
+               ROUND(SUM(EXTRACT(EPOCH FROM (h.nxt - h.created_at))
+                         / 3600)::numeric, 1) AS total_h,
+               ROUND(AVG(EXTRACT(EPOCH FROM (h.nxt - h.created_at))
+                         / 3600)::numeric, 1) AS avg_h
+        FROM (
+            SELECT hh.*, LEAD(hh.created_at) OVER (
+                       PARTITION BY hh.ticket_id ORDER BY hh.created_at) AS nxt
+            FROM {SCHEMA}.ticket_history hh
+            WHERE hh.field_name = 'status_id'
+        ) h
+        JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
+        WHERE t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
+          AND h.nxt IS NOT NULL
+        GROUP BY h.new_value
+    """, (start, end))
+
+    groups = {
+        'our': {'side': 'our', 'label': 'Тянем мы', 'hours': 0.0, 'periods': 0, 'items': []},
+        'client': {'side': 'client', 'label': 'Ждём пользователя',
+                   'hours': 0.0, 'periods': 0, 'items': []},
+        'pause': {'side': 'pause', 'label': 'Пауза и прочее',
+                  'hours': 0.0, 'periods': 0, 'items': []},
+    }
+
+    for r in cur.fetchall():
+        st = r['status']
+        if st in DONE_STATUSES_PLAIN:
+            continue
+        key = ('our' if st in OUR_STATUSES
+               else 'client' if st in CLIENT_STATUSES
+               else 'pause')
+        g = groups[key]
+        hours = float(r['total_h'] or 0)
+        g['hours'] += hours
+        g['periods'] += int(r['periods'])
+        g['items'].append({'status': st, 'hours': round(hours, 1),
+                           'avgHours': float(r['avg_h'] or 0),
+                           'periods': int(r['periods'])})
+
+    out = []
+    for g in groups.values():
+        if g['periods'] == 0:
+            continue
+        g['hours'] = round(g['hours'], 1)
+        g['items'].sort(key=lambda i: -i['hours'])
+        out.append(g)
+
+    total = sum(g['hours'] for g in out)
+    for g in out:
+        g['share'] = round(g['hours'] / total * 100, 1) if total else 0
+    out.sort(key=lambda g: -g['hours'])
+
+    return {'groups': out, 'totalHours': round(total, 1)}
+
+
 def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Аналитика заявок за месяц: линии → сервисы → типы вопросов"""
     if not verify_token(event):
@@ -271,4 +392,6 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
 
     return response(200, {'month': month, 'total': total, 'lines': ordered,
                           'weeksMonth': WEEKS_MONTH, 'weeks': weeks,
-                          'firstResponse': first_response})
+                          'firstResponse': first_response,
+                          'resolution': _resolution_rows(conn, WEEKS_MONTH),
+                          'delayReasons': _delay_reasons(conn, WEEKS_MONTH)})

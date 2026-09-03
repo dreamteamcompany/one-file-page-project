@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import WeeklyTicketsChart from '@/components/analytics/WeeklyTicketsChart';
 import FirstResponseChart from '@/components/analytics/FirstResponseChart';
+import ResolutionTimeChart from '@/components/analytics/ResolutionTimeChart';
+import DelayReasonsChart from '@/components/analytics/DelayReasonsChart';
 
 export interface IssueRow {
   name: string;
@@ -46,6 +48,40 @@ export interface FirstResponseData {
   noReply: number;
 }
 
+export interface ResolutionWeek {
+  label: string;
+  avgHours: number;
+  medianHours: number;
+  count: number;
+}
+
+export interface ResolutionData {
+  weeks: ResolutionWeek[];
+  avgHours: number;
+  count: number;
+}
+
+export interface DelayItem {
+  status: string;
+  hours: number;
+  avgHours: number;
+  periods: number;
+}
+
+export interface DelayGroup {
+  side: 'our' | 'client' | 'pause';
+  label: string;
+  hours: number;
+  share: number;
+  periods: number;
+  items: DelayItem[];
+}
+
+export interface DelayReasonsData {
+  groups: DelayGroup[];
+  totalHours: number;
+}
+
 export interface TopicsData {
   month: string;
   total: number;
@@ -53,6 +89,8 @@ export interface TopicsData {
   weeksMonth?: string;
   weeks?: WeekRow[];
   firstResponse?: FirstResponseData;
+  resolution?: ResolutionData;
+  delayReasons?: DelayReasonsData;
 }
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
@@ -148,6 +186,10 @@ const TopicsAnalytics = () => {
           <WeeklyTicketsChart weeks={data.weeks ?? []} />
 
           {data.firstResponse && <FirstResponseChart data={data.firstResponse} />}
+
+          {data.resolution && <ResolutionTimeChart data={data.resolution} />}
+
+          {data.delayReasons && <DelayReasonsChart data={data.delayReasons} />}
 
           <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
 

@@ -1,0 +1,83 @@
+import { Card, CardContent } from '@/components/ui/card';
+import Icon from '@/components/ui/icon';
+import type { ResolutionData } from '@/pages/TopicsAnalytics';
+
+interface ResolutionTimeChartProps {
+  data: ResolutionData;
+}
+
+/** Часы в «2 д 5 ч» — крупные числа так читаются без пересчёта. */
+export const fmtHours = (hours: number) => {
+  if (hours < 1) return `${Math.round(hours * 60)} мин`;
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m ? `${h} ч ${m} мин` : `${h} ч`;
+  }
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours % 24);
+  return h ? `${d} д ${h} ч` : `${d} д`;
+};
+
+const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
+  const weeks = data.weeks ?? [];
+  if (!weeks.length) return null;
+
+  const max = Math.max(...weeks.map((w) => w.avgHours), 1);
+
+  return (
+    <Card className="mb-6">
+      <CardContent className="py-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
+          <div>
+            <h2 className="font-bold">Среднее время решения</h2>
+            <p className="text-muted-foreground text-sm">
+              От создания до статуса «Решена», август
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold tabular-nums">{fmtHours(data.avgHours)}</div>
+            <div className="text-xs text-muted-foreground">в среднем за месяц</div>
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between gap-2 sm:gap-4 h-52">
+          {weeks.map((w) => (
+            <div
+              key={w.label}
+              className="flex-1 flex flex-col items-center gap-2 h-full justify-end"
+            >
+              <span className="text-xs sm:text-sm font-semibold tabular-nums text-center">
+                {fmtHours(w.avgHours)}
+              </span>
+              <div
+                className="w-full rounded-t-md bg-indigo-500"
+                style={{ height: `${Math.max((w.avgHours / max) * 100, 3)}%` }}
+                title={`${w.label}: среднее ${fmtHours(w.avgHours)}, медиана ${fmtHours(
+                  w.medianHours
+                )}, заявок ${w.count}`}
+              />
+              <span className="text-[11px] sm:text-xs text-muted-foreground text-center leading-tight">
+                {w.label}
+                <span className="block opacity-70">
+                  медиана {fmtHours(w.medianHours)}
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
+          <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+          <p className="text-xs leading-relaxed">
+            Календарное время целиком, включая ночи и выходные, — так его видит
+            пользователь. Учтены {data.count} решённых заявок; те, что ещё в работе, в
+            расчёт не попали.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ResolutionTimeChart;
