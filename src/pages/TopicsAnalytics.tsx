@@ -5,6 +5,7 @@ import PageLayout from '@/components/layout/PageLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import WeeklyTicketsChart from '@/components/analytics/WeeklyTicketsChart';
+import FirstResponseChart from '@/components/analytics/FirstResponseChart';
 
 export interface IssueRow {
   name: string;
@@ -31,12 +32,27 @@ export interface WeekRow {
   days: number;
 }
 
+export interface FirstResponseWeek {
+  label: string;
+  avgMinutes: number;
+  medianMinutes: number;
+  count: number;
+}
+
+export interface FirstResponseData {
+  weeks: FirstResponseWeek[];
+  avgMinutes: number;
+  answered: number;
+  noReply: number;
+}
+
 export interface TopicsData {
   month: string;
   total: number;
   lines: LineRow[];
   weeksMonth?: string;
   weeks?: WeekRow[];
+  firstResponse?: FirstResponseData;
 }
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
@@ -130,6 +146,8 @@ const TopicsAnalytics = () => {
       {!loading && !error && data && (
         <>
           <WeeklyTicketsChart weeks={data.weeks ?? []} />
+
+          {data.firstResponse && <FirstResponseChart data={data.firstResponse} />}
 
           <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
 
