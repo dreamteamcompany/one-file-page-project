@@ -111,7 +111,7 @@ const App = () => {
             <Route path="/bitrix-inactive-users" element={<ProtectedRoute><BitrixInactiveUsers /></ProtectedRoute>} />
             <Route path="/org-chart" element={<ProtectedRoute><OrgChart /></ProtectedRoute>} />
             <Route path="/reply-templates" element={<ProtectedRoute><ReplyTemplates /></ProtectedRoute>} />
-            <Route path="/topics-analytics" element={<ProtectedRoute><TopicsAnalytics /></ProtectedRoute>} />
+            <Route path="/topics-analytics" element={<ProtectedRoute adminOnly><TopicsAnalytics /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>

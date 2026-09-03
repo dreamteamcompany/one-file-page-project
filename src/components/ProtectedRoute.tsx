@@ -5,9 +5,10 @@ import Icon from '@/components/ui/icon';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredPermission?: { resource: string; action: string };
+  adminOnly?: boolean;
 }
 
-const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, requiredPermission, adminOnly }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -25,12 +26,16 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     return <Navigate to="/login" replace />;
   }
 
+  // Если у пользователя есть роль "Администратор", даём полный доступ
+  const isAdmin = user.roles?.some(role => role.name === 'Администратор' || role.name === 'Admin');
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/tickets" replace />;
+  }
+
   if (requiredPermission) {
     const { resource, action } = requiredPermission;
-    
-    // Если у пользователя есть роль "Администратор", даём полный доступ
-    const isAdmin = user.roles?.some(role => role.name === 'Администратор' || role.name === 'Admin');
-    
+
     if (!isAdmin) {
       const usersFullAccess =
         resource === 'users' &&

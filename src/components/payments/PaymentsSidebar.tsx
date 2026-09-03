@@ -77,6 +77,11 @@ const PaymentsSidebar = ({
   ];
   const canAccessSettings = settingsResources.some(([r, a]) => hasPermission(r, a));
 
+  // «Обращения» — только для админов, независимо от выбранной активной роли.
+  const isAdmin = (user?.roles ?? []).some(
+    (r) => r.name === 'Администратор' || r.name === 'Admin'
+  );
+
   return (
     <aside 
       style={{ backgroundColor: 'hsl(var(--sidebar-bg))' }}
@@ -111,7 +116,7 @@ const PaymentsSidebar = ({
             </Link>
           </li>
         )}
-        {hasPermission('dashboard', 'read') && (
+        {isAdmin && (
           <li>
             <Link to="/topics-analytics" className={`flex items-center ${collapsed ? 'justify-center px-3 py-4' : 'gap-3 px-[15px] py-3'} rounded-lg ${isActive('/topics-analytics') ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-primary/10 hover:text-primary'} transition-colors`} title="Обращения">
               <Icon name="ChartPie" size={22} />
