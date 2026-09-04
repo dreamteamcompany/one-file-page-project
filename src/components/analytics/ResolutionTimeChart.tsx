@@ -89,8 +89,8 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
           <p className="text-xs leading-relaxed">
             {work ? (
               <>
-                Ночи, выходные и время вне смены исполнителя вычтены — это чистая
-                загрузка ИТ. Календарное время выше в{' '}
+                Время вне смены исполнителя вычтено по его личному графику; у дежурных
+                выходные считаются рабочими. Календарное время выше в{' '}
                 {(data.avgHours / Math.max(data.avgWorkHours, 0.1)).toFixed(1)} раза.
               </>
             ) : (
