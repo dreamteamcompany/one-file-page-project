@@ -75,10 +75,16 @@ def _weeks_rows(conn, month: str) -> List[Dict[str, Any]]:
                      (%s::date - 1)) AS w_end,
                COUNT(*) AS cnt,
                COUNT(*) FILTER (
-                   WHERE s.name IS NULL OR s.name NOT IN ('Решена', 'Отменена')
+                   WHERE d.done_at IS NULL
+                      OR d.done_at - t.created_at > INTERVAL '3 days'
                ) AS unresolved
         FROM {SCHEMA}.tickets t
-        LEFT JOIN {SCHEMA}.ticket_statuses s ON s.id = t.status_id
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) d ON d.ticket_id = t.id
         WHERE t.created_at >= %s AND t.created_at < %s
           AND t.assigned_to IN ({ids})
         GROUP BY 1, 2

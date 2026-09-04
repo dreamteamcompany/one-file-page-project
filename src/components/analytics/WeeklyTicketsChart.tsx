@@ -15,7 +15,13 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
 
   const max = Math.max(...weeks.map((w) => w.count), 1);
   const share = (w: WeekRow) => (w.count > 0 ? w.unresolved / w.count : 0);
-  const worst = weeks.reduce((a, b) => (share(b) > share(a) ? b : a));
+  const full = weeks.filter((w) => w.days >= 7);
+  const base = full.length ? full : weeks;
+  const totals = base.reduce(
+    (a, w) => ({ cnt: a.cnt + w.count, un: a.un + w.unresolved }),
+    { cnt: 0, un: 0 },
+  );
+  const avgShare = totals.cnt > 0 ? totals.un / totals.cnt : 0;
 
   return (
     <Card className="mb-6">
@@ -28,11 +34,11 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-primary" />
-              Решены
+              Закрыты за 3 дня
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-rose-500" />
-              Зависли
+              Дольше 3 дней
             </span>
           </div>
         </div>
@@ -56,7 +62,7 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
                     partial ? 'opacity-40' : ''
                   }`}
                   style={{ height: `${Math.max((w.count / max) * 100, 3)}%` }}
-                  title={`${w.label}: всего ${w.count}, зависли ${w.unresolved}`}
+                  title={`${w.label}: пришло ${w.count}, дольше 3 дней ${w.unresolved}`}
                 >
                   <div
                     className="bg-rose-500 w-full"
@@ -73,12 +79,14 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
           })}
         </div>
 
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-rose-500/10">
-          <Icon name="TriangleAlert" size={16} className="text-rose-500 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted">
+          <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed">
-            Завал виден не в потоке заявок, а в зависших: на неделе <b>{worst.label}</b> без
-            решения осталось <b>{Math.round(share(worst) * 100)}%</b> заявок против 2% в
-            начале месяца. Приходило их примерно столько же — их перестали успевать закрывать.
+            Поток заявок за месяц вырос с {weeks[1]?.count ?? weeks[0].count} до{' '}
+            {full[full.length - 1]?.count ?? weeks[0].count} в неделю. Красным — заявки, на
+            которые ушло больше 3 дней: их доля держится около{' '}
+            <b>{Math.round(avgShare * 100)}%</b> и по неделям почти не меняется. Неполные
+            недели по краям месяца показаны бледным — по ним рано судить.
           </p>
         </div>
       </CardContent>
