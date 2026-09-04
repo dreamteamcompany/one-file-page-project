@@ -356,9 +356,16 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
     cur = conn.cursor()
 
     cur.execute(f"""
-        SELECT t.id, t.created_by, t.assigned_to, t.created_at, t.closed_at,
+        SELECT t.id, t.created_by, t.assigned_to, t.created_at,
+               COALESCE(t.closed_at, d.done_at) AS closed_at,
                c.user_id, c.created_at AS at
         FROM {SCHEMA}.tickets t
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) d ON d.ticket_id = t.id
         LEFT JOIN {SCHEMA}.ticket_comments c
                ON c.ticket_id = t.id AND c.is_internal = false
         WHERE t.created_at >= %s AND t.created_at < %s
@@ -397,7 +404,7 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
             if at < mark or at > finish:
                 continue
             side = 'our' if (uid in staff and uid != author) else 'client'
-            if side != turn:
+            if side == turn:
                 cal = (at - mark).total_seconds() / 3600
                 if cal >= 0:
                     acc[turn]['hours'] += cal
@@ -407,7 +414,7 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
                         first_wait.append(cal)
                         is_first = False
                 mark = at
-                turn = 'client' if side == 'our' else 'our'
+                turn = 'client' if turn == 'our' else 'our'
 
         if finish > mark:
             cal = (finish - mark).total_seconds() / 3600

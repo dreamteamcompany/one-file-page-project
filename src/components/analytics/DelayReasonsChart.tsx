@@ -71,7 +71,8 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
                 {fmtHours(hours(g))}
               </div>
               <div className="text-xs text-muted-foreground">
-                суммарно · {g.periods} ожиданий · в среднем {fmtHours(avg(g))} на одно
+                суммарно по всем заявкам · {g.periods} ожиданий · в среднем{' '}
+                {fmtHours(avg(g))} на одно
               </div>
             </div>
           ))}
