@@ -12,7 +12,6 @@ interface DelayReasonsChartProps {
 const STYLE: Record<DelayGroup['side'], { bar: string; text: string; icon: string }> = {
   our: { bar: 'bg-rose-500', text: 'text-rose-500', icon: 'UserCog' },
   client: { bar: 'bg-amber-500', text: 'text-amber-500', icon: 'UserRound' },
-  pause: { bar: 'bg-slate-400', text: 'text-slate-400', icon: 'Pause' },
 };
 
 const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
@@ -23,7 +22,7 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
   const work = mode === 'work';
   const share = (g: DelayGroup) => (work ? g.workShare : g.share);
   const hours = (g: DelayGroup) => (work ? g.workHours : g.hours);
-  const total = work ? data.totalWorkHours : data.totalHours;
+  const avg = (g: DelayGroup) => (work ? g.avgWorkHours : g.avgHours);
 
   const our = groups.find((g) => g.side === 'our');
   const client = groups.find((g) => g.side === 'client');
@@ -33,9 +32,9 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
       <CardContent className="py-6">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
           <div>
-            <h2 className="font-bold">Причины длительного закрытия заявок</h2>
+            <h2 className="font-bold">Кто кого ждёт в переписке</h2>
             <p className="text-muted-foreground text-sm">
-              Где заявки простаивают: у нас или у пользователя, август
+              Чей ход: время до ответа другой стороны, август
             </p>
           </div>
           <TimeModeToggle value={mode} onChange={setMode} />
@@ -61,36 +60,18 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
           ))}
         </div>
 
-        <div className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
           {groups.map((g) => (
-            <div key={g.side}>
-              <div className="flex items-center gap-2 mb-2">
+            <div key={g.side} className="p-4 rounded-lg border">
+              <div className="flex items-center gap-2 mb-3">
                 <Icon name={STYLE[g.side].icon} size={16} className={STYLE[g.side].text} />
                 <span className="font-semibold text-sm">{g.label}</span>
-                <span className="text-xs text-muted-foreground">
-                  {fmtHours(hours(g))} всего
-                </span>
               </div>
-              <div className="space-y-1.5 pl-6">
-                {g.items.map((it) => (
-                  <div key={it.status} className="flex items-center gap-3 text-xs">
-                    <span className="w-40 shrink-0 truncate">{it.status}</span>
-                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${STYLE[g.side].bar}`}
-                        style={{
-                          width: `${Math.min(
-                            ((work ? it.workHours : it.hours) / Math.max(total, 1)) * 100,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="w-28 shrink-0 text-right text-muted-foreground tabular-nums">
-                      в среднем {fmtHours(work ? it.avgWorkHours : it.avgHours)}
-                    </span>
-                  </div>
-                ))}
+              <div className="text-2xl font-bold tabular-nums mb-1">
+                {fmtHours(hours(g))}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                суммарно · {g.periods} ожиданий · в среднем {fmtHours(avg(g))} на одно
               </div>
             </div>
           ))}
@@ -100,23 +81,30 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
           <div className="flex items-start gap-2.5 mt-6 p-3 rounded-lg bg-muted/50">
             <Icon name="Lightbulb" size={16} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs leading-relaxed">
-              {share(client) > share(our) ? (
+              Ход переходит к нам, когда пишет заявитель, и к нему — когда отвечает
+              сотрудник. Пока ход наш, человек сидит и ждёт ответа.{' '}
+              {share(our) >= share(client) ? (
                 <>
-                  Больше всего времени заявки висят в ожидании пользователя —{' '}
-                  <b>{share(client)}%</b> против <b>{share(our)}%</b> у нас. Это статус
-                  «Ожидает подтверждения»: работа сделана, но человек не закрывает заявку.
-                  Ускорить можно автозакрытием по таймеру, а не силами сотрудников.
+                  Сейчас <b>{share(our)}%</b> всего времени переписки люди ждут нас против{' '}
+                  <b>{share(client)}%</b>, когда ждём мы. Первого ответа обычно ждут{' '}
+                  {fmtHours(data.firstWaitMedian)}.
                 </>
               ) : (
                 <>
-                  Основная задержка на нашей стороне — <b>{share(our)}%</b> времени против{' '}
-                  <b>{share(client)}%</b> в ожидании пользователя. Смотреть нужно на
-                  загрузку исполнителей, а не на дисциплину заявителей.
+                  Сейчас <b>{share(client)}%</b> времени мы ждём ответа заявителей против{' '}
+                  <b>{share(our)}%</b>, когда ждут нас. Первого ответа обычно ждут{' '}
+                  {fmtHours(data.firstWaitMedian)}.
                 </>
               )}{' '}
+              {data.openOnUs > 0 && (
+                <>
+                  Прямо сейчас <b>{data.openOnUs}</b> незакрытых заявок висят с ходом за
+                  нами.{' '}
+                </>
+              )}
               {work
-                ? 'Показаны часы внутри смен исполнителей по их графикам; дежурные выходные учтены.'
-                : 'Показаны все часы подряд, включая ночи и выходные.'}
+                ? 'Показаны часы внутри смен исполнителей по их графикам.'
+                : 'Показаны все часы подряд, включая ночи.'}
             </p>
           </div>
         )}

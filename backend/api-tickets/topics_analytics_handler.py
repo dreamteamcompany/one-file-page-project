@@ -349,84 +349,108 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
 
 
 def _delay_reasons(conn, month: str) -> Dict[str, Any]:
-    """Где заявки простаивают: на нашей стороне или в ожидании пользователя."""
+    """Чей ход: сколько пользователь ждёт нас, а мы — пользователя."""
     start, end = _month_bounds(month)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    staff = set(int(i) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
+
     cur.execute(f"""
-        SELECT h.new_value AS status, h.created_at AS from_at, h.nxt AS to_at,
-               t.assigned_to
-        FROM (
-            SELECT hh.*, LEAD(hh.created_at) OVER (
-                       PARTITION BY hh.ticket_id ORDER BY hh.created_at) AS nxt
-            FROM {SCHEMA}.ticket_history hh
-            WHERE hh.field_name = 'status_id'
-        ) h
-        JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
+        SELECT t.id, t.created_by, t.assigned_to, t.created_at, t.closed_at,
+               c.user_id, c.created_at AS at
+        FROM {SCHEMA}.tickets t
+        LEFT JOIN {SCHEMA}.ticket_comments c
+               ON c.ticket_id = t.id AND c.is_internal = false
         WHERE t.created_at >= %s AND t.created_at < %s
           AND t.assigned_to IN ({ids})
-          AND h.nxt IS NOT NULL
+        ORDER BY t.id, c.created_at
     """, (start, end))
 
-    schedules = _load_schedules(conn)
-    stats: Dict[str, Dict[str, float]] = {}
+    tickets: Dict[int, Dict[str, Any]] = {}
     for r in cur.fetchall():
-        st = r['status']
-        if st in DONE_STATUSES_PLAIN:
-            continue
-        cal = (r['to_at'] - r['from_at']).total_seconds() / 3600
-        if cal < 0:
-            continue
-        sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
-        work = _business_minutes(r['from_at'], r['to_at'], sched) / 60
-        s = stats.setdefault(st, {'hours': 0.0, 'workHours': 0.0, 'periods': 0})
-        s['hours'] += cal
-        s['workHours'] += work
-        s['periods'] += 1
+        tk = tickets.setdefault(int(r['id']), {
+            'created_by': r['created_by'], 'assigned_to': r['assigned_to'],
+            'created_at': r['created_at'], 'closed_at': r['closed_at'], 'msgs': []})
+        if r['at'] is not None:
+            tk['msgs'].append((r['at'], int(r['user_id'])))
 
-    groups = {
-        'our': {'side': 'our', 'label': 'Тянем мы'},
-        'client': {'side': 'client', 'label': 'Ждём пользователя'},
-        'pause': {'side': 'pause', 'label': 'Пауза и прочее'},
-    }
-    for g in groups.values():
-        g.update({'hours': 0.0, 'workHours': 0.0, 'periods': 0, 'items': []})
+    schedules = _load_schedules(conn)
+    now = datetime.now()
 
-    for st, s in stats.items():
-        key = ('our' if st in OUR_STATUSES
-               else 'client' if st in CLIENT_STATUSES
-               else 'pause')
-        g = groups[key]
-        g['hours'] += s['hours']
-        g['workHours'] += s['workHours']
-        g['periods'] += s['periods']
-        g['items'].append({
-            'status': st,
-            'hours': round(s['hours'], 1),
-            'workHours': round(s['workHours'], 1),
-            'avgHours': round(s['hours'] / s['periods'], 1),
-            'avgWorkHours': round(s['workHours'] / s['periods'], 1),
-            'periods': s['periods'],
-        })
+    # side -> накопленные часы; отдельно копим «ходы» для средних
+    acc = {'our': {'hours': 0.0, 'workHours': 0.0, 'periods': 0},
+           'client': {'hours': 0.0, 'workHours': 0.0, 'periods': 0}}
+    first_wait: List[float] = []
+    open_our = 0
 
+    for tk in tickets.values():
+        sched = schedules.get(int(tk['assigned_to'])) or DEFAULT_SCHEDULE
+        author = int(tk['created_by']) if tk['created_by'] is not None else -1
+        finish = tk['closed_at'] or now
+
+        # Ход переходит к нам с момента создания заявки.
+        turn = 'our'
+        mark = tk['created_at']
+        is_first = True
+
+        for at, uid in tk['msgs']:
+            if at < mark or at > finish:
+                continue
+            side = 'our' if (uid in staff and uid != author) else 'client'
+            if side != turn:
+                cal = (at - mark).total_seconds() / 3600
+                if cal >= 0:
+                    acc[turn]['hours'] += cal
+                    acc[turn]['workHours'] += _business_minutes(mark, at, sched) / 60
+                    acc[turn]['periods'] += 1
+                    if is_first and turn == 'our':
+                        first_wait.append(cal)
+                        is_first = False
+                mark = at
+                turn = 'client' if side == 'our' else 'our'
+
+        if finish > mark:
+            cal = (finish - mark).total_seconds() / 3600
+            acc[turn]['hours'] += cal
+            acc[turn]['workHours'] += _business_minutes(mark, finish, sched) / 60
+            acc[turn]['periods'] += 1
+            if tk['closed_at'] is None and turn == 'our':
+                open_our += 1
+
+    labels = {'our': 'Пользователь ждёт нас', 'client': 'Мы ждём пользователя'}
     out = []
-    for g in groups.values():
-        if g['periods'] == 0:
+    for side in ('our', 'client'):
+        a = acc[side]
+        if a['periods'] == 0:
             continue
-        g['items'].sort(key=lambda i: -i['hours'])
-        out.append(g)
+        out.append({
+            'side': side, 'label': labels[side],
+            'hours': round(a['hours'], 1), 'workHours': round(a['workHours'], 1),
+            'periods': a['periods'],
+            'avgHours': round(a['hours'] / a['periods'], 1),
+            'avgWorkHours': round(a['workHours'] / a['periods'], 1),
+            'items': [],
+        })
 
     total = sum(g['hours'] for g in out)
     total_work = sum(g['workHours'] for g in out)
     for g in out:
         g['share'] = round(g['hours'] / total * 100, 1) if total else 0
         g['workShare'] = round(g['workHours'] / total_work * 100, 1) if total_work else 0
-        g['hours'] = round(g['hours'], 1)
-        g['workHours'] = round(g['workHours'], 1)
     out.sort(key=lambda g: -g['hours'])
 
+    fw = sorted(first_wait)
+    fw_med = 0.0
+    if fw:
+        mid = len(fw) // 2
+        fw_med = fw[mid] if len(fw) % 2 else (fw[mid - 1] + fw[mid]) / 2
+
     return {'groups': out, 'totalHours': round(total, 1),
-            'totalWorkHours': round(total_work, 1)}
+            'totalWorkHours': round(total_work, 1),
+            'tickets': len(tickets),
+            'firstWaitMedian': round(fw_med, 1),
+            'openOnUs': open_our}
+
 
 
 def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:

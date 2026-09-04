@@ -76,13 +76,15 @@ export interface DelayItem {
 }
 
 export interface DelayGroup {
-  side: 'our' | 'client' | 'pause';
+  side: 'our' | 'client';
   label: string;
   hours: number;
   workHours: number;
   share: number;
   workShare: number;
   periods: number;
+  avgHours: number;
+  avgWorkHours: number;
   items: DelayItem[];
 }
 
@@ -90,6 +92,9 @@ export interface DelayReasonsData {
   groups: DelayGroup[];
   totalHours: number;
   totalWorkHours: number;
+  tickets: number;
+  firstWaitMedian: number;
+  openOnUs: number;
 }
 
 export interface RatingBucket {
