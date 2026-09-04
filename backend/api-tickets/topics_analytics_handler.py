@@ -65,39 +65,43 @@ RU_MONTHS_GEN = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн',
 
 
 def _weeks_rows(conn, month: str) -> List[Dict[str, Any]]:
-    """Недельная динамика заявок внутри месяца, только по нашим подразделениям."""
+    """Недельная нагрузка: сколько заявок было в работе и сколько из них новых."""
     start, end = _month_bounds(month)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT GREATEST(DATE_TRUNC('week', t.created_at)::date, %s::date) AS w_start,
-               LEAST((DATE_TRUNC('week', t.created_at) + INTERVAL '6 days')::date,
-                     (%s::date - 1)) AS w_end,
-               COUNT(*) AS cnt,
-               COUNT(*) FILTER (
-                   WHERE d.done_at IS NULL
-                      OR d.done_at - t.created_at > INTERVAL '3 days'
-               ) AS unresolved
-        FROM {SCHEMA}.tickets t
+        SELECT w.ws AS w_start,
+               (w.we - 1) AS w_end,
+               COUNT(*) FILTER (WHERE t.created_at >= w.ws) AS created,
+               COUNT(*) AS active
+        FROM (
+            SELECT gs::date AS ws,
+                   LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
+            FROM generate_series(
+                %s::date, (%s::date - 1), INTERVAL '7 days'
+            ) gs
+        ) w
+        JOIN {SCHEMA}.tickets t
+          ON t.created_at < w.we
+         AND t.assigned_to IN ({ids})
         LEFT JOIN (
             SELECT ticket_id, MAX(created_at) AS done_at
             FROM {SCHEMA}.ticket_history
             WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
             GROUP BY ticket_id
         ) d ON d.ticket_id = t.id
-        WHERE t.created_at >= %s AND t.created_at < %s
-          AND t.assigned_to IN ({ids})
+        WHERE d.done_at IS NULL OR d.done_at >= w.ws
         GROUP BY 1, 2
         ORDER BY 1
-    """, (start, end, start, end))
+    """, (end, start, end))
 
     weeks = []
     for r in cur.fetchall():
         a, b = r['w_start'], r['w_end']
         label = f"{a.day}–{b.day} {RU_MONTHS_GEN[b.month - 1]}"
-        cnt, unresolved = int(r['cnt']), int(r['unresolved'])
-        weeks.append({'label': label, 'count': cnt, 'unresolved': unresolved,
-                      'resolved': cnt - unresolved, 'days': (b - a).days + 1})
+        created, active = int(r['created']), int(r['active'])
+        weeks.append({'label': label, 'count': active, 'created': created,
+                      'carried': active - created, 'days': (b - a).days + 1})
     return weeks
 
 

@@ -7,38 +7,34 @@ interface WeeklyTicketsChartProps {
 }
 
 /**
- * Заявки по неделям августа. Столбец делится на решённые и зависшие —
- * поток заявок рос плавно, а вот доля незакрытых к концу месяца дала завал.
+ * Недельная нагрузка августа. Высота столбца — сколько заявок было в работе,
+ * внутри выделены новые: хвост с прошлых недель почти вдвое больше потока.
  */
 const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
   if (!weeks.length) return null;
 
   const max = Math.max(...weeks.map((w) => w.count), 1);
-  const share = (w: WeekRow) => (w.count > 0 ? w.unresolved / w.count : 0);
   const full = weeks.filter((w) => w.days >= 7);
   const base = full.length ? full : weeks;
-  const totals = base.reduce(
-    (a, w) => ({ cnt: a.cnt + w.count, un: a.un + w.unresolved }),
-    { cnt: 0, un: 0 },
-  );
-  const avgShare = totals.cnt > 0 ? totals.un / totals.cnt : 0;
+  const peak = base.reduce((a, b) => (b.count > a.count ? b : a));
+  const ratio = peak.created > 0 ? peak.count / peak.created : 0;
 
   return (
     <Card className="mb-6">
       <CardContent className="py-6">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
-            <h2 className="font-bold">Заявки по неделям, август</h2>
+            <h2 className="font-bold">Заявки в работе по неделям, август</h2>
             <p className="text-muted-foreground text-sm">Только ваши подразделения</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded-sm bg-primary" />
-              Закрыты за 3 дня
+              Новые за неделю
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-rose-500" />
-              Дольше 3 дней
+              <span className="w-3 h-3 rounded-sm bg-amber-400" />
+              Перешли с прошлых недель
             </span>
           </div>
         </div>
@@ -46,6 +42,7 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
         <div className="flex items-end justify-between gap-2 sm:gap-4 h-56">
           {weeks.map((w) => {
             const partial = w.days < 7;
+            const carriedShare = w.count > 0 ? w.carried / w.count : 0;
             return (
               <div
                 key={w.label}
@@ -53,20 +50,18 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
               >
                 <span className="text-sm font-semibold tabular-nums">
                   {w.count}
-                  {w.unresolved > 0 && (
-                    <span className="text-rose-500 font-normal"> / {w.unresolved}</span>
-                  )}
+                  <span className="text-primary font-normal"> / {w.created}</span>
                 </span>
                 <div
                   className={`w-full rounded-t-md overflow-hidden flex flex-col ${
                     partial ? 'opacity-40' : ''
                   }`}
                   style={{ height: `${Math.max((w.count / max) * 100, 3)}%` }}
-                  title={`${w.label}: пришло ${w.count}, дольше 3 дней ${w.unresolved}`}
+                  title={`${w.label}: в работе ${w.count}, из них новых ${w.created}, перешло с прошлых недель ${w.carried}`}
                 >
                   <div
-                    className="bg-rose-500 w-full"
-                    style={{ height: `${share(w) * 100}%` }}
+                    className="bg-amber-400 w-full"
+                    style={{ height: `${carriedShare * 100}%` }}
                   />
                   <div className="bg-primary w-full flex-1" />
                 </div>
@@ -79,14 +74,13 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
           })}
         </div>
 
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted">
-          <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-amber-400/10">
+          <Icon name="Layers" size={16} className="text-amber-500 shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed">
-            Поток заявок за месяц вырос с {weeks[1]?.count ?? weeks[0].count} до{' '}
-            {full[full.length - 1]?.count ?? weeks[0].count} в неделю. Красным — заявки, на
-            которые ушло больше 3 дней: их доля держится около{' '}
-            <b>{Math.round(avgShare * 100)}%</b> и по неделям почти не меняется. Неполные
-            недели по краям месяца показаны бледным — по ним рано судить.
+            Нагрузка примерно в <b>{ratio.toFixed(1)} раза</b> выше потока новых заявок: на
+            пиковой неделе <b>{peak.label}</b> в работе было <b>{peak.count}</b> заявок, а
+            новых пришло только <b>{peak.created}</b>. Остальное — хвост, перешедший с
+            прошлых недель. Неполные недели по краям месяца показаны бледным.
           </p>
         </div>
       </CardContent>

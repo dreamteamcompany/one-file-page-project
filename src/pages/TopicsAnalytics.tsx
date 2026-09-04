@@ -31,8 +31,8 @@ export interface LineRow {
 export interface WeekRow {
   label: string;
   count: number;
-  resolved: number;
-  unresolved: number;
+  created: number;
+  carried: number;
   days: number;
 }
 
