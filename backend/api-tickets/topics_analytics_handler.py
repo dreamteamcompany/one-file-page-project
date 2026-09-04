@@ -265,6 +265,89 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
             'avgWorkHours': round(sum(all_work) / n, 1) if n else 0}
 
 
+def _rating_rows(conn, month: str) -> Dict[str, Any]:
+    """Средняя оценка пользователей и распределение по звёздам."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT COUNT(*) AS total,
+               COUNT(rating) AS rated,
+               ROUND(AVG(rating)::numeric, 2) AS avg_rating
+        FROM {SCHEMA}.tickets
+        WHERE created_at >= %s AND created_at < %s
+          AND assigned_to IN ({ids})
+    """, (start, end))
+    head = cur.fetchone()
+
+    cur.execute(f"""
+        SELECT rating, COUNT(*) AS n
+        FROM {SCHEMA}.tickets
+        WHERE created_at >= %s AND created_at < %s
+          AND assigned_to IN ({ids}) AND rating IS NOT NULL
+        GROUP BY rating
+    """, (start, end))
+    by_star = {int(r['rating']): int(r['n']) for r in cur.fetchall()}
+
+    rated = int(head['rated'] or 0)
+    total = int(head['total'] or 0)
+    dist = [{'stars': s, 'count': by_star.get(s, 0),
+             'share': round(by_star.get(s, 0) / rated * 100, 1) if rated else 0}
+            for s in range(5, 0, -1)]
+    low = sum(by_star.get(s, 0) for s in (1, 2))
+
+    return {'avg': float(head['avg_rating'] or 0), 'rated': rated, 'total': total,
+            'coverage': round(rated / total * 100, 1) if total else 0,
+            'low': low, 'distribution': dist}
+
+
+def _reopened_rows(conn, month: str) -> Dict[str, Any]:
+    """Заявки, которые пришлось открывать повторно, по неделям месяца."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT LEAST((EXTRACT(DAY FROM t.created_at)::int - 1) / 7 + 1, 5) AS wk,
+               COUNT(DISTINCT t.id) FILTER (WHERE r.ticket_id IS NOT NULL) AS reopened,
+               COUNT(DISTINCT t.id) AS total
+        FROM {SCHEMA}.tickets t
+        LEFT JOIN (
+            SELECT DISTINCT ticket_id
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id' AND new_value = 'Открыта повторно'
+        ) r ON r.ticket_id = t.id
+        WHERE t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
+        GROUP BY wk
+        ORDER BY wk
+    """, (start, end))
+
+    last_day = (date.fromisoformat(end) - timedelta(days=1)).day
+    mon_name = RU_MONTHS_GEN[int(month[5:7]) - 1]
+    weeks, tot_re, tot_all = [], 0, 0
+    for r in cur.fetchall():
+        wk, re_n, all_n = int(r['wk']), int(r['reopened']), int(r['total'])
+        d1 = (wk - 1) * 7 + 1
+        weeks.append({'label': f"{d1}–{min(d1 + 6, last_day)} {mon_name}",
+                      'count': re_n, 'total': all_n,
+                      'share': round(re_n / all_n * 100, 1) if all_n else 0})
+        tot_re += re_n
+        tot_all += all_n
+
+    cur.execute(f"""
+        SELECT COUNT(*) AS events
+        FROM {SCHEMA}.ticket_history h
+        JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
+        WHERE h.field_name = 'status_id' AND h.new_value = 'Открыта повторно'
+          AND t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
+    """, (start, end))
+    events = int(cur.fetchone()['events'] or 0)
+
+    return {'weeks': weeks, 'count': tot_re, 'total': tot_all, 'events': events,
+            'share': round(tot_re / tot_all * 100, 1) if tot_all else 0}
+
+
 def _delay_reasons(conn, month: str) -> Dict[str, Any]:
     """Где заявки простаивают: на нашей стороне или в ожидании пользователя."""
     start, end = _month_bounds(month)
@@ -423,4 +506,6 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                           'weeksMonth': WEEKS_MONTH, 'weeks': weeks,
                           'firstResponse': first_response,
                           'resolution': _resolution_rows(conn, WEEKS_MONTH),
-                          'delayReasons': _delay_reasons(conn, WEEKS_MONTH)})
+                          'delayReasons': _delay_reasons(conn, WEEKS_MONTH),
+                          'rating': _rating_rows(conn, WEEKS_MONTH),
+                          'reopened': _reopened_rows(conn, WEEKS_MONTH)})

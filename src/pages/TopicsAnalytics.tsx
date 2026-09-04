@@ -8,6 +8,8 @@ import WeeklyTicketsChart from '@/components/analytics/WeeklyTicketsChart';
 import FirstResponseChart from '@/components/analytics/FirstResponseChart';
 import ResolutionTimeChart from '@/components/analytics/ResolutionTimeChart';
 import DelayReasonsChart from '@/components/analytics/DelayReasonsChart';
+import RatingChart from '@/components/analytics/RatingChart';
+import ReopenedChart from '@/components/analytics/ReopenedChart';
 
 export interface IssueRow {
   name: string;
@@ -90,6 +92,36 @@ export interface DelayReasonsData {
   totalWorkHours: number;
 }
 
+export interface RatingBucket {
+  stars: number;
+  count: number;
+  share: number;
+}
+
+export interface RatingData {
+  avg: number;
+  rated: number;
+  total: number;
+  coverage: number;
+  low: number;
+  distribution: RatingBucket[];
+}
+
+export interface ReopenedWeek {
+  label: string;
+  count: number;
+  total: number;
+  share: number;
+}
+
+export interface ReopenedData {
+  weeks: ReopenedWeek[];
+  count: number;
+  total: number;
+  events: number;
+  share: number;
+}
+
 export interface TopicsData {
   month: string;
   total: number;
@@ -99,6 +131,8 @@ export interface TopicsData {
   firstResponse?: FirstResponseData;
   resolution?: ResolutionData;
   delayReasons?: DelayReasonsData;
+  rating?: RatingData;
+  reopened?: ReopenedData;
 }
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
@@ -198,6 +232,10 @@ const TopicsAnalytics = () => {
           {data.resolution && <ResolutionTimeChart data={data.resolution} />}
 
           {data.delayReasons && <DelayReasonsChart data={data.delayReasons} />}
+
+          {data.rating && <RatingChart data={data.rating} />}
+
+          {data.reopened && <ReopenedChart data={data.reopened} />}
 
           <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
 
