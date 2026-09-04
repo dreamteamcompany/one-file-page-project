@@ -68,11 +68,11 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
                 <span className="font-semibold text-sm">{g.label}</span>
               </div>
               <div className="text-2xl font-bold tabular-nums mb-1">
-                {fmtHours(hours(g))}
+                {fmtHours(avg(g))}
               </div>
               <div className="text-xs text-muted-foreground">
-                суммарно по всем заявкам · {g.periods} ожиданий · в среднем{' '}
-                {fmtHours(avg(g))} на одно
+                в среднем на одно ожидание · всего {g.periods} ожиданий на{' '}
+                {fmtHours(hours(g))}
               </div>
             </div>
           ))}
