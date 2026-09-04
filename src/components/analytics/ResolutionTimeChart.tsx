@@ -79,6 +79,11 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
               <span className="text-[11px] sm:text-xs text-muted-foreground text-center leading-tight">
                 {w.label}
                 <span className="block opacity-70">медиана {fmtHours(med(w))}</span>
+                {w.total > 0 && w.pending / w.total >= 0.15 && (
+                  <span className="block text-amber-600">
+                    ещё в работе {Math.round((w.pending / w.total) * 100)}%
+                  </span>
+                )}
               </span>
             </div>
           ))}
@@ -99,9 +104,21 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
                 Переключите на «Рабочее», чтобы увидеть чистую загрузку ИТ.
               </>
             )}{' '}
-            Учтены {data.count} решённых заявок; те, что ещё в работе, в расчёт не попали.
+            Учтены {data.count} решённых заявок из {data.total}.
           </p>
         </div>
+
+        {data.pending > 0 && (
+          <div className="flex items-start gap-2.5 mt-2 p-3 rounded-lg bg-amber-400/10">
+            <Icon name="TriangleAlert" size={16} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs leading-relaxed">
+              Снижение к концу месяца — не ускорение работы. {data.pending} заявок ещё не
+              решены и в среднее не вошли, а это в основном самые долгие. Чем ближе неделя к
+              концу месяца, тем сильнее её столбец занижен: сравнивать недели между собой
+              можно будет, только когда все заявки закроются.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

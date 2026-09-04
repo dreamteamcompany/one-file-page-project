@@ -26,7 +26,7 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
           <div className="text-right">
             <div className="text-2xl font-bold tabular-nums">{data.count}</div>
             <div className="text-xs text-muted-foreground">
-              {data.share}% от всех заявок
+              {data.share}% от закрытых заявок
             </div>
           </div>
         </div>
@@ -43,7 +43,7 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
               <div
                 className="w-full rounded-t-md bg-orange-500"
                 style={{ height: `${Math.max((w.share / max) * 100, 3)}%` }}
-                title={`${w.label}: ${w.count} из ${w.total} заявок (${w.share}%)`}
+                title={`${w.label}: ${w.count} из ${w.total} закрытых (${w.share}%)`}
               />
               <span className="text-[11px] sm:text-xs text-muted-foreground text-center leading-tight">
                 {w.label}
@@ -57,7 +57,7 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
           <Icon name="RotateCcw" size={16} className="text-orange-500 shrink-0 mt-0.5" />
           <p className="text-xs leading-relaxed">
             Это заявки, которые побывали в статусе «Открыта повторно»: решение не подошло
-            либо проблема вернулась. Высота столбца — доля от заявок недели, число сверху —
+            либо проблема вернулась. Высота столбца — доля от закрытых заявок недели, число сверху —
             сколько их было.{' '}
             {repeated > 0 && (
               <>

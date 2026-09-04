@@ -57,6 +57,8 @@ export interface ResolutionWeek {
   avgWorkHours: number;
   medianWorkHours: number;
   count: number;
+  total: number;
+  pending: number;
 }
 
 export interface ResolutionData {
@@ -64,6 +66,8 @@ export interface ResolutionData {
   avgHours: number;
   avgWorkHours: number;
   count: number;
+  total: number;
+  pending: number;
 }
 
 export interface DelayItem {

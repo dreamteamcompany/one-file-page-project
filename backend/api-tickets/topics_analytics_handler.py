@@ -239,21 +239,25 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
 
     schedules = _load_schedules(conn)
     buckets: Dict[int, List[tuple]] = {}
+    totals: Dict[int, int] = {}
     for r in rows:
+        wk = min((r['created_at'].day - 1) // 7 + 1, 5)
+        totals[wk] = totals.get(wk, 0) + 1
         if not r['solved_at'] or r['solved_at'] < r['created_at']:
             continue
         cal = (r['solved_at'] - r['created_at']).total_seconds() / 3600
         sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
         work = _business_minutes(r['created_at'], r['solved_at'], sched) / 60
-        wk = min((r['created_at'].day - 1) // 7 + 1, 5)
         buckets.setdefault(wk, []).append((cal, work))
 
     last_day = (date.fromisoformat(end) - timedelta(days=1)).day
     mon_name = RU_MONTHS_GEN[int(month[5:7]) - 1]
     weeks, all_cal, all_work = [], [], []
-    for wk in sorted(buckets):
-        vals = buckets[wk]
+    for wk in sorted(totals):
+        vals = buckets.get(wk) or []
         n = len(vals)
+        if not n:
+            continue
         cal = sorted(v[0] for v in vals)
         work = sorted(v[1] for v in vals)
         mid = n // 2
@@ -265,12 +269,16 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
                       'medianHours': round(med_cal, 1),
                       'avgWorkHours': round(sum(work) / n, 1),
                       'medianWorkHours': round(med_work, 1),
-                      'count': n})
+                      'count': n,
+                      'total': totals.get(wk, n),
+                      'pending': max(totals.get(wk, n) - n, 0)})
         all_cal += cal
         all_work += work
 
     n = len(all_cal)
-    return {'weeks': weeks, 'count': n,
+    total_all = sum(totals.values())
+    return {'weeks': weeks, 'count': n, 'total': total_all,
+            'pending': max(total_all - n, 0),
             'avgHours': round(sum(all_cal) / n, 1) if n else 0,
             'avgWorkHours': round(sum(all_work) / n, 1) if n else 0}
 
@@ -319,13 +327,18 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
     cur.execute(f"""
         SELECT LEAST((EXTRACT(DAY FROM t.created_at)::int - 1) / 7 + 1, 5) AS wk,
                COUNT(DISTINCT t.id) FILTER (WHERE r.ticket_id IS NOT NULL) AS reopened,
-               COUNT(DISTINCT t.id) AS total
+               COUNT(DISTINCT t.id) FILTER (WHERE d.ticket_id IS NOT NULL) AS total
         FROM {SCHEMA}.tickets t
         LEFT JOIN (
             SELECT DISTINCT ticket_id
             FROM {SCHEMA}.ticket_history
             WHERE field_name = 'status_id' AND new_value = 'Открыта повторно'
         ) r ON r.ticket_id = t.id
+        LEFT JOIN (
+            SELECT DISTINCT ticket_id
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
+        ) d ON d.ticket_id = t.id
         WHERE t.created_at >= %s AND t.created_at < %s
           AND t.assigned_to IN ({ids})
         GROUP BY wk
