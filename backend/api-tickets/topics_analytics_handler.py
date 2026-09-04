@@ -207,6 +207,138 @@ def _first_response_rows(conn, month: str) -> Dict[str, Any]:
             'answered': len(replied), 'noReply': no_reply}
 
 
+def _first_response_by_user(conn, month: str) -> Dict[str, Any]:
+    """Время первого ответа в разрезе исполнителей: рабочее и календарное."""
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT t.assigned_to, u.full_name, t.id, t.created_at,
+               MIN(c.created_at) FILTER (
+                   WHERE c.user_id <> t.created_by
+                     AND COALESCE(c.is_internal, false) = false
+               ) AS first_reply
+        FROM {SCHEMA}.tickets t
+        JOIN {SCHEMA}.users u ON u.id = t.assigned_to
+        LEFT JOIN {SCHEMA}.ticket_comments c
+               ON c.ticket_id = t.id AND c.created_at >= t.created_at
+        WHERE t.created_at >= %s AND t.created_at < %s
+          AND t.assigned_to IN ({ids})
+        GROUP BY t.assigned_to, u.full_name, t.id, t.created_at
+    """, (start, end))
+    rows = cur.fetchall()
+
+    schedules = _load_schedules(conn)
+    acc: Dict[int, Dict[str, Any]] = {}
+
+    for r in rows:
+        uid = int(r['assigned_to'])
+        it = acc.setdefault(uid, {
+            'name': (r['full_name'] or '').strip() or f'ID {uid}',
+            'work': [], 'cal': [], 'noReply': 0,
+        })
+        if not r['first_reply']:
+            it['noReply'] += 1
+            continue
+        sched = schedules.get(uid) or DEFAULT_SCHEDULE
+        it['work'].append(_business_minutes(r['created_at'], r['first_reply'], sched))
+        it['cal'].append((r['first_reply'] - r['created_at']).total_seconds() / 60)
+
+    def _median(vals: List[float]) -> float:
+        n = len(vals)
+        if not n:
+            return 0.0
+        s = sorted(vals)
+        mid = n // 2
+        return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+
+    users = []
+    for uid, it in acc.items():
+        n = len(it['work'])
+        if not n and not it['noReply']:
+            continue
+        users.append({
+            'name': it['name'],
+            'answered': n,
+            'noReply': it['noReply'],
+            'total': n + it['noReply'],
+            'avgWorkMinutes': round(sum(it['work']) / n, 1) if n else 0,
+            'medianWorkMinutes': round(_median(it['work']), 1),
+            'avgMinutes': round(sum(it['cal']) / n, 1) if n else 0,
+            'medianMinutes': round(_median(it['cal']), 1),
+        })
+
+    # Без ответов среднее равно нулю — такие в конец, иначе они выглядят
+    # «самыми быстрыми», хотя не ответили ни разу.
+    users.sort(key=lambda u: (u['answered'] == 0, u['avgWorkMinutes']))
+    all_work = [v for it in acc.values() for v in it['work']]
+    all_cal = [v for it in acc.values() for v in it['cal']]
+    return {
+        'users': users,
+        'avgWorkMinutes': round(sum(all_work) / len(all_work), 1) if all_work else 0,
+        'avgMinutes': round(sum(all_cal) / len(all_cal), 1) if all_cal else 0,
+        'answered': len(all_work),
+    }
+
+
+def _closed_by_user(conn, month: str) -> Dict[str, Any]:
+    """Закрытые и отправленные на подтверждение заявки по исполнителям за месяц.
+
+    Считаем по дате СМЕНЫ СТАТУСА (что человек реально сделал за месяц),
+    а не по дате создания заявки. Если заявку и отправляли на подтверждение,
+    и закрыли — она попадает только в «закрыто», без двойного счёта.
+    """
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    done = ', '.join(DONE_STATUSES)
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT u.full_name, d.assigned_to,
+               COUNT(*) FILTER (WHERE d.done_at IS NOT NULL) AS closed,
+               COUNT(*) FILTER (
+                   WHERE d.done_at IS NULL AND d.pend_at IS NOT NULL
+               ) AS pending
+        FROM (
+            SELECT h.ticket_id, t.assigned_to,
+                   MIN(h.created_at) FILTER (
+                       WHERE h.new_value IN ({done})
+                   ) AS done_at,
+                   MIN(h.created_at) FILTER (
+                       WHERE h.new_value = 'Ожидает подтверждения'
+                   ) AS pend_at
+            FROM {SCHEMA}.ticket_history h
+            JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
+            WHERE h.field_name = 'status_id'
+              AND h.new_value IN ({done}, 'Ожидает подтверждения')
+              AND h.created_at >= %s AND h.created_at < %s
+              AND t.assigned_to IN ({ids})
+            GROUP BY h.ticket_id, t.assigned_to
+        ) d
+        JOIN {SCHEMA}.users u ON u.id = d.assigned_to
+        GROUP BY u.full_name, d.assigned_to
+    """, (start, end))
+
+    users = []
+    for r in cur.fetchall():
+        closed, pending = int(r['closed']), int(r['pending'])
+        if not closed and not pending:
+            continue
+        users.append({
+            'name': (r['full_name'] or '').strip() or f"ID {r['assigned_to']}",
+            'closed': closed,
+            'pending': pending,
+            'total': closed + pending,
+        })
+
+    users.sort(key=lambda u: -u['total'])
+    return {
+        'users': users,
+        'closed': sum(u['closed'] for u in users),
+        'pending': sum(u['pending'] for u in users),
+        'month': month,
+    }
+
+
 # ---- Время решения и причины долгого закрытия ----
 
 DONE_STATUSES_PLAIN = ['Решена', 'Отменена']
@@ -562,4 +694,6 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                           'resolution': _resolution_rows(conn, WEEKS_MONTH),
                           'delayReasons': _delay_reasons(conn, WEEKS_MONTH),
                           'rating': _rating_rows(conn, WEEKS_MONTH),
-                          'reopened': _reopened_rows(conn, WEEKS_MONTH)})
+                          'reopened': _reopened_rows(conn, WEEKS_MONTH),
+                          'firstResponseByUser': _first_response_by_user(conn, WEEKS_MONTH),
+                          'closedByUser': _closed_by_user(conn, WEEKS_MONTH)})
