@@ -14,7 +14,7 @@ def http_response(status: int, data: dict) -> Dict[str, Any]:
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-User-Id, Authorization'
+            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-User-Id, X-Endpoint, Authorization'
         },
         'body': json.dumps(data, ensure_ascii=False, default=str)
     }

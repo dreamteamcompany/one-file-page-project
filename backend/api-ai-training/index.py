@@ -96,7 +96,7 @@ def handler(event, context):
         return response(401, {'error': 'Требуется авторизация'})
 
     method = event.get('httpMethod', 'GET')
-    endpoint = get_query_param(event, 'endpoint', '')
+    endpoint = get_endpoint(event)
 
     conn = get_db_connection()
     cur = conn.cursor()

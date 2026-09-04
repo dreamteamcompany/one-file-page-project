@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { API_URL, apiFetch } from '@/utils/api';
+import { API_URL, apiFetch, cachedJsonFetch } from '@/utils/api';
+
+// Справочники (услуги, статусы, приоритеты) меняются раз в недели —
+// держим их в кэше, чтобы не дёргать backend при каждом открытии списка.
+const DICT_TTL_MS = 10 * 60 * 1000;
 import { readBootstrapCache, writeBootstrapCache, type BootstrapDicts } from '@/utils/bootstrapCache';
 import type {
   Ticket,
@@ -189,23 +193,12 @@ export const useTicketsData = () => {
     if (!token) return;
 
     try {
-      const categoriesResponse = await apiFetch(`${API_URL}?endpoint=ticket_services`, {
-        headers: { 'X-Auth-Token': token },
-      });
-
-      if (categoriesResponse.ok) {
-        const data = await categoriesResponse.json();
-        setTicketServices(data || []);
-      }
-
-      const servicesResponse = await apiFetch(`${API_URL}?endpoint=services`, {
-        headers: { 'X-Auth-Token': token },
-      });
-
-      if (servicesResponse.ok) {
-        const data = await servicesResponse.json();
-        setServices(Array.isArray(data) ? data : []);
-      }
+      const [ticketSvc, svc] = await Promise.all([
+        cachedJsonFetch<TicketService[]>(`${API_URL}?endpoint=ticket_services`, {}, DICT_TTL_MS),
+        cachedJsonFetch<TicketService[]>(`${API_URL}?endpoint=services`, {}, DICT_TTL_MS),
+      ]);
+      setTicketServices(Array.isArray(ticketSvc) ? ticketSvc : []);
+      setServices(Array.isArray(svc) ? svc : []);
     } catch (err) {
       console.error('Failed to load services:', err);
     }

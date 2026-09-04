@@ -144,6 +144,46 @@ type CacheEntry = { data: unknown; expiresAt: number };
 const responseCache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<unknown>>();
 
+// Справочники (статусы, приоритеты, категории) меняются раз в недели, но кэш в
+// памяти умирал при каждой перезагрузке страницы. Дублируем его в sessionStorage,
+// чтобы переходы между страницами и F5 не дёргали backend заново.
+const PERSIST_PREFIX = 'apicache:';
+
+const persistRead = (key: string): CacheEntry | null => {
+  try {
+    const raw = sessionStorage.getItem(PERSIST_PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw) as CacheEntry;
+    if (!entry || typeof entry.expiresAt !== 'number') return null;
+    if (entry.expiresAt <= Date.now()) {
+      sessionStorage.removeItem(PERSIST_PREFIX + key);
+      return null;
+    }
+    return entry;
+  } catch {
+    return null;
+  }
+};
+
+const persistWrite = (key: string, entry: CacheEntry) => {
+  try {
+    sessionStorage.setItem(PERSIST_PREFIX + key, JSON.stringify(entry));
+  } catch {
+    // переполнение хранилища или приватный режим — работаем без persist
+  }
+};
+
+const persistDrop = (urlSubstring?: string) => {
+  try {
+    for (const k of Object.keys(sessionStorage)) {
+      if (!k.startsWith(PERSIST_PREFIX)) continue;
+      if (!urlSubstring || k.includes(urlSubstring)) sessionStorage.removeItem(k);
+    }
+  } catch {
+    // ignore
+  }
+};
+
 export const cachedJsonFetch = async <T = unknown>(
   url: string,
   options: RequestInit = {},
@@ -155,6 +195,11 @@ export const cachedJsonFetch = async <T = unknown>(
   if (cached && cached.expiresAt > now) {
     return cached.data as T;
   }
+  const stored = persistRead(key);
+  if (stored) {
+    responseCache.set(key, stored);
+    return stored.data as T;
+  }
   const existing = inFlight.get(key);
   if (existing) return existing as Promise<T>;
 
@@ -163,7 +208,9 @@ export const cachedJsonFetch = async <T = unknown>(
       const resp = await apiFetch(url, options);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      responseCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+      const entry = { data, expiresAt: Date.now() + ttlMs };
+      responseCache.set(key, entry);
+      persistWrite(key, entry);
       return data;
     } finally {
       inFlight.delete(key);
@@ -176,11 +223,13 @@ export const cachedJsonFetch = async <T = unknown>(
 export const invalidateCache = (urlSubstring?: string) => {
   if (!urlSubstring) {
     responseCache.clear();
+    persistDrop();
     return;
   }
   for (const k of Array.from(responseCache.keys())) {
     if (k.includes(urlSubstring)) responseCache.delete(k);
   }
+  persistDrop(urlSubstring);
 };
 
 const isRetryableMethod = (method?: string): boolean => {
@@ -197,8 +246,8 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
 
   const token = getAuthToken();
   
-  const headers: HeadersInit = {
-    ...options.headers,
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
   };
   
   if (token) {
@@ -241,6 +290,22 @@ export const apiFetch = async (url: string, options: RequestInit = {}): Promise<
     } catch (e) {
       console.error('[API] URL parsing error:', e);
     }
+  }
+
+  // Тип данных дублируем в заголовок и убираем из адреса: браузер кэширует
+  // CORS-проверку по адресу, поэтому один общий адрес = одна проверка на всё,
+  // а не отдельная на каждый справочник.
+  try {
+    const finalObj = new URL(finalUrl);
+    const ep = finalObj.searchParams.get('endpoint');
+    if (ep) {
+      headers['X-Endpoint'] = ep;
+      finalObj.searchParams.delete('endpoint');
+      finalObj.searchParams.sort();
+      finalUrl = finalObj.toString();
+    }
+  } catch {
+    // относительный адрес — оставляем как есть
   }
 
   const fetchInit: RequestInit = {

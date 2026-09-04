@@ -20,7 +20,7 @@ CORS_HEADERS = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, Authorization, X-Endpoint',
     'Access-Control-Max-Age': '86400',
 }
 

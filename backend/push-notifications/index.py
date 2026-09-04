@@ -10,6 +10,15 @@ from pywebpush import webpush, WebPushException
 def get_db_connection():
     return psycopg2.connect(os.environ['DATABASE_URL'])
 
+def _endpoint_from(event):
+    """X-Endpoint из заголовка, иначе query-параметр (общий адрес = один CORS-preflight)."""
+    headers = event.get('headers') or {}
+    for k, v in headers.items():
+        if k.lower() == 'x-endpoint' and v:
+            return str(v)
+    return (event.get('queryStringParameters') or {}).get('endpoint', '')
+
+
 def handler(event: dict, context) -> dict:
     method = event.get('httpMethod', 'GET')
     
@@ -19,13 +28,13 @@ def handler(event: dict, context) -> dict:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token'
+                'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-Endpoint'
             },
             'body': ''
         }
     
     params = event.get('queryStringParameters') or {}
-    endpoint = params.get('endpoint', '')
+    endpoint = _endpoint_from(event)
     
     if method == 'POST' and endpoint == 'subscribe-push':
         return subscribe_push(event)

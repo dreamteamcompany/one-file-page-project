@@ -31,7 +31,7 @@ def response(status_code: int, body: Any) -> Dict[str, Any]:
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-User-Id, Authorization',
+            'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Token, X-User-Id, X-Endpoint, Authorization',
             'Access-Control-Max-Age': '86400',
         },
         'body': json.dumps(body, ensure_ascii=False, default=str),
@@ -94,5 +94,13 @@ def get_query_param(event: Dict[str, Any], param_name: str, default: Any = None)
 
 
 def get_endpoint(event: Dict[str, Any]) -> str:
-    """Получение endpoint из query параметров"""
+    """Endpoint из заголовка X-Endpoint, иначе из query-параметров.
+
+    Заголовок нужен, чтобы у справочников был ОДИН адрес: браузер кэширует
+    CORS-проверку по адресу, поэтому общий адрес = одна проверка вместо десятков.
+    """
+    headers = event.get('headers') or {}
+    for key, value in headers.items():
+        if key.lower() == 'x-endpoint' and value:
+            return str(value)
     return get_query_param(event, 'endpoint', '')

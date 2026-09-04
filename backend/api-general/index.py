@@ -1,5 +1,5 @@
 import sys
-from shared_utils import response, get_db_connection, verify_token, handle_options, SCHEMA
+from shared_utils import response, get_db_connection, verify_token, handle_options, get_endpoint, SCHEMA
 from users_handler import handle_users
 from roles_handler import handle_roles
 from permissions_handler import handle_permissions
@@ -29,8 +29,8 @@ def handler(event, context):
         return response(401, {'error': 'Unauthorized'})
     
     params = event.get('queryStringParameters', {}) or {}
-    # Поддержка обоих параметров: resource и endpoint (для совместимости)
-    resource = params.get('resource', '') or params.get('endpoint', '')
+    # Поддержка resource, endpoint и заголовка X-Endpoint (общий адрес = один CORS-preflight)
+    resource = params.get('resource', '') or params.get('endpoint', '') or get_endpoint(event)
     
     if not resource:
         return response(400, {'error': 'Resource or endpoint parameter required'})

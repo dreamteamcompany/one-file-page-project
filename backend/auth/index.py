@@ -16,6 +16,15 @@ from http_service import http_response, format_service_response
 from database_service import get_db_connection
 
 
+def _endpoint_from(event):
+    """X-Endpoint из заголовка, иначе query-параметр (общий адрес = один CORS-preflight)."""
+    headers = event.get('headers') or {}
+    for k, v in headers.items():
+        if k.lower() == 'x-endpoint' and v:
+            return str(v)
+    return (event.get('queryStringParameters') or {}).get('endpoint', '')
+
+
 def handler(event, context):
     """Обработка запросов авторизации и общих данных"""
     
@@ -25,7 +34,7 @@ def handler(event, context):
         return http_response(200, {'message': 'OK'})
     
     params = event.get('queryStringParameters') or {}
-    endpoint = params.get('endpoint', '')
+    endpoint = _endpoint_from(event)
     
     try:
         conn = get_db_connection()
