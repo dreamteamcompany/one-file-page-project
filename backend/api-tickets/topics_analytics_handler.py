@@ -17,6 +17,9 @@ LINE_ORDER = ['1-я линия', '2-я линия ТП', 'Отдел Ильи', 
 SERVICE_CASE = """
 CASE
   WHEN x ~ '(^|[^а-яёa-z])мис([^а-яёa-z]|$)|план лечения|журнал запис|наряд.?заказ|запис. на прием|резервирован' THEN 'МИС'
+  -- Часто систему называет не заявитель, а специалист в переписке
+  -- («проблема в базе МИС Пермь?»). Такие заявки тоже относим к МИС.
+  WHEN mis_in_comments THEN 'МИС'
   WHEN x ~ 'битрикс|bitrix|воронк|(^|[^а-яёa-z])лид|сделк|стади' THEN 'Битрикс / CRM'
   WHEN x ~ 'телефон|звонк|дозвон|ватс|whatsapp|вазап|этикетк|заспамлен|рассылк|(^|[^а-яёa-z])смс|sms|номер' THEN 'Телефония и рассылки'
   WHEN x ~ '(^|[^а-яёa-z])зуп|(^|[^а-яёa-z])бух|1с|ncalayer|документооборот' THEN '1С / Бухгалтерия / ЗУП'
@@ -30,6 +33,15 @@ CASE
   -- к МИС — это основная рабочая система компании.
   ELSE 'МИС'
 END
+"""
+
+# Заявки, где МИС упоминается в переписке. Ограничение по длине отсекает
+# комментарии с картинками в base64 — без него запрос идёт в разы дольше.
+MIS_COMMENTS_SQL = f"""
+    SELECT DISTINCT ticket_id
+    FROM {SCHEMA}.ticket_comments
+    WHERE comment IS NOT NULL AND LENGTH(comment) < 3000
+      AND LOWER(LEFT(comment, 1500)) ~ '(^|[^а-яёa-z])мис([^а-яёa-z]|$)'
 """
 
 ISSUE_CASE = """
@@ -665,12 +677,13 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
 
     cur = conn.cursor()
     cur.execute(f"""
+        WITH mis_c AS ({MIS_COMMENTS_SQL})
         SELECT q.id, q.title, q.created_at, q.closed_at,
                {ISSUE_OVERRIDE} AS issue,
                q.assignee, q.status
         FROM (
             SELECT s.id, s.title, s.created_at, s.closed_at,
-                   s.assignee, s.status, s.x,
+                   s.assignee, s.status, s.x, s.mis_in_comments,
                    {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
@@ -680,7 +693,8 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
                        u.full_name AS assignee,
                        st.name AS status,
                        LOWER(COALESCE(t.title, '') || ' ' ||
-                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
+                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
+                       (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments
                 FROM {SCHEMA}.tickets t
                 LEFT JOIN {SCHEMA}.users u ON u.id = t.assigned_to
                 LEFT JOIN {SCHEMA}.ticket_statuses st ON st.id = t.status_id
@@ -746,6 +760,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
 
     cur = conn.cursor()
     cur.execute(f"""
+        WITH mis_c AS ({MIS_COMMENTS_SQL})
         SELECT line, service, {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
         FROM (
             SELECT x,
@@ -755,7 +770,8 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
             FROM (
                 SELECT t.assigned_to,
                        LOWER(COALESCE(t.title, '') || ' ' ||
-                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
+                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
+                       (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments
                 FROM (
                     SELECT gs::date AS ws,
                            LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
