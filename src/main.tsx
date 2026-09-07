@@ -18,6 +18,35 @@ document.addEventListener(
   true
 );
 
+const RELOAD_KEY = 'chunk-reload-at';
+
+const reloadOnStaleChunk = () => {
+  const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
+  if (Date.now() - last < 15000) return;
+  sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+  window.location.reload();
+};
+
+const isChunkError = (msg: string) =>
+  /dynamically imported module|Importing a module script failed|Failed to fetch dynamically/i.test(
+    msg
+  );
+
+window.addEventListener('vite:preloadError', (e) => {
+  e.preventDefault();
+  reloadOnStaleChunk();
+});
+
+window.addEventListener('error', (e) => {
+  if (isChunkError(String(e.message || ''))) reloadOnStaleChunk();
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  const reason = e.reason;
+  const msg = reason instanceof Error ? reason.message : String(reason ?? '');
+  if (isChunkError(msg)) reloadOnStaleChunk();
+});
+
 createRoot(document.getElementById("root")!).render(
   <App />
 );
