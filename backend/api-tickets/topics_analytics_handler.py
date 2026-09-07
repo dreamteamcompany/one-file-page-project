@@ -82,6 +82,20 @@ CASE
 END
 """
 
+# Отдел Ильи не занимается МИС. Если заявка этого отдела попала в МИС —
+# значит, система в тексте не названа (шаблонные заявки формы). По решению
+# заказчика такие относим к Битриксу: это основная система отдела.
+SERVICE_OVERRIDE = """
+CASE
+  WHEN line = 'Отдел Ильи' AND service = 'МИС' THEN 'Битрикс / CRM'
+  ELSE service
+END
+"""
+
+# То же правило, но для запроса, где колонки берутся из подзапроса q.
+SERVICE_OVERRIDE_Q = SERVICE_OVERRIDE.replace('line', 'q.line').replace(
+    'service', 'q.service')
+
 
 def _month_bounds(month: str) -> tuple:
     year, mon = int(month[:4]), int(month[5:7])
@@ -668,7 +682,7 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
                   AND t.assigned_to IN ({ids})
             ) s
         ) q
-        WHERE q.line = %s AND q.service = %s {extra}
+        WHERE q.line = %s AND ({SERVICE_OVERRIDE_Q}) = %s {extra}
         ORDER BY q.created_at DESC
     """, tuple(args))
 
@@ -719,7 +733,8 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
     cur = conn.cursor()
     cur.execute(f"""
         WITH mis_c AS ({MIS_COMMENTS_SQL})
-        SELECT line, service, {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
+        SELECT line, {SERVICE_OVERRIDE} AS service,
+               {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
         FROM (
             SELECT x,
                    {_line_case()} AS line,
@@ -750,7 +765,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                 WHERE d.done_at IS NULL OR d.done_at >= w.ws
             ) s
         ) q
-        GROUP BY line, service, 3
+        GROUP BY 1, 2, 3
     """, (w_end, w_start, w_end))
     rows = cur.fetchall()
 
