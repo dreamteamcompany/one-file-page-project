@@ -751,39 +751,46 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
 
     cur = conn.cursor()
     cur.execute(f"""
-        WITH mis_c AS ({MIS_COMMENTS_SQL})
-        SELECT {LINE_OVERRIDE} AS line, {SERVICE_OVERRIDE} AS service,
-               {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
-        FROM (
-            SELECT x,
+        WITH mis_c AS ({MIS_COMMENTS_SQL}),
+        weeks AS (
+            SELECT gs::date AS ws,
+                   LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
+            FROM generate_series(%s::date, (%s::date - 1), INTERVAL '7 days') gs
+        ),
+        base AS (
+            SELECT t.id, t.assigned_to, t.created_at,
+                   LOWER(COALESCE(t.title, '') || ' ' ||
+                         COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
+                   (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments,
+                   d.done_at
+            FROM {SCHEMA}.tickets t
+            LEFT JOIN (
+                SELECT ticket_id, MAX(created_at) AS done_at
+                FROM {SCHEMA}.ticket_history
+                WHERE field_name = 'status_id'
+                  AND new_value IN ('Решена', 'Отменена')
+                GROUP BY ticket_id
+            ) d ON d.ticket_id = t.id
+            WHERE t.created_at < (SELECT MAX(we) FROM weeks)
+              AND t.assigned_to IN ({ids})
+              AND (d.done_at IS NULL OR d.done_at >= (SELECT MIN(ws) FROM weeks))
+        ),
+        -- Заявку классифицируем один раз, а не заново для каждой недели:
+        -- регулярные выражения по тексту — самая тяжёлая часть запроса.
+        cls AS (
+            SELECT id, created_at, done_at,
                    {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
-            FROM (
-                SELECT t.assigned_to,
-                       LOWER(COALESCE(t.title, '') || ' ' ||
-                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
-                       (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments
-                FROM (
-                    SELECT gs::date AS ws,
-                           LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
-                    FROM generate_series(
-                        %s::date, (%s::date - 1), INTERVAL '7 days'
-                    ) gs
-                ) w
-                JOIN {SCHEMA}.tickets t
-                  ON t.created_at < w.we
-                 AND t.assigned_to IN ({ids})
-                LEFT JOIN (
-                    SELECT ticket_id, MAX(created_at) AS done_at
-                    FROM {SCHEMA}.ticket_history
-                    WHERE field_name = 'status_id'
-                      AND new_value IN ('Решена', 'Отменена')
-                    GROUP BY ticket_id
-                ) d ON d.ticket_id = t.id
-                WHERE d.done_at IS NULL OR d.done_at >= w.ws
-            ) s
-        ) q
+            FROM base
+        )
+        SELECT {LINE_OVERRIDE} AS line, {SERVICE_OVERRIDE} AS service,
+               {ISSUE_OVERRIDE} AS issue, COUNT(*)::bigint AS cnt
+        FROM cls q
+        -- Заявка попадает в каждую неделю, где была в работе: итог совпадает
+        -- с суммой столбцов блока «Заявки в работе по неделям».
+        JOIN weeks w ON q.created_at < w.we
+                    AND (q.done_at IS NULL OR q.done_at >= w.ws)
         GROUP BY 1, 2, 3
     """, (w_end, w_start, w_end))
     rows = cur.fetchall()
