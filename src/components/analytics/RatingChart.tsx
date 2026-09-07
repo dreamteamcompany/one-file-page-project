@@ -49,7 +49,7 @@ const RatingChart = ({ data }: RatingChartProps) => {
                 />
               </div>
               <span className="w-24 shrink-0 text-right text-muted-foreground tabular-nums">
-                {d.count} · {d.share}%
+                {d.share}%
               </span>
             </div>
           ))}
