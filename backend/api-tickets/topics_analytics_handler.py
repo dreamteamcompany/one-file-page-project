@@ -51,13 +51,17 @@ CASE
 END
 """
 
-# Заявки, где МИС упоминается в переписке. Ограничение по длине отсекает
+# МИС упоминается в переписке по заявке. Ограничение по длине отсекает
 # комментарии с картинками в base64 — без него запрос идёт в разы дольше.
-MIS_COMMENTS_SQL = f"""
-    SELECT DISTINCT ticket_id
-    FROM {SCHEMA}.ticket_comments
-    WHERE comment IS NOT NULL AND LENGTH(comment) < 3000
-      AND LOWER(LEFT(comment, 1500)) ~ '(^|[^а-яёa-z])мис([^а-яёa-z]|$)'
+# Проверяем точечно по каждой заявке выборки, а не перебираем всю переписку
+# за всю историю: так запрос укладывается в лимит времени.
+MIS_IN_COMMENTS_SQL = f"""
+    EXISTS (
+        SELECT 1 FROM {SCHEMA}.ticket_comments c
+        WHERE c.ticket_id = t.id
+          AND c.comment IS NOT NULL AND LENGTH(c.comment) < 3000
+          AND LOWER(LEFT(c.comment, 1500)) ~ '(^|[^а-яёa-z])мис([^а-яёa-z]|$)'
+    )
 """
 
 ISSUE_CASE = """
@@ -668,7 +672,6 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
 
     cur = conn.cursor()
     cur.execute(f"""
-        WITH mis_c AS ({MIS_COMMENTS_SQL})
         SELECT q.id, q.title, q.created_at, q.closed_at,
                {ISSUE_OVERRIDE} AS issue,
                q.assignee, q.status
@@ -685,7 +688,7 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
                        st.name AS status,
                        LOWER(COALESCE(t.title, '') || ' ' ||
                              COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
-                       (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments
+                       {MIS_IN_COMMENTS_SQL} AS mis_in_comments
                 FROM {SCHEMA}.tickets t
                 LEFT JOIN {SCHEMA}.users u ON u.id = t.assigned_to
                 LEFT JOIN {SCHEMA}.ticket_statuses st ON st.id = t.status_id
@@ -751,17 +754,16 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
 
     cur = conn.cursor()
     cur.execute(f"""
-        WITH mis_c AS ({MIS_COMMENTS_SQL}),
-        weeks AS (
+        WITH weeks AS (
             SELECT gs::date AS ws,
                    LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
             FROM generate_series(%s::date, (%s::date - 1), INTERVAL '7 days') gs
         ),
-        base AS (
+        base AS MATERIALIZED (
             SELECT t.id, t.assigned_to, t.created_at,
                    LOWER(COALESCE(t.title, '') || ' ' ||
                          COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x,
-                   (t.id IN (SELECT ticket_id FROM mis_c)) AS mis_in_comments,
+                   {MIS_IN_COMMENTS_SQL} AS mis_in_comments,
                    d.done_at
             FROM {SCHEMA}.tickets t
             LEFT JOIN (
@@ -777,7 +779,9 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
         ),
         -- Заявку классифицируем один раз, а не заново для каждой недели:
         -- регулярные выражения по тексту — самая тяжёлая часть запроса.
-        cls AS (
+        -- MATERIALIZED обязателен: иначе Postgres подставляет вычисления
+        -- в основной запрос и разбирает текст заново для каждой недели.
+        cls AS MATERIALIZED (
             SELECT id, created_at, done_at, x,
                    {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
