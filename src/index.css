@@ -308,3 +308,18 @@
   border-radius: 1rem;
   animation: comment-highlight-flash 2s ease-out;
 }
+
+/* Аналитика обращений на широких мониторах: на 2560+ и 3440 px интерфейс
+   выглядит мелким, поэтому пропорционально укрупняем текст, таблицы и
+   графики. Обычные мониторы (до 1920 px) остаются как были. */
+@media (min-width: 2000px) {
+  .analytics-scale {
+    zoom: 1.2;
+  }
+}
+
+@media (min-width: 2800px) {
+  .analytics-scale {
+    zoom: 1.4;
+  }
+}

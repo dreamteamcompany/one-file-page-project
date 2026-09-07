@@ -208,7 +208,9 @@ const TopicsAnalytics = () => {
 
   return (
     <PageLayout>
-      <div className="flex items-center gap-3 mb-6">
+      {/* На мониторах шире 2000 px весь блок пропорционально укрупняется */}
+      <div className="analytics-scale">
+        <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate('/')}
           className="p-2 hover:bg-accent/30 rounded-lg transition-colors"
@@ -362,6 +364,7 @@ const TopicsAnalytics = () => {
           </div>
         </>
       )}
+      </div>
     </PageLayout>
   );
 };
