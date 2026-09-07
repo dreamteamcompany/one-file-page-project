@@ -309,6 +309,12 @@ const TopicsAnalytics = () => {
                                 </td>
                                 <td className="px-4 py-2.5 tabular-nums text-muted-foreground">
                                   {service.count}
+                                  {/* Доля сервиса внутри своего подразделения */}
+                                  <span className="ml-2 text-xs opacity-70">
+                                    {line.count > 0
+                                      ? `${Math.round((service.count / line.count) * 100)}%`
+                                      : '0%'}
+                                  </span>
                                 </td>
                               </tr>
 
