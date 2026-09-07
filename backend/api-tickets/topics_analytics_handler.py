@@ -153,37 +153,74 @@ def _business_minutes(start, end, sched: Dict[int, List[tuple]]) -> float:
     return total
 
 
-def _first_response_rows(conn, month: str) -> Dict[str, Any]:
-    """Время первого ответа сотрудника по неделям месяца, в рабочих минутах."""
-    start, end = _month_bounds(month)
-    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
-    cur = conn.cursor()
-    cur.execute(f"""
-        SELECT t.id, t.created_at, t.assigned_to,
+def _first_response_sql(ids: str) -> str:
+    """Заявки, по которым работа шла в выбранном месяце: и новые, и переходящие.
+
+    Берём всё, что создано до конца месяца, вместе с датой первого ответа
+    сотрудника и датой закрытия — дальше в Python отбираем нужные.
+    """
+    return f"""
+        SELECT t.id, t.created_at, t.assigned_to, u.full_name,
                MIN(c.created_at) FILTER (
                    WHERE c.user_id <> t.created_by
                      AND COALESCE(c.is_internal, false) = false
-               ) AS first_reply
+               ) AS first_reply,
+               MIN(d.done_at) AS done_at
         FROM {SCHEMA}.tickets t
+        JOIN {SCHEMA}.users u ON u.id = t.assigned_to
         LEFT JOIN {SCHEMA}.ticket_comments c
                ON c.ticket_id = t.id AND c.created_at >= t.created_at
-        WHERE t.created_at >= %s AND t.created_at < %s
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) d ON d.ticket_id = t.id
+        WHERE t.created_at < %s
           AND t.assigned_to IN ({ids})
-        GROUP BY t.id, t.created_at, t.assigned_to
-    """, (start, end))
+        GROUP BY t.id, t.created_at, t.assigned_to, u.full_name
+    """
+
+
+def _in_month(row, start_dt, end_dt) -> bool:
+    """Ответ дан в этом месяце — либо заявка ещё висит без ответа."""
+    fr = row['first_reply']
+    if fr:
+        return start_dt <= fr < end_dt
+    done = row['done_at']
+    return done is None or done >= start_dt
+
+
+def _first_response_rows(conn, month: str) -> Dict[str, Any]:
+    """Время первого ответа по неделям месяца, в рабочих минутах.
+
+    В неделю попадает заявка по дате ОТВЕТА, а не создания: если вопрос
+    задали в июле, а ответили в августе — это августовская работа.
+    """
+    start, end = _month_bounds(month)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    cur = conn.cursor()
+    cur.execute(_first_response_sql(ids), (end,))
     rows = cur.fetchall()
 
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end)
     schedules = _load_schedules(conn)
     buckets: Dict[int, List[float]] = {}
     no_reply = 0
+    carried = 0
 
     for r in rows:
+        if not _in_month(r, start_dt, end_dt):
+            continue
         if not r['first_reply']:
             no_reply += 1
             continue
+        if r['created_at'] < start_dt:
+            carried += 1
         sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
         mins = _business_minutes(r['created_at'], r['first_reply'], sched)
-        wk = min((r['created_at'].day - 1) // 7 + 1, 5)
+        wk = min((r['first_reply'].day - 1) // 7 + 1, 5)
         buckets.setdefault(wk, []).append(mins)
 
     weeks = []
@@ -204,42 +241,40 @@ def _first_response_rows(conn, month: str) -> Dict[str, Any]:
     replied = [m for v in buckets.values() for m in v]
     avg_all = round(sum(replied) / len(replied), 1) if replied else 0
     return {'weeks': weeks, 'avgMinutes': avg_all,
-            'answered': len(replied), 'noReply': no_reply}
+            'answered': len(replied), 'noReply': no_reply,
+            'carried': carried, 'created': len(replied) - carried}
 
 
 def _first_response_by_user(conn, month: str) -> Dict[str, Any]:
-    """Время первого ответа в разрезе исполнителей: рабочее и календарное."""
+    """Время первого ответа в разрезе исполнителей: рабочее и календарное.
+
+    Как и в недельном блоке, берём работу месяца целиком: и заявки,
+    созданные в этом месяце, и переходящие с прошлого.
+    """
     start, end = _month_bounds(month)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
-    cur.execute(f"""
-        SELECT t.assigned_to, u.full_name, t.id, t.created_at,
-               MIN(c.created_at) FILTER (
-                   WHERE c.user_id <> t.created_by
-                     AND COALESCE(c.is_internal, false) = false
-               ) AS first_reply
-        FROM {SCHEMA}.tickets t
-        JOIN {SCHEMA}.users u ON u.id = t.assigned_to
-        LEFT JOIN {SCHEMA}.ticket_comments c
-               ON c.ticket_id = t.id AND c.created_at >= t.created_at
-        WHERE t.created_at >= %s AND t.created_at < %s
-          AND t.assigned_to IN ({ids})
-        GROUP BY t.assigned_to, u.full_name, t.id, t.created_at
-    """, (start, end))
+    cur.execute(_first_response_sql(ids), (end,))
     rows = cur.fetchall()
 
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end)
     schedules = _load_schedules(conn)
     acc: Dict[int, Dict[str, Any]] = {}
 
     for r in rows:
+        if not _in_month(r, start_dt, end_dt):
+            continue
         uid = int(r['assigned_to'])
         it = acc.setdefault(uid, {
             'name': (r['full_name'] or '').strip() or f'ID {uid}',
-            'work': [], 'cal': [], 'noReply': 0,
+            'work': [], 'cal': [], 'noReply': 0, 'carried': 0,
         })
         if not r['first_reply']:
             it['noReply'] += 1
             continue
+        if r['created_at'] < start_dt:
+            it['carried'] += 1
         sched = schedules.get(uid) or DEFAULT_SCHEDULE
         it['work'].append(_business_minutes(r['created_at'], r['first_reply'], sched))
         it['cal'].append((r['first_reply'] - r['created_at']).total_seconds() / 60)
@@ -262,6 +297,7 @@ def _first_response_by_user(conn, month: str) -> Dict[str, Any]:
             'answered': n,
             'noReply': it['noReply'],
             'total': n + it['noReply'],
+            'carried': it['carried'],
             'avgWorkMinutes': round(sum(it['work']) / n, 1) if n else 0,
             'medianWorkMinutes': round(_median(it['work']), 1),
             'avgMinutes': round(sum(it['cal']) / n, 1) if n else 0,
@@ -278,6 +314,7 @@ def _first_response_by_user(conn, month: str) -> Dict[str, Any]:
         'avgWorkMinutes': round(sum(all_work) / len(all_work), 1) if all_work else 0,
         'avgMinutes': round(sum(all_cal) / len(all_cal), 1) if all_cal else 0,
         'answered': len(all_work),
+        'carried': sum(it['carried'] for it in acc.values()),
     }
 
 

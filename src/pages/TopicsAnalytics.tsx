@@ -50,6 +50,8 @@ export interface FirstResponseData {
   avgMinutes: number;
   answered: number;
   noReply: number;
+  carried?: number;
+  created?: number;
 }
 
 export interface ResolutionWeek {
@@ -138,6 +140,7 @@ export interface FirstResponseUser {
   answered: number;
   noReply: number;
   total: number;
+  carried?: number;
   avgWorkMinutes: number;
   medianWorkMinutes: number;
   avgMinutes: number;
@@ -149,6 +152,7 @@ export interface FirstResponseByUserData {
   avgWorkMinutes: number;
   avgMinutes: number;
   answered: number;
+  carried?: number;
 }
 
 export interface ClosedByUserRow {

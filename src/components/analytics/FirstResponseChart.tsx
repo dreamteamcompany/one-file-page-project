@@ -29,7 +29,7 @@ const FirstResponseChart = ({ data }: FirstResponseChartProps) => {
           <div>
             <h2 className="font-bold">Среднее время первого ответа</h2>
             <p className="text-muted-foreground text-sm">
-              Только рабочие часы исполнителя, август
+              Только рабочие часы исполнителя, август — новые и переходящие заявки
             </p>
             <span className="inline-block mt-1.5 px-2 py-0.5 rounded text-[11px] bg-teal-500/10 text-teal-600 dark:text-teal-400">
               рабочее время
@@ -55,7 +55,7 @@ const FirstResponseChart = ({ data }: FirstResponseChartProps) => {
                 style={{ height: `${Math.max((w.avgMinutes / max) * 100, 3)}%` }}
                 title={`${w.label}: среднее ${fmt(w.avgMinutes)}, медиана ${fmt(
                   w.medianMinutes
-                )}, заявок ${w.count}`}
+                )}, ответов ${w.count}`}
               />
               <span className="text-[11px] sm:text-xs text-muted-foreground text-center leading-tight">
                 {w.label}
