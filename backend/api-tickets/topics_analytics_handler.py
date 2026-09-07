@@ -778,7 +778,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
         -- Заявку классифицируем один раз, а не заново для каждой недели:
         -- регулярные выражения по тексту — самая тяжёлая часть запроса.
         cls AS (
-            SELECT id, created_at, done_at,
+            SELECT id, created_at, done_at, x,
                    {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
