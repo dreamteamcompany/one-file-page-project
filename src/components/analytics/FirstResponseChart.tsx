@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card';
-import Icon from '@/components/ui/icon';
 import type { FirstResponseData } from '@/pages/TopicsAnalytics';
 
 interface FirstResponseChartProps {
@@ -22,9 +21,6 @@ const FirstResponseChart = ({ data }: FirstResponseChartProps) => {
   if (!weeks.length) return null;
 
   const max = Math.max(...weeks.map((w) => w.avgMinutes), 1);
-  const first = weeks[0];
-  const last = weeks[weeks.length - 1];
-  const worse = last.avgMinutes > first.avgMinutes;
 
   return (
     <Card className="mb-6">
@@ -69,19 +65,6 @@ const FirstResponseChart = ({ data }: FirstResponseChartProps) => {
           ))}
         </div>
 
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
-          <Icon
-            name={worse ? 'TrendingUp' : 'TrendingDown'}
-            size={16}
-            className={`shrink-0 mt-0.5 ${worse ? 'text-rose-500' : 'text-emerald-500'}`}
-          />
-          <p className="text-xs leading-relaxed">
-            Считается время внутри смены каждого исполнителя по его личному графику —
-            у дежурных по субботам и воскресеньям выходные тоже идут в зачёт. Медиана
-            обычно сильно ниже среднего: несколько забытых заявок тянут среднее вверх.
-            Ответили на {data.answered} заявок, без ответа осталось {data.noReply}.
-          </p>
-        </div>
       </CardContent>
     </Card>
   );
