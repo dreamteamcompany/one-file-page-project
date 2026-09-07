@@ -96,8 +96,20 @@ CASE
 END
 """
 
-# То же правило, но для запроса, где колонки берутся из подзапроса q.
+# Покупкой и настройкой доменов занимается 2-я линия ТП, хотя исполнителем
+# в заявке часто стоит сотрудник отдела Ильи. Такие заявки показываем
+# в 2-й линии.
+LINE_OVERRIDE = """
+CASE
+  WHEN line = 'Отдел Ильи' AND service = 'Сайты и домены' THEN '2-я линия ТП'
+  ELSE line
+END
+"""
+
+# Те же правила, но для запроса, где колонки берутся из подзапроса q.
 SERVICE_OVERRIDE_Q = SERVICE_OVERRIDE.replace('line', 'q.line').replace(
+    'service', 'q.service')
+LINE_OVERRIDE_Q = LINE_OVERRIDE.replace('line', 'q.line').replace(
     'service', 'q.service')
 
 
@@ -686,7 +698,7 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
                   AND t.assigned_to IN ({ids})
             ) s
         ) q
-        WHERE q.line = %s AND ({SERVICE_OVERRIDE_Q}) = %s {extra}
+        WHERE ({LINE_OVERRIDE_Q}) = %s AND ({SERVICE_OVERRIDE_Q}) = %s {extra}
         ORDER BY q.created_at DESC
     """, tuple(args))
 
@@ -737,7 +749,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
     cur = conn.cursor()
     cur.execute(f"""
         WITH mis_c AS ({MIS_COMMENTS_SQL})
-        SELECT line, {SERVICE_OVERRIDE} AS service,
+        SELECT {LINE_OVERRIDE} AS line, {SERVICE_OVERRIDE} AS service,
                {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
         FROM (
             SELECT x,
