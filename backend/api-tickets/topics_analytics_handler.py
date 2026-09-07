@@ -636,6 +636,72 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
 
 
 
+def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
+                     ids: str) -> Dict[str, Any]:
+    """Список заявок одной ячейки таблицы: подразделение + сервис (+ тип вопроса).
+
+    Здесь каждая заявка выводится ОДИН раз, без повторов по неделям, —
+    поэтому список короче числа в колонке «Заявок».
+    """
+    line = (params.get('line') or '').strip()
+    service = (params.get('service') or '').strip()
+    issue = (params.get('issue') or '').strip()
+    if not line or not service:
+        return response(400, {'error': 'Нужно указать подразделение и сервис'})
+
+    extra = 'AND q.issue = %s' if issue else ''
+    args = [w_end, w_start, line, service] + ([issue] if issue else [])
+
+    cur = conn.cursor()
+    cur.execute(f"""
+        SELECT q.id, q.title, q.created_at, q.closed_at, q.issue,
+               q.assignee, q.status
+        FROM (
+            SELECT s.id, s.title, s.created_at, s.closed_at,
+                   s.assignee, s.status,
+                   {_line_case()} AS line,
+                   {SERVICE_CASE} AS service,
+                   {ISSUE_CASE} AS issue
+            FROM (
+                SELECT t.id, t.title, t.created_at, t.assigned_to,
+                       d.done_at AS closed_at,
+                       u.full_name AS assignee,
+                       st.name AS status,
+                       LOWER(COALESCE(t.title, '') || ' ' ||
+                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
+                FROM {SCHEMA}.tickets t
+                LEFT JOIN {SCHEMA}.users u ON u.id = t.assigned_to
+                LEFT JOIN {SCHEMA}.ticket_statuses st ON st.id = t.status_id
+                LEFT JOIN (
+                    SELECT ticket_id, MAX(created_at) AS done_at
+                    FROM {SCHEMA}.ticket_history
+                    WHERE field_name = 'status_id'
+                      AND new_value IN ('Решена', 'Отменена')
+                    GROUP BY ticket_id
+                ) d ON d.ticket_id = t.id
+                WHERE t.created_at < %s
+                  AND (d.done_at IS NULL OR d.done_at >= %s)
+                  AND t.assigned_to IN ({ids})
+            ) s
+        ) q
+        WHERE q.line = %s AND q.service = %s {extra}
+        ORDER BY q.created_at DESC
+    """, tuple(args))
+
+    items = [{
+        'id': int(r['id']),
+        'title': (r['title'] or '').strip() or f"Заявка №{r['id']}",
+        'createdAt': r['created_at'].isoformat() if r['created_at'] else None,
+        'closedAt': r['closed_at'].isoformat() if r['closed_at'] else None,
+        'issue': r['issue'],
+        'assignee': (r['assignee'] or '').strip(),
+        'status': (r['status'] or '').strip(),
+    } for r in cur.fetchall()]
+
+    return response(200, {'line': line, 'service': service, 'issue': issue,
+                          'count': len(items), 'tickets': items})
+
+
 def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[str, Any]:
     """Аналитика заявок за месяц: линии → сервисы → типы вопросов"""
     if not verify_token(event):
@@ -661,6 +727,10 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
     # столько раз, сколько недель провисела — итог совпадает с суммой столбцов.
     w_start, w_end = _month_bounds(WEEKS_MONTH)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+
+    # Разворот строки таблицы: список самих заявок выбранного сервиса.
+    if params.get('drill') == 'tickets':
+        return _service_tickets(conn, params, w_start, w_end, ids)
 
     cur = conn.cursor()
     cur.execute(f"""

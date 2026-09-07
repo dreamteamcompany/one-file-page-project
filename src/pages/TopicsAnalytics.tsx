@@ -11,6 +11,7 @@ import ResolutionTimeChart from '@/components/analytics/ResolutionTimeChart';
 import DelayReasonsChart from '@/components/analytics/DelayReasonsChart';
 import RatingChart from '@/components/analytics/RatingChart';
 import ReopenedChart from '@/components/analytics/ReopenedChart';
+import ServiceTicketsRows from '@/components/analytics/ServiceTicketsRows';
 
 export interface IssueRow {
   name: string;
@@ -174,6 +175,7 @@ const TopicsAnalytics = () => {
   const [error, setError] = useState(false);
   const [openLines, setOpenLines] = useState<Record<string, boolean>>({});
   const [openServices, setOpenServices] = useState<Record<string, boolean>>({});
+  const [openIssues, setOpenIssues] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +210,9 @@ const TopicsAnalytics = () => {
 
   const toggleService = (key: string) =>
     setOpenServices((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const toggleIssue = (key: string) =>
+    setOpenIssues((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Оставляем только утверждённые подразделения; заявки без исполнителя
   // и у сотрудников вне списков в отчёт не попадают.
@@ -270,7 +275,8 @@ const TopicsAnalytics = () => {
           <p className="text-muted-foreground text-sm mb-3">
             Август, по неделям в работе — как в блоке «Заявки в работе по неделям».
             Заявка учтена в каждой неделе, где она была открыта, поэтому итог больше
-            числа самих заявок.
+            числа самих заявок. Раскройте тип вопроса, чтобы увидеть заявки и перейти
+            к любой из них: там каждая заявка показана один раз, без повторов.
           </p>
 
           <div className="rounded-lg border border-border overflow-hidden">
@@ -329,19 +335,41 @@ const TopicsAnalytics = () => {
                               </tr>
 
                               {serviceOpen &&
-                                service.issues.map((issue) => (
-                                  <tr
-                                    key={`${key}::${issue.name}`}
-                                    className="border-t border-border/30 bg-black/20 [.light_&]:bg-black/[0.04]"
-                                  >
-                                    <td className="px-4 py-2 pl-[4.5rem] text-muted-foreground">
-                                      {issue.name}
-                                    </td>
-                                    <td className="px-4 py-2 tabular-nums text-muted-foreground">
-                                      {issue.count}
-                                    </td>
-                                  </tr>
-                                ))}
+                                service.issues.map((issue) => {
+                                  const iKey = `${key}::${issue.name}`;
+                                  const issueOpen = !!openIssues[iKey];
+                                  return (
+                                    <Fragment key={iKey}>
+                                      <tr
+                                        onClick={() => toggleIssue(iKey)}
+                                        className="border-t border-border/30 bg-black/20 [.light_&]:bg-black/[0.04] cursor-pointer hover:bg-accent/20 transition-colors"
+                                      >
+                                        <td className="px-4 py-2 pl-[4.5rem] text-muted-foreground">
+                                          <span className="flex items-center gap-2">
+                                            <Icon
+                                              name={issueOpen ? 'ChevronDown' : 'ChevronRight'}
+                                              size={13}
+                                              className="shrink-0"
+                                            />
+                                            {issue.name}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                                          {issue.count}
+                                        </td>
+                                      </tr>
+
+                                      {issueOpen && (
+                                        <ServiceTicketsRows
+                                          line={line.name}
+                                          service={service.name}
+                                          issue={issue.name}
+                                          indent="pl-[6rem]"
+                                        />
+                                      )}
+                                    </Fragment>
+                                  );
+                                })}
                             </Fragment>
                           );
                         })}
