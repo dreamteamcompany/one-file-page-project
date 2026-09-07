@@ -286,64 +286,6 @@ def _first_response_rows(conn, month: str) -> Dict[str, Any]:
             'carried': carried, 'created': len(replied) - carried}
 
 
-def _closed_by_user(conn, month: str) -> Dict[str, Any]:
-    """Закрытые и отправленные на подтверждение заявки по исполнителям за месяц.
-
-    Считаем по дате СМЕНЫ СТАТУСА (что человек реально сделал за месяц),
-    а не по дате создания заявки. Если заявку и отправляли на подтверждение,
-    и закрыли — она попадает только в «закрыто», без двойного счёта.
-    """
-    start, end = _month_bounds(month)
-    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
-    done = ', '.join(DONE_STATUSES)
-    cur = conn.cursor()
-    cur.execute(f"""
-        SELECT u.full_name, d.assigned_to,
-               COUNT(*) FILTER (WHERE d.done_at IS NOT NULL) AS closed,
-               COUNT(*) FILTER (
-                   WHERE d.done_at IS NULL AND d.pend_at IS NOT NULL
-               ) AS pending
-        FROM (
-            SELECT h.ticket_id, t.assigned_to,
-                   MIN(h.created_at) FILTER (
-                       WHERE h.new_value IN ({done})
-                   ) AS done_at,
-                   MIN(h.created_at) FILTER (
-                       WHERE h.new_value = 'Ожидает подтверждения'
-                   ) AS pend_at
-            FROM {SCHEMA}.ticket_history h
-            JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
-            WHERE h.field_name = 'status_id'
-              AND h.new_value IN ({done}, 'Ожидает подтверждения')
-              AND h.created_at >= %s AND h.created_at < %s
-              AND t.assigned_to IN ({ids})
-            GROUP BY h.ticket_id, t.assigned_to
-        ) d
-        JOIN {SCHEMA}.users u ON u.id = d.assigned_to
-        GROUP BY u.full_name, d.assigned_to
-    """, (start, end))
-
-    users = []
-    for r in cur.fetchall():
-        closed, pending = int(r['closed']), int(r['pending'])
-        if not closed and not pending:
-            continue
-        users.append({
-            'name': (r['full_name'] or '').strip() or f"ID {r['assigned_to']}",
-            'closed': closed,
-            'pending': pending,
-            'total': closed + pending,
-        })
-
-    users.sort(key=lambda u: -u['total'])
-    return {
-        'users': users,
-        'closed': sum(u['closed'] for u in users),
-        'pending': sum(u['pending'] for u in users),
-        'month': month,
-    }
-
-
 # ---- Время решения и причины долгого закрытия ----
 
 DONE_STATUSES_PLAIN = ['Решена', 'Отменена']
@@ -849,5 +791,4 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                           'resolution': _resolution_rows(conn, WEEKS_MONTH),
                           'delayReasons': _delay_reasons(conn, WEEKS_MONTH),
                           'rating': _rating_rows(conn, WEEKS_MONTH),
-                          'reopened': _reopened_rows(conn, WEEKS_MONTH),
-                          'closedByUser': _closed_by_user(conn, WEEKS_MONTH)})
+                          'reopened': _reopened_rows(conn, WEEKS_MONTH)})

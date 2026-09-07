@@ -6,7 +6,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import WeeklyTicketsChart from '@/components/analytics/WeeklyTicketsChart';
 import FirstResponseChart from '@/components/analytics/FirstResponseChart';
-import ClosedByUserChart from '@/components/analytics/ClosedByUserChart';
 import ResolutionTimeChart from '@/components/analytics/ResolutionTimeChart';
 import DelayReasonsChart from '@/components/analytics/DelayReasonsChart';
 import RatingChart from '@/components/analytics/RatingChart';
@@ -135,20 +134,6 @@ export interface ReopenedData {
   share: number;
 }
 
-export interface ClosedByUserRow {
-  name: string;
-  closed: number;
-  pending: number;
-  total: number;
-}
-
-export interface ClosedByUserData {
-  users: ClosedByUserRow[];
-  closed: number;
-  pending: number;
-  month: string;
-}
-
 export interface TopicsData {
   month: string;
   total: number;
@@ -160,7 +145,6 @@ export interface TopicsData {
   delayReasons?: DelayReasonsData;
   rating?: RatingData;
   reopened?: ReopenedData;
-  closedByUser?: ClosedByUserData;
 }
 
 /** Показываем только подразделения из утверждённых списков, в этом порядке. */
@@ -260,8 +244,6 @@ const TopicsAnalytics = () => {
           <WeeklyTicketsChart weeks={data.weeks ?? []} />
 
           {data.firstResponse && <FirstResponseChart data={data.firstResponse} />}
-
-          {data.closedByUser && <ClosedByUserChart data={data.closedByUser} />}
 
           {data.resolution && <ResolutionTimeChart data={data.resolution} />}
 
