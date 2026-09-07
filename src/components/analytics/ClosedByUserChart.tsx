@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card';
-import Icon from '@/components/ui/icon';
 import type { ClosedByUserData } from '@/pages/TopicsAnalytics';
 
 interface ClosedByUserChartProps {
@@ -67,17 +66,6 @@ const ClosedByUserChart = ({ data }: ClosedByUserChartProps) => {
               </span>
             </div>
           ))}
-        </div>
-
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
-          <Icon name="Info" size={16} className="shrink-0 mt-0.5 text-muted-foreground" />
-          <p className="text-xs leading-relaxed">
-            Считается по дате смены статуса — то, что человек реально сделал за август,
-            включая заявки, созданные раньше. Голубым показаны заявки, отправленные на
-            подтверждение и не закрытые до конца месяца: работа выполнена, но ждёт
-            ответа пользователя. Если заявку и отправляли на подтверждение, и закрыли —
-            она учтена один раз, как закрытая.
-          </p>
         </div>
       </CardContent>
     </Card>

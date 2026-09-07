@@ -24,8 +24,6 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
   const hours = (g: DelayGroup) => (work ? g.workHours : g.hours);
   const avg = (g: DelayGroup) => (work ? g.avgWorkHours : g.avgHours);
 
-  const our = groups.find((g) => g.side === 'our');
-  const client = groups.find((g) => g.side === 'client');
 
   return (
     <Card className="mb-6">
@@ -77,38 +75,6 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
             </div>
           ))}
         </div>
-
-        {our && client && (
-          <div className="flex items-start gap-2.5 mt-6 p-3 rounded-lg bg-muted/50">
-            <Icon name="Lightbulb" size={16} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs leading-relaxed">
-              Ход переходит к нам, когда пишет заявитель, и к нему — когда отвечает
-              сотрудник. Пока ход наш, человек сидит и ждёт ответа.{' '}
-              {share(our) >= share(client) ? (
-                <>
-                  Сейчас <b>{share(our)}%</b> всего времени переписки люди ждут нас против{' '}
-                  <b>{share(client)}%</b>, когда ждём мы. Первого ответа обычно ждут{' '}
-                  {fmtHours(data.firstWaitMedian)}.
-                </>
-              ) : (
-                <>
-                  Сейчас <b>{share(client)}%</b> времени мы ждём ответа заявителей против{' '}
-                  <b>{share(our)}%</b>, когда ждут нас. Первого ответа обычно ждут{' '}
-                  {fmtHours(data.firstWaitMedian)}.
-                </>
-              )}{' '}
-              {data.openOnUs > 0 && (
-                <>
-                  Прямо сейчас <b>{data.openOnUs}</b> незакрытых заявок висят с ходом за
-                  нами.{' '}
-                </>
-              )}
-              {work
-                ? 'Показаны часы внутри смен исполнителей по их графикам.'
-                : 'Показаны все часы подряд, включая ночи.'}
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

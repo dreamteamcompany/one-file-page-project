@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card';
-import Icon from '@/components/ui/icon';
 import type { ReopenedData } from '@/pages/TopicsAnalytics';
 
 interface ReopenedChartProps {
@@ -11,7 +10,6 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
   if (!weeks.length) return null;
 
   const max = Math.max(...weeks.map((w) => w.share), 1);
-  const repeated = data.events - data.count;
 
   return (
     <Card className="mb-6">
@@ -51,21 +49,6 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
               </span>
             </div>
           ))}
-        </div>
-
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
-          <Icon name="RotateCcw" size={16} className="text-orange-500 shrink-0 mt-0.5" />
-          <p className="text-xs leading-relaxed">
-            Это заявки, которые побывали в статусе «Открыта повторно»: решение не подошло
-            либо проблема вернулась. Высота столбца — доля от закрытых заявок недели, число сверху —
-            сколько их было.{' '}
-            {repeated > 0 && (
-              <>
-                {repeated} заявок открывали повторно больше одного раза — это самые
-                проблемные случаи.
-              </>
-            )}
-          </p>
         </div>
       </CardContent>
     </Card>

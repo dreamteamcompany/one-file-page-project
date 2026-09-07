@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import Icon from '@/components/ui/icon';
 import TimeModeToggle, { type TimeMode } from '@/components/analytics/TimeModeToggle';
 import type { ResolutionData } from '@/pages/TopicsAnalytics';
 
@@ -88,37 +87,6 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
             </div>
           ))}
         </div>
-
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
-          <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-          <p className="text-xs leading-relaxed">
-            {work ? (
-              <>
-                Время вне смены исполнителя вычтено по его личному графику; у дежурных
-                выходные считаются рабочими. Календарное время выше в{' '}
-                {(data.avgHours / Math.max(data.avgWorkHours, 0.1)).toFixed(1)} раза.
-              </>
-            ) : (
-              <>
-                Все часы подряд, включая ночи и выходные, — так время видит пользователь.
-                Переключите на «Рабочее», чтобы увидеть чистую загрузку ИТ.
-              </>
-            )}{' '}
-            Учтены {data.count} решённых заявок из {data.total}.
-          </p>
-        </div>
-
-        {data.pending > 0 && (
-          <div className="flex items-start gap-2.5 mt-2 p-3 rounded-lg bg-amber-400/10">
-            <Icon name="TriangleAlert" size={16} className="text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-xs leading-relaxed">
-              Снижение к концу месяца — не ускорение работы. {data.pending} заявок ещё не
-              решены и в среднее не вошли, а это в основном самые долгие. Чем ближе неделя к
-              концу месяца, тем сильнее её столбец занижен: сравнивать недели между собой
-              можно будет, только когда все заявки закроются.
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

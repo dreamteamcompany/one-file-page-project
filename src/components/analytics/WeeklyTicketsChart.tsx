@@ -1,5 +1,4 @@
 import { Card, CardContent } from '@/components/ui/card';
-import Icon from '@/components/ui/icon';
 import type { WeekRow } from '@/pages/TopicsAnalytics';
 
 interface WeeklyTicketsChartProps {
@@ -14,10 +13,6 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
   if (!weeks.length) return null;
 
   const max = Math.max(...weeks.map((w) => w.count), 1);
-  const full = weeks.filter((w) => w.days >= 7);
-  const base = full.length ? full : weeks;
-  const peak = base.reduce((a, b) => (b.count > a.count ? b : a));
-  const ratio = peak.created > 0 ? peak.count / peak.created : 0;
 
   return (
     <Card className="mb-6">
@@ -72,16 +67,6 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
               </div>
             );
           })}
-        </div>
-
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-amber-400/10">
-          <Icon name="Layers" size={16} className="text-amber-500 shrink-0 mt-0.5" />
-          <p className="text-xs leading-relaxed">
-            Нагрузка примерно в <b>{ratio.toFixed(1)} раза</b> выше потока новых заявок: на
-            пиковой неделе <b>{peak.label}</b> в работе было <b>{peak.count}</b> заявок, а
-            новых пришло только <b>{peak.created}</b>. Остальное — хвост, перешедший с
-            прошлых недель. Неполные недели по краям месяца показаны бледным.
-          </p>
         </div>
       </CardContent>
     </Card>

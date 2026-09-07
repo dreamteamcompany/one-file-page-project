@@ -54,21 +54,6 @@ const RatingChart = ({ data }: RatingChartProps) => {
             </div>
           ))}
         </div>
-
-        <div className="flex items-start gap-2.5 mt-5 p-3 rounded-lg bg-muted/50">
-          <Icon name="Info" size={16} className="text-muted-foreground shrink-0 mt-0.5" />
-          <p className="text-xs leading-relaxed">
-            Оценку поставили на {data.rated} заявок из {data.total} — это {data.coverage}%.
-            Молчание обычно означает «нормально», поэтому средний балл слегка завышен:
-            недовольные пишут чаще довольных.{' '}
-            {data.low > 0 && (
-              <>
-                Резко негативных оценок (1–2 балла) — <b>{data.low}</b>, их стоит разобрать
-                поимённо.
-              </>
-            )}
-          </p>
-        </div>
       </CardContent>
     </Card>
   );
