@@ -92,6 +92,11 @@ export interface DelayGroup {
   periods: number;
   avgHours: number;
   avgWorkHours: number;
+  tickets: number;
+  ticketAvgHours: number;
+  ticketAvgWorkHours: number;
+  ticketMedHours: number;
+  ticketMedWorkHours: number;
   items: DelayItem[];
 }
 

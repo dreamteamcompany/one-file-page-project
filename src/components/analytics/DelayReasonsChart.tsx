@@ -23,6 +23,8 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
   const share = (g: DelayGroup) => (work ? g.workShare : g.share);
   const hours = (g: DelayGroup) => (work ? g.workHours : g.hours);
   const avg = (g: DelayGroup) => (work ? g.avgWorkHours : g.avgHours);
+  const tAvg = (g: DelayGroup) => (work ? g.ticketAvgWorkHours : g.ticketAvgHours);
+  const tMed = (g: DelayGroup) => (work ? g.ticketMedWorkHours : g.ticketMedHours);
 
 
   return (
@@ -65,12 +67,27 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
                 <Icon name={STYLE[g.side].icon} size={16} className={STYLE[g.side].text} />
                 <span className="font-semibold text-sm">{g.label}</span>
               </div>
-              <div className="text-2xl font-bold tabular-nums mb-1">
-                {fmtHours(avg(g))}
+              <div className="grid grid-cols-2 gap-3 mb-2">
+                <div>
+                  <div className="text-2xl font-bold tabular-nums leading-tight">
+                    {fmtHours(tAvg(g))}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    в среднем на заявку
+                  </div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold tabular-nums leading-tight">
+                    {fmtHours(tMed(g))}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    медиана по заявкам
+                  </div>
+                </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                в среднем на одно ожидание · всего {g.periods} ожиданий на{' '}
-                {fmtHours(hours(g))}
+                {g.tickets} заявок · {fmtHours(avg(g))} на одно ожидание ·{' '}
+                {g.periods} ожиданий на {fmtHours(hours(g))}
               </div>
             </div>
           ))}

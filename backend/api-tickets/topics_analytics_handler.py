@@ -541,6 +541,16 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
             'share': round(tot_re / tot_all * 100, 1) if tot_all else 0}
 
 
+def _median(values: List[float]) -> float:
+    """Серединное значение: не искажается единичными долгостроями."""
+    if not values:
+        return 0.0
+    s = sorted(values)
+    mid = len(s) // 2
+    med = s[mid] if len(s) % 2 else (s[mid - 1] + s[mid]) / 2
+    return round(med, 1)
+
+
 def _delay_reasons(conn, month: str) -> Dict[str, Any]:
     """Чей ход: сколько пользователь ждёт нас, а мы — пользователя."""
     start, end = _month_bounds(month)
@@ -581,10 +591,15 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
     # side -> накопленные часы; отдельно копим «ходы» для средних
     acc = {'our': {'hours': 0.0, 'workHours': 0.0, 'periods': 0},
            'client': {'hours': 0.0, 'workHours': 0.0, 'periods': 0}}
+    # Ожидание в разрезе заявок: у каждой заявки своя сумма часов.
+    # Нужно, чтобы одна долгая переписка не перевешивала десяток коротких.
+    per_ticket: Dict[str, List[tuple]] = {'our': [], 'client': []}
     first_wait: List[float] = []
     open_our = 0
 
     for tk in tickets.values():
+        tk_hours = {'our': 0.0, 'client': 0.0}
+        tk_work = {'our': 0.0, 'client': 0.0}
         sched = schedules.get(int(tk['assigned_to'])) or DEFAULT_SCHEDULE
         author = int(tk['created_by']) if tk['created_by'] is not None else -1
         finish = tk['closed_at'] or now
@@ -601,9 +616,12 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
             if side == turn:
                 cal = (at - mark).total_seconds() / 3600
                 if cal >= 0:
+                    wrk = _business_minutes(mark, at, sched) / 60
                     acc[turn]['hours'] += cal
-                    acc[turn]['workHours'] += _business_minutes(mark, at, sched) / 60
+                    acc[turn]['workHours'] += wrk
                     acc[turn]['periods'] += 1
+                    tk_hours[turn] += cal
+                    tk_work[turn] += wrk
                     if is_first and turn == 'our':
                         first_wait.append(cal)
                         is_first = False
@@ -612,11 +630,19 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
 
         if finish > mark:
             cal = (finish - mark).total_seconds() / 3600
+            wrk = _business_minutes(mark, finish, sched) / 60
             acc[turn]['hours'] += cal
-            acc[turn]['workHours'] += _business_minutes(mark, finish, sched) / 60
+            acc[turn]['workHours'] += wrk
             acc[turn]['periods'] += 1
+            tk_hours[turn] += cal
+            tk_work[turn] += wrk
             if tk['closed_at'] is None and turn == 'our':
                 open_our += 1
+
+        # Заявку учитываем в стороне, только если по ней реально было ожидание.
+        for side in ('our', 'client'):
+            if tk_hours[side] > 0 or tk_work[side] > 0:
+                per_ticket[side].append((tk_hours[side], tk_work[side]))
 
     labels = {'our': 'Пользователь ждёт нас', 'client': 'Мы ждём пользователя'}
     out = []
@@ -624,12 +650,20 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
         a = acc[side]
         if a['periods'] == 0:
             continue
+        pt = per_ticket[side]
+        n = len(pt)
         out.append({
             'side': side, 'label': labels[side],
             'hours': round(a['hours'], 1), 'workHours': round(a['workHours'], 1),
             'periods': a['periods'],
             'avgHours': round(a['hours'] / a['periods'], 1),
             'avgWorkHours': round(a['workHours'] / a['periods'], 1),
+            # Разрез по заявкам: среднее и медиана суммарного ожидания заявки.
+            'tickets': n,
+            'ticketAvgHours': round(sum(h for h, _ in pt) / n, 1) if n else 0,
+            'ticketAvgWorkHours': round(sum(w for _, w in pt) / n, 1) if n else 0,
+            'ticketMedHours': _median([h for h, _ in pt]),
+            'ticketMedWorkHours': _median([w for _, w in pt]),
             'items': [],
         })
 
