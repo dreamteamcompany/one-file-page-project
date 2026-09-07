@@ -48,9 +48,7 @@ const WeeklyTicketsChart = ({ weeks }: WeeklyTicketsChartProps) => {
                   <span className="text-primary font-normal"> / {w.created}</span>
                 </span>
                 <div
-                  className={`w-full rounded-t-md overflow-hidden flex flex-col ${
-                    partial ? 'opacity-40' : ''
-                  }`}
+                  className="w-full rounded-t-md overflow-hidden flex flex-col"
                   style={{ height: `${Math.max((w.count / max) * 100, 3)}%` }}
                   title={`${w.label}: в работе ${w.count}, из них новых ${w.created}, перешло с прошлых недель ${w.carried}`}
                 >
