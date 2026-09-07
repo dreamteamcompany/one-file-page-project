@@ -21,7 +21,7 @@ export const fmtHours = (hours: number) => {
 };
 
 const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
-  const [mode, setMode] = useState<TimeMode>('calendar');
+  const [mode, setMode] = useState<TimeMode>('work');
   const weeks = data.weeks ?? [];
   if (!weeks.length) return null;
 

@@ -15,7 +15,7 @@ const STYLE: Record<DelayGroup['side'], { bar: string; text: string; icon: strin
 };
 
 const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
-  const [mode, setMode] = useState<TimeMode>('calendar');
+  const [mode, setMode] = useState<TimeMode>('work');
   const groups = data.groups ?? [];
   if (!groups.length) return null;
 
