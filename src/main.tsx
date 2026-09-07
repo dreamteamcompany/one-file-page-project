@@ -20,10 +20,21 @@ document.addEventListener(
 
 const RELOAD_KEY = 'chunk-reload-at';
 
-const reloadOnStaleChunk = () => {
+const reloadOnStaleChunk = async () => {
   const last = Number(sessionStorage.getItem(RELOAD_KEY) || 0);
   if (Date.now() - last < 15000) return;
   sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+
+  // Старые файлы могли осесть в кеше — чистим, иначе перезагрузка не поможет.
+  try {
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    }
+  } catch {
+    /* кеш недоступен — просто перезагружаемся */
+  }
+
   window.location.reload();
 };
 
