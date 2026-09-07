@@ -252,7 +252,7 @@ const TopicsAnalytics = () => {
         <div className="flex-1">
           <h1 className="text-2xl md:text-3xl font-bold">Аналитика обращений</h1>
           <p className="text-muted-foreground text-sm">
-            За всё время — по сути вопроса, а не по выбранному сервису
+            Август — по сути вопроса, а не по выбранному сервису
           </p>
         </div>
       </div>
@@ -292,7 +292,12 @@ const TopicsAnalytics = () => {
 
           {data.reopened && <ReopenedChart data={data.reopened} />}
 
-          <h2 className="text-lg font-bold mb-3">Итог по вашим спискам</h2>
+          <h2 className="text-lg font-bold mb-1">Итог по вашим спискам</h2>
+          <p className="text-muted-foreground text-sm mb-3">
+            Август, по неделям в работе — как в блоке «Заявки в работе по неделям».
+            Заявка учтена в каждой неделе, где она была открыта, поэтому итог больше
+            числа самих заявок.
+          </p>
 
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
@@ -379,9 +384,11 @@ const TopicsAnalytics = () => {
           </div>
 
           <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-            За всё время. Подразделение определяется по исполнителю заявки, сервис и тип
-            вопроса — по тексту обращения; каждая заявка учтена один раз. Заявки без
-            исполнителя и у сотрудников вне списков подразделений не учитываются.
+            Август. Подразделение определяется по исполнителю заявки, сервис и тип
+            вопроса — по тексту обращения. Заявка считается в каждой неделе, где была
+            в работе: провисевшая три недели учтена трижды, поэтому итог больше числа
+            самих заявок. Заявки без исполнителя и у сотрудников вне списков
+            подразделений не учитываются.
           </p>
         </>
       )}

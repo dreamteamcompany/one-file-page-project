@@ -672,8 +672,11 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                 or not 1 <= int(month[5:]) <= 12):
             return response(400, {'error': 'Некорректный месяц, ожидается YYYY-MM или all'})
 
-    where_sql = '' if all_time else 'WHERE created_at >= %s AND created_at < %s'
-    args = () if all_time else _month_bounds(month)
+    # Считаем так же, как блок «Заявки в работе по неделям»: заявка попадает
+    # в каждую неделю августа, где она была в работе. Долгая заявка учтена
+    # столько раз, сколько недель провисела — итог совпадает с суммой столбцов.
+    w_start, w_end = _month_bounds(WEEKS_MONTH)
+    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
 
     cur = conn.cursor()
     cur.execute(f"""
@@ -683,15 +686,31 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
             FROM (
-                SELECT assigned_to,
-                       LOWER(COALESCE(title, '') || ' ' ||
-                             COALESCE(REGEXP_REPLACE(description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
-                FROM {SCHEMA}.tickets
-                {where_sql}
+                SELECT t.assigned_to,
+                       LOWER(COALESCE(t.title, '') || ' ' ||
+                             COALESCE(REGEXP_REPLACE(t.description, '!\\[\\]\\([^)]*\\)', '', 'g'), '')) AS x
+                FROM (
+                    SELECT gs::date AS ws,
+                           LEAST((gs + INTERVAL '7 days')::date, %s::date) AS we
+                    FROM generate_series(
+                        %s::date, (%s::date - 1), INTERVAL '7 days'
+                    ) gs
+                ) w
+                JOIN {SCHEMA}.tickets t
+                  ON t.created_at < w.we
+                 AND t.assigned_to IN ({ids})
+                LEFT JOIN (
+                    SELECT ticket_id, MAX(created_at) AS done_at
+                    FROM {SCHEMA}.ticket_history
+                    WHERE field_name = 'status_id'
+                      AND new_value IN ('Решена', 'Отменена')
+                    GROUP BY ticket_id
+                ) d ON d.ticket_id = t.id
+                WHERE d.done_at IS NULL OR d.done_at >= w.ws
             ) s
         ) q
         GROUP BY line, service, issue
-    """, args)
+    """, (w_end, w_start, w_end))
     rows = cur.fetchall()
 
     total = 0
