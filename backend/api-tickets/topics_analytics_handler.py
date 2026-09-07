@@ -245,79 +245,6 @@ def _first_response_rows(conn, month: str) -> Dict[str, Any]:
             'carried': carried, 'created': len(replied) - carried}
 
 
-def _first_response_by_user(conn, month: str) -> Dict[str, Any]:
-    """Время первого ответа в разрезе исполнителей: рабочее и календарное.
-
-    Как и в недельном блоке, берём работу месяца целиком: и заявки,
-    созданные в этом месяце, и переходящие с прошлого.
-    """
-    start, end = _month_bounds(month)
-    ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
-    cur = conn.cursor()
-    cur.execute(_first_response_sql(ids), (end,))
-    rows = cur.fetchall()
-
-    start_dt = datetime.fromisoformat(start)
-    end_dt = datetime.fromisoformat(end)
-    schedules = _load_schedules(conn)
-    acc: Dict[int, Dict[str, Any]] = {}
-
-    for r in rows:
-        if not _in_month(r, start_dt, end_dt):
-            continue
-        uid = int(r['assigned_to'])
-        it = acc.setdefault(uid, {
-            'name': (r['full_name'] or '').strip() or f'ID {uid}',
-            'work': [], 'cal': [], 'noReply': 0, 'carried': 0,
-        })
-        if not r['first_reply']:
-            it['noReply'] += 1
-            continue
-        if r['created_at'] < start_dt:
-            it['carried'] += 1
-        sched = schedules.get(uid) or DEFAULT_SCHEDULE
-        it['work'].append(_business_minutes(r['created_at'], r['first_reply'], sched))
-        it['cal'].append((r['first_reply'] - r['created_at']).total_seconds() / 60)
-
-    def _median(vals: List[float]) -> float:
-        n = len(vals)
-        if not n:
-            return 0.0
-        s = sorted(vals)
-        mid = n // 2
-        return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
-
-    users = []
-    for uid, it in acc.items():
-        n = len(it['work'])
-        if not n and not it['noReply']:
-            continue
-        users.append({
-            'name': it['name'],
-            'answered': n,
-            'noReply': it['noReply'],
-            'total': n + it['noReply'],
-            'carried': it['carried'],
-            'avgWorkMinutes': round(sum(it['work']) / n, 1) if n else 0,
-            'medianWorkMinutes': round(_median(it['work']), 1),
-            'avgMinutes': round(sum(it['cal']) / n, 1) if n else 0,
-            'medianMinutes': round(_median(it['cal']), 1),
-        })
-
-    # Без ответов среднее равно нулю — такие в конец, иначе они выглядят
-    # «самыми быстрыми», хотя не ответили ни разу.
-    users.sort(key=lambda u: (u['answered'] == 0, u['avgWorkMinutes']))
-    all_work = [v for it in acc.values() for v in it['work']]
-    all_cal = [v for it in acc.values() for v in it['cal']]
-    return {
-        'users': users,
-        'avgWorkMinutes': round(sum(all_work) / len(all_work), 1) if all_work else 0,
-        'avgMinutes': round(sum(all_cal) / len(all_cal), 1) if all_cal else 0,
-        'answered': len(all_work),
-        'carried': sum(it['carried'] for it in acc.values()),
-    }
-
-
 def _closed_by_user(conn, month: str) -> Dict[str, Any]:
     """Закрытые и отправленные на подтверждение заявки по исполнителям за месяц.
 
@@ -806,5 +733,4 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                           'delayReasons': _delay_reasons(conn, WEEKS_MONTH),
                           'rating': _rating_rows(conn, WEEKS_MONTH),
                           'reopened': _reopened_rows(conn, WEEKS_MONTH),
-                          'firstResponseByUser': _first_response_by_user(conn, WEEKS_MONTH),
                           'closedByUser': _closed_by_user(conn, WEEKS_MONTH)})
