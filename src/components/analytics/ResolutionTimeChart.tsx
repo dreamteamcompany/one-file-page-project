@@ -39,7 +39,8 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
           <div>
             <h2 className="font-bold">Среднее время решения</h2>
             <p className="text-muted-foreground text-sm">
-              От создания до статуса «Решена», август — новые и переходящие заявки
+              До статуса «Решена», август — новые и переходящие заявки. У заявок
+              прошлых месяцев время считается с 1 августа
             </p>
           </div>
           <div className="text-right">

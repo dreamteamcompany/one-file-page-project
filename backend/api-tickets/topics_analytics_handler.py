@@ -375,9 +375,12 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
         totals[wk] = totals.get(wk, 0) + 1
         if not solved or solved < r['created_at']:
             continue
-        cal = (r['solved_at'] - r['created_at']).total_seconds() / 3600
+        # Заявки, начатые в прошлых месяцах, считаем с начала этого месяца:
+        # иначе старые долгострои задирают среднее по неделе закрытия.
+        began = max(r['created_at'], start_dt)
+        cal = (r['solved_at'] - began).total_seconds() / 3600
         sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
-        work = _business_minutes(r['created_at'], r['solved_at'], sched) / 60
+        work = _business_minutes(began, r['solved_at'], sched) / 60
         buckets.setdefault(wk, []).append((cal, work))
 
     last_day = (date.fromisoformat(end) - timedelta(days=1)).day
