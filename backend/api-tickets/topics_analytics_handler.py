@@ -43,6 +43,18 @@ CASE
 END
 """
 
+# Заявка с шаблонным заголовком «Сообщить о проблеме» — это всегда сообщение
+# о сбое. В МИС такие по словам из описания часто попадали в «Доступы и права»
+# («нет прав», «доступ»), хотя человек сообщал о проблеме. Переносим их
+# в «Ошибки и сбои».
+ISSUE_OVERRIDE = """
+CASE
+  WHEN service = 'МИС' AND issue = 'Доступы и права'
+       AND x ~ '^\\s*сообщить о проблеме' THEN 'Ошибки и сбои'
+  ELSE issue
+END
+"""
+
 
 def _month_bounds(month: str) -> tuple:
     year, mon = int(month[:4]), int(month[5:7])
@@ -649,16 +661,17 @@ def _service_tickets(conn, params: Dict[str, Any], w_start: str, w_end: str,
     if not line or not service:
         return response(400, {'error': 'Нужно указать подразделение и сервис'})
 
-    extra = 'AND q.issue = %s' if issue else ''
+    extra = f'AND {ISSUE_OVERRIDE} = %s' if issue else ''
     args = [w_end, w_start, line, service] + ([issue] if issue else [])
 
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT q.id, q.title, q.created_at, q.closed_at, q.issue,
+        SELECT q.id, q.title, q.created_at, q.closed_at,
+               {ISSUE_OVERRIDE} AS issue,
                q.assignee, q.status
         FROM (
             SELECT s.id, s.title, s.created_at, s.closed_at,
-                   s.assignee, s.status,
+                   s.assignee, s.status, s.x,
                    {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
@@ -734,9 +747,10 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
 
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT line, service, issue, COUNT(*) AS cnt
+        SELECT line, service, {ISSUE_OVERRIDE} AS issue, COUNT(*) AS cnt
         FROM (
-            SELECT {_line_case()} AS line,
+            SELECT x,
+                   {_line_case()} AS line,
                    {SERVICE_CASE} AS service,
                    {ISSUE_CASE} AS issue
             FROM (
@@ -763,7 +777,7 @@ def handle_topics_analytics(method: str, event: Dict[str, Any], conn) -> Dict[st
                 WHERE d.done_at IS NULL OR d.done_at >= w.ws
             ) s
         ) q
-        GROUP BY line, service, issue
+        GROUP BY line, service, 3
     """, (w_end, w_start, w_end))
     rows = cur.fetchall()
 

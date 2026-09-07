@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { apiFetch, getApiUrl } from '@/utils/api';
 import Icon from '@/components/ui/icon';
 
@@ -34,7 +33,6 @@ const ServiceTicketsRows = ({
   issue,
   indent = 'pl-[4.5rem]',
 }: ServiceTicketsRowsProps) => {
-  const navigate = useNavigate();
   const [tickets, setTickets] = useState<ServiceTicket[] | null>(null);
   const [error, setError] = useState(false);
 
@@ -101,11 +99,15 @@ const ServiceTicketsRows = ({
       {tickets.map((t) => (
         <tr
           key={t.id}
-          onClick={() => navigate(`/tickets/${t.id}`)}
-          className="border-t border-border/20 bg-black/30 [.light_&]:bg-black/[0.05] cursor-pointer hover:bg-accent/25 transition-colors"
+          className="border-t border-border/20 bg-black/30 [.light_&]:bg-black/[0.05] hover:bg-accent/25 transition-colors"
         >
           <td className={`px-4 py-2 ${indent}`}>
-            <span className="flex items-start gap-2">
+            <a
+              href={`/tickets/${t.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-start gap-2 hover:underline"
+            >
               <Icon
                 name="ExternalLink"
                 size={13}
@@ -122,7 +124,7 @@ const ServiceTicketsRows = ({
                   {[t.assignee, t.status, t.issue].filter(Boolean).join(' · ')}
                 </span>
               </span>
-            </span>
+            </a>
           </td>
           <td className="px-4 py-2 text-xs text-muted-foreground whitespace-nowrap align-top">
             {fmt(t.createdAt)}
