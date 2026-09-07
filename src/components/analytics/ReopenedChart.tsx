@@ -20,7 +20,7 @@ const ReopenedChart = ({ data }: ReopenedChartProps) => {
           <div>
             <h2 className="font-bold">Повторно открытые заявки</h2>
             <p className="text-muted-foreground text-sm">
-              Закрыли, но пришлось возвращать в работу, август
+              Закрыли, но пришлось возвращать в работу, август — новые и переходящие
             </p>
           </div>
           <div className="text-right">

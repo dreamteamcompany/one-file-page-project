@@ -40,7 +40,7 @@ const ResolutionTimeChart = ({ data }: ResolutionTimeChartProps) => {
           <div>
             <h2 className="font-bold">Среднее время решения</h2>
             <p className="text-muted-foreground text-sm">
-              От создания до статуса «Решена», август
+              От создания до статуса «Решена», август — новые и переходящие заявки
             </p>
           </div>
           <div className="text-right">

@@ -34,7 +34,7 @@ const DelayReasonsChart = ({ data }: DelayReasonsChartProps) => {
           <div>
             <h2 className="font-bold">Кто кого ждёт в переписке</h2>
             <p className="text-muted-foreground text-sm">
-              Чей ход: время до ответа другой стороны, август
+              Чей ход: время до ответа другой стороны, август — новые и переходящие
             </p>
           </div>
           <TimeModeToggle value={mode} onChange={setMode} />

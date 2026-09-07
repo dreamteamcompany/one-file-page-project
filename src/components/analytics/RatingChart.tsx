@@ -19,7 +19,7 @@ const RatingChart = ({ data }: RatingChartProps) => {
           <div>
             <h2 className="font-bold">Средняя оценка</h2>
             <p className="text-muted-foreground text-sm">
-              Оценки пользователей после закрытия заявки, август
+              Оценки пользователей, август — новые и переходящие заявки
             </p>
           </div>
           <div className="text-right">

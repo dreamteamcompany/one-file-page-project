@@ -388,7 +388,11 @@ PAUSE_STATUSES = ['Приостановлена']
 
 
 def _resolution_rows(conn, month: str) -> Dict[str, Any]:
-    """Время от создания до решения по неделям месяца, в часах."""
+    """Время от создания до решения по неделям месяца, в часах.
+
+    Охват как в блоке по неделям: берём заявки, закрытые в этом месяце
+    (в том числе созданные раньше), и те, что на конец месяца ещё открыты.
+    """
     start, end = _month_bounds(month)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     done = ', '.join(DONE_STATUSES)
@@ -400,19 +404,29 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
                ) AS solved_at
         FROM {SCHEMA}.tickets t
         LEFT JOIN {SCHEMA}.ticket_history h ON h.ticket_id = t.id
-        WHERE t.created_at >= %s AND t.created_at < %s
+        WHERE t.created_at < %s
           AND t.assigned_to IN ({ids})
         GROUP BY t.id, t.created_at, t.assigned_to
-    """, (start, end))
+    """, (end,))
     rows = cur.fetchall()
 
+    start_dt = datetime.fromisoformat(start)
+    end_dt = datetime.fromisoformat(end)
     schedules = _load_schedules(conn)
     buckets: Dict[int, List[tuple]] = {}
     totals: Dict[int, int] = {}
     for r in rows:
-        wk = min((r['created_at'].day - 1) // 7 + 1, 5)
+        solved = r['solved_at']
+        # Закрытые в этом месяце — в неделю закрытия; ещё открытые — в неделю
+        # создания, если она в этом месяце. Остальное к месяцу не относится.
+        if solved and start_dt <= solved < end_dt:
+            wk = min((solved.day - 1) // 7 + 1, 5)
+        elif not solved and start_dt <= r['created_at'] < end_dt:
+            wk = min((r['created_at'].day - 1) // 7 + 1, 5)
+        else:
+            continue
         totals[wk] = totals.get(wk, 0) + 1
-        if not r['solved_at'] or r['solved_at'] < r['created_at']:
+        if not solved or solved < r['created_at']:
             continue
         cal = (r['solved_at'] - r['created_at']).total_seconds() / 3600
         sched = schedules.get(int(r['assigned_to'])) or DEFAULT_SCHEDULE
@@ -452,28 +466,49 @@ def _resolution_rows(conn, month: str) -> Dict[str, Any]:
             'avgWorkHours': round(sum(all_work) / n, 1) if n else 0}
 
 
+def _active_join(ids: str) -> str:
+    """Заявки, бывшие в работе в выбранном месяце: и новые, и переходящие.
+
+    Создана до конца месяца и на начало месяца ещё не была закрыта —
+    тот же охват, что в блоке «Заявки в работе по неделям».
+    """
+    return f"""
+        FROM {SCHEMA}.tickets t
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id'
+              AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) d ON d.ticket_id = t.id
+        WHERE t.created_at < %s
+          AND (d.done_at IS NULL OR d.done_at >= %s)
+          AND t.assigned_to IN ({ids})
+    """
+
+
 def _rating_rows(conn, month: str) -> Dict[str, Any]:
-    """Средняя оценка пользователей и распределение по звёздам."""
+    """Средняя оценка пользователей и распределение по звёздам.
+
+    Охват как в блоке по неделям: все заявки, бывшие в работе в этом месяце.
+    """
     start, end = _month_bounds(month)
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
+    active = _active_join(ids)
     cur = conn.cursor()
     cur.execute(f"""
         SELECT COUNT(*) AS total,
-               COUNT(rating) AS rated,
-               ROUND(AVG(rating)::numeric, 2) AS avg_rating
-        FROM {SCHEMA}.tickets
-        WHERE created_at >= %s AND created_at < %s
-          AND assigned_to IN ({ids})
-    """, (start, end))
+               COUNT(t.rating) AS rated,
+               ROUND(AVG(t.rating)::numeric, 2) AS avg_rating
+        {active}
+    """, (end, start))
     head = cur.fetchone()
 
     cur.execute(f"""
-        SELECT rating, COUNT(*) AS n
-        FROM {SCHEMA}.tickets
-        WHERE created_at >= %s AND created_at < %s
-          AND assigned_to IN ({ids}) AND rating IS NOT NULL
-        GROUP BY rating
-    """, (start, end))
+        SELECT t.rating, COUNT(*) AS n
+        {active} AND t.rating IS NOT NULL
+        GROUP BY t.rating
+    """, (end, start))
     by_star = {int(r['rating']): int(r['n']) for r in cur.fetchall()}
 
     rated = int(head['rated'] or 0)
@@ -494,7 +529,10 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
     ids = ','.join(str(int(i)) for line in LINE_MEMBERS.values() for i in line)
     cur = conn.cursor()
     cur.execute(f"""
-        SELECT LEAST((EXTRACT(DAY FROM t.created_at)::int - 1) / 7 + 1, 5) AS wk,
+        SELECT LEAST(
+                   (EXTRACT(DAY FROM GREATEST(t.created_at, %s::timestamp))::int - 1) / 7 + 1,
+                   5
+               ) AS wk,
                COUNT(DISTINCT t.id) FILTER (WHERE r.ticket_id IS NOT NULL) AS reopened,
                COUNT(DISTINCT t.id) FILTER (WHERE d.ticket_id IS NOT NULL) AS total
         FROM {SCHEMA}.tickets t
@@ -508,11 +546,19 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
             FROM {SCHEMA}.ticket_history
             WHERE field_name = 'status_id' AND new_value IN ('Решена', 'Отменена')
         ) d ON d.ticket_id = t.id
-        WHERE t.created_at >= %s AND t.created_at < %s
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id'
+              AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) dt ON dt.ticket_id = t.id
+        WHERE t.created_at < %s
+          AND (dt.done_at IS NULL OR dt.done_at >= %s)
           AND t.assigned_to IN ({ids})
         GROUP BY wk
         ORDER BY wk
-    """, (start, end))
+    """, (start, end, start))
 
     last_day = (date.fromisoformat(end) - timedelta(days=1)).day
     mon_name = RU_MONTHS_GEN[int(month[5:7]) - 1]
@@ -530,10 +576,18 @@ def _reopened_rows(conn, month: str) -> Dict[str, Any]:
         SELECT COUNT(*) AS events
         FROM {SCHEMA}.ticket_history h
         JOIN {SCHEMA}.tickets t ON t.id = h.ticket_id
+        LEFT JOIN (
+            SELECT ticket_id, MAX(created_at) AS done_at
+            FROM {SCHEMA}.ticket_history
+            WHERE field_name = 'status_id'
+              AND new_value IN ('Решена', 'Отменена')
+            GROUP BY ticket_id
+        ) dt ON dt.ticket_id = t.id
         WHERE h.field_name = 'status_id' AND h.new_value = 'Открыта повторно'
-          AND t.created_at >= %s AND t.created_at < %s
+          AND t.created_at < %s
+          AND (dt.done_at IS NULL OR dt.done_at >= %s)
           AND t.assigned_to IN ({ids})
-    """, (start, end))
+    """, (end, start))
     events = int(cur.fetchone()['events'] or 0)
 
     return {'weeks': weeks, 'count': tot_re, 'total': tot_all, 'events': events,
@@ -560,10 +614,11 @@ def _delay_reasons(conn, month: str) -> Dict[str, Any]:
         ) d ON d.ticket_id = t.id
         LEFT JOIN {SCHEMA}.ticket_comments c
                ON c.ticket_id = t.id AND c.is_internal = false
-        WHERE t.created_at >= %s AND t.created_at < %s
+        WHERE t.created_at < %s
+          AND (d.done_at IS NULL OR d.done_at >= %s)
           AND t.assigned_to IN ({ids})
         ORDER BY t.id, c.created_at
-    """, (start, end))
+    """, (end, start))
 
     tickets: Dict[int, Dict[str, Any]] = {}
     for r in cur.fetchall():
