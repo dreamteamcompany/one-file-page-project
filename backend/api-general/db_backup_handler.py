@@ -51,6 +51,19 @@ SELF_URL = 'https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc'
 # от случайного внешнего запроса — без него любой смог бы дёргать тяжёлую
 # выгрузку напрямую, в обход проверки прав на создание задачи.
 INTERNAL_SECRET = os.environ.get('INTERNAL_FUNCTION_SECRET')
+# Раньше здесь стоял read-таймаут 0.5 сек: этого хватало не всегда — при
+# «холодном старте» функция инициализируется 1-1.5 сек (видно в логах по
+# Function Init Duration), и обрыв чтения ответа раньше, чем платформа
+# успевала принять запрос, иногда обрывал соединение до того, как запрос
+# вообще дошёл до обработчика. Задача оставалась в статусе pending навсегда.
+# 6 секунд — с большим запасом на холодный старт, но всё ещё намного меньше
+# 150-секундного таймаута самой функции.
+SELF_CALL_READ_TIMEOUT = 6
+# Если после создания задачи прошло больше этого времени, а статус всё ещё
+# pending — считаем, что фоновый запуск не состоялся, и пробуем ещё раз
+# при следующем обращении к статусу. Без этого единственный сетевой сбой
+# самовызова навсегда хоронил задачу без единого шанса на повтор.
+STALE_PENDING_SECONDS = 15
 DUMP_PREFIX = 'db-backups'
 # Размер страницы при чтении данных. Небольшой намеренно: у функции
 # всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
@@ -663,6 +676,45 @@ def _sql_str(value: Optional[str]) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def _trigger_run(job_id: int, mode: str) -> Optional[str]:
+    """Пытается запустить фоновую выгрузку self-invoke вызовом.
+
+    Возвращает None при успешной отправке запроса, иначе — текст ошибки.
+    Два захода: если платформа не приняла запрос за первую попытку
+    (например, из-за кратковременной сетевой проблемы), даём ещё один шанс
+    вместо того, чтобы сразу хоронить задачу.
+    """
+    last_error: Optional[str] = None
+    for attempt in range(2):
+        try:
+            requests.post(
+                SELF_URL,
+                params={'resource': 'db_backup'},
+                json={'action': 'run', 'job_id': job_id, 'mode': mode},
+                headers={
+                    'Content-Type': 'application/json',
+                    'X-Internal-Secret': INTERNAL_SECRET,
+                },
+                # (connect, read): на установку соединения даём запас —
+                # «холодный старт» функции может занять 1-1.5 сек (видно в
+                # логах по Function Init Duration), и обрывать связь раньше
+                # этого нельзя — запрос рискует не дойти до обработчика.
+                # Секунды на чтение ответа хватает, чтобы принимающая
+                # сторона гарантированно успела прочитать тело запроса
+                # и начать работу, прежде чем мы отпустим соединение —
+                # именно после этого момента ей уже не важно, ждём мы или нет.
+                timeout=(5, SELF_CALL_READ_TIMEOUT),
+            )
+            return None
+        except requests.exceptions.ReadTimeout:
+            # Ожидаемо: сервер принял запрос и уже работает над задачей,
+            # просто мы не стали ждать окончания.
+            return None
+        except requests.exceptions.RequestException as exc:
+            last_error = str(exc)[:500]
+    return last_error
+
+
 def _create_job(conn, user_id: int, mode: str) -> int:
     cur = conn.cursor()
     try:
@@ -913,6 +965,21 @@ def handle_db_backup(method, event, conn, payload):
             job = _get_job(conn, int(job_id))
             if not job:
                 return response(404, {'error': 'Задача не найдена'})
+
+            # Самоисцеление: если самовызов при создании задачи не дошёл
+            # (сетевой сбой, обрыв соединения раньше времени и т.п.), задача
+            # осталась бы в pending навсегда — до этой правки так и было.
+            # При каждой проверке статуса даём ей ещё один шанс стартовать.
+            if job['status'] == 'pending':
+                created_at = job['created_at']
+                age = (datetime.now(timezone.utc) - created_at).total_seconds()
+                if age > STALE_PENDING_SECONDS:
+                    trigger_error = _trigger_run(job['id'], job['mode'])
+                    if trigger_error:
+                        _mark_job(job['id'], 'error',
+                                  error=f'Не удалось запустить фоновую задачу: {trigger_error}'[:1000])
+                        job = _get_job(conn, int(job_id))
+
             return response(200, {
                 'job_id': job['id'],
                 'mode': job['mode'],
@@ -981,29 +1048,9 @@ def handle_db_backup(method, event, conn, payload):
 
     job_id = _create_job(conn, int(user_id), mode)
 
-    try:
-        requests.post(
-            SELF_URL,
-            params={'resource': 'db_backup'},
-            json={'action': 'run', 'job_id': job_id, 'mode': mode},
-            headers={
-                'Content-Type': 'application/json',
-                'X-Internal-Secret': INTERNAL_SECRET,
-            },
-            # (connect, read): на установку соединения даём запас — «холодный
-            # старт» функции может занять пару секунд, и обрывать связь до
-            # того, как запрос вообще ушёл на сервер, нельзя. А вот ответа
-            # мы сознательно не ждём: следующая же строка кода на другой
-            # стороне встанет читать тело запроса и продолжит работать
-            # независимо от того, что происходит с этим соединением.
-            timeout=(3, 0.5),
-        )
-    except requests.exceptions.ReadTimeout:
-        # Ожидаемо: сервер принял запрос и уже работает над задачей,
-        # просто мы не стали ждать окончания.
-        pass
-    except requests.exceptions.RequestException as exc:
-        _mark_job(job_id, 'error', error=f'Не удалось запустить фоновую задачу: {exc}'[:1000])
+    trigger_error = _trigger_run(job_id, mode)
+    if trigger_error:
+        _mark_job(job_id, 'error', error=f'Не удалось запустить фоновую задачу: {trigger_error}'[:1000])
         return response(500, {'error': 'Не удалось запустить фоновую задачу'})
 
     return response(200, {'job_id': job_id, 'status': 'pending'})
