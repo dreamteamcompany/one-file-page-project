@@ -185,41 +185,61 @@ const TicketFiles = ({ comments }: TicketFilesProps) => {
                     const img = isImage(attachment.filename);
                     const icon = getFileIcon(attachment.filename);
                     return (
-                      <a
+                      <div
                         key={attachment.id}
-                        href={attachment.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        data-attachment-link
-                        className="group rounded-lg border bg-card hover:bg-accent transition-colors overflow-hidden flex flex-col"
-                        title={attachment.filename}
+                        className="group relative rounded-lg border bg-card hover:bg-accent transition-colors overflow-hidden flex flex-col"
                       >
-                        <div className="aspect-square bg-muted/40 flex items-center justify-center overflow-hidden">
-                          {img ? (
-                            <img
-                              src={attachment.url}
-                              alt={attachment.filename}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <Icon name={icon.name} size={48} className={icon.color} />
-                          )}
-                        </div>
-                        <div className="px-2 py-1.5 min-w-0">
-                          <p className="text-xs truncate font-medium">{attachment.filename}</p>
-                          <div className="flex items-center justify-between gap-1 mt-0.5">
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatTime(comment.created_at)}
-                            </span>
-                            {attachment.size > 0 && (
-                              <span className="text-[10px] text-muted-foreground">
-                                {formatSize(attachment.size)}
-                              </span>
+                        {/* Скачать — отдельной кнопкой, чтобы файл сохранялся сразу,
+                            а не открывался во вкладке просмотра. */}
+                        <a
+                          href={attachment.url}
+                          download={attachment.filename}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-attachment-link
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Скачать ${attachment.filename}`}
+                          aria-label={`Скачать ${attachment.filename}`}
+                          className="absolute top-1.5 right-1.5 z-10 flex items-center justify-center w-7 h-7 rounded-md bg-background/90 border shadow-sm text-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                        >
+                          <Icon name="Download" size={14} />
+                        </a>
+
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-attachment-link
+                          className="flex flex-col min-w-0"
+                          title={`Открыть ${attachment.filename}`}
+                        >
+                          <div className="aspect-square bg-muted/40 flex items-center justify-center overflow-hidden">
+                            {img ? (
+                              <img
+                                src={attachment.url}
+                                alt={attachment.filename}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <Icon name={icon.name} size={48} className={icon.color} />
                             )}
                           </div>
-                        </div>
-                      </a>
+                          <div className="px-2 py-1.5 min-w-0">
+                            <p className="text-xs truncate font-medium">{attachment.filename}</p>
+                            <div className="flex items-center justify-between gap-1 mt-0.5">
+                              <span className="text-[10px] text-muted-foreground">
+                                {formatTime(comment.created_at)}
+                              </span>
+                              {attachment.size > 0 && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {formatSize(attachment.size)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </a>
+                      </div>
                     );
                   })}
                 </div>

@@ -90,17 +90,34 @@ const TicketCommentsPinned = ({
               {p.attachments && p.attachments.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {p.attachments.map((file) => (
-                    <a
+                    <span
                       key={file.id}
-                      href={file.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      data-attachment-link
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-accent text-xs"
+                      className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded bg-muted hover:bg-accent text-xs"
                     >
-                      <Icon name="Paperclip" size={10} />
-                      <span className="truncate max-w-[160px]">{file.filename}</span>
-                    </a>
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-attachment-link
+                        className="inline-flex items-center gap-1 min-w-0"
+                        title={`Открыть ${file.filename}`}
+                      >
+                        <Icon name="Paperclip" size={10} />
+                        <span className="truncate max-w-[160px]">{file.filename}</span>
+                      </a>
+                      <a
+                        href={file.url}
+                        download={file.filename}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-attachment-link
+                        title={`Скачать ${file.filename}`}
+                        aria-label={`Скачать ${file.filename}`}
+                        className="flex-shrink-0 inline-flex items-center justify-center w-4 h-4 rounded hover:bg-primary hover:text-primary-foreground transition-colors"
+                      >
+                        <Icon name="Download" size={10} />
+                      </a>
+                    </span>
                   ))}
                 </div>
               )}

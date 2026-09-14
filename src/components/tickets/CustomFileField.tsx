@@ -166,15 +166,28 @@ const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
           )}
           <div className="flex-1 min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{current?.filename || 'Файл загружен'}</p>
-            <a
-              href={value}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-attachment-link
-              className="text-xs text-primary hover:underline"
-            >
-              Открыть
-            </a>
+            <div className="flex items-center gap-3">
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-attachment-link
+                className="text-xs text-primary hover:underline"
+              >
+                Открыть
+              </a>
+              <a
+                href={value}
+                download={current?.filename || ''}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-attachment-link
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <Icon name="Download" size={12} />
+                Скачать
+              </a>
+            </div>
           </div>
           <button
             type="button"

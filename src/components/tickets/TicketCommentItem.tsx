@@ -229,19 +229,40 @@ const TicketCommentItem = ({
             {comment.attachments && comment.attachments.length > 0 && (
               <div className="mt-2 space-y-1">
                 {comment.attachments.map((file) => (
-                  <a
+                  <div
                     key={file.id}
-                    href={file.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-attachment-link
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors ${
                       isOwn ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20' : 'bg-background/50 hover:bg-background'
                     }`}
                   >
-                    <Icon name="Paperclip" size={12} />
-                    <span>{file.filename}</span>
-                  </a>
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-attachment-link
+                      className="flex items-center gap-1.5 min-w-0 flex-1"
+                      title={`Открыть ${file.filename}`}
+                    >
+                      <Icon name="Paperclip" size={12} />
+                      <span className="truncate">{file.filename}</span>
+                    </a>
+                    <a
+                      href={file.url}
+                      download={file.filename}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-attachment-link
+                      title={`Скачать ${file.filename}`}
+                      aria-label={`Скачать ${file.filename}`}
+                      className={`flex-shrink-0 flex items-center justify-center w-5 h-5 rounded transition-colors ${
+                        isOwn
+                          ? 'hover:bg-primary-foreground/25'
+                          : 'hover:bg-primary hover:text-primary-foreground'
+                      }`}
+                    >
+                      <Icon name="Download" size={12} />
+                    </a>
+                  </div>
                 ))}
               </div>
             )}
