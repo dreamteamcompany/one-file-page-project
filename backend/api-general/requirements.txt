@@ -3,3 +3,4 @@ PyJWT
 bcrypt
 pydantic
 boto3
+requests

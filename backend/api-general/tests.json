@@ -29,6 +29,26 @@
       "method": "GET",
       "path": "/?resource=system_settings",
       "expectedStatus": 401
+    },
+    {
+      "name": "DB Backup Status Unauthorized",
+      "method": "GET",
+      "path": "/?resource=db_backup&action=status&job_id=1",
+      "expectedStatus": 401
+    },
+    {
+      "name": "DB Backup Create Unauthorized",
+      "method": "POST",
+      "path": "/?resource=db_backup",
+      "body": {"action": "create", "mode": "full"},
+      "expectedStatus": 401
+    },
+    {
+      "name": "DB Backup Internal Run Without Secret Forbidden",
+      "method": "POST",
+      "path": "/?resource=db_backup",
+      "body": {"action": "run", "job_id": 1, "mode": "full"},
+      "expectedStatus": 403
     }
   ]
 }

@@ -1,3 +1,4 @@
+import json
 import sys
 from shared_utils import response, get_db_connection, verify_token, handle_options, get_endpoint, SCHEMA
 from users_handler import handle_users
@@ -24,14 +25,32 @@ def handler(event, context):
     if method == 'OPTIONS':
         return handle_options()
     
-    payload = verify_token(event)
-    if not payload:
-        return response(401, {'error': 'Unauthorized'})
-    
     params = event.get('queryStringParameters', {}) or {}
     # Поддержка resource, endpoint и заголовка X-Endpoint (общий адрес = один CORS-preflight)
     resource = params.get('resource', '') or params.get('endpoint', '') or get_endpoint(event)
-    
+
+    # Фоновый прогон дампа БД — функция вызывает сама себя без токена
+    # пользователя, вместо него проверяется общий секрет внутри хендлера.
+    # Проверку JWT здесь пропускаем нарочно: иначе служебный вызов не
+    # дойдёт даже до этой проверки и всегда будет падать с 401.
+    if resource == 'db_backup' and method == 'POST':
+        try:
+            body = json.loads(event.get('body') or '{}')
+        except (ValueError, TypeError):
+            body = {}
+        if body.get('action') == 'run':
+            conn = get_db_connection()
+            if not conn:
+                return response(500, {'error': 'Database connection failed'})
+            try:
+                return handle_db_backup(method, event, conn, {})
+            finally:
+                conn.close()
+
+    payload = verify_token(event)
+    if not payload:
+        return response(401, {'error': 'Unauthorized'})
+
     if not resource:
         return response(400, {'error': 'Resource or endpoint parameter required'})
     

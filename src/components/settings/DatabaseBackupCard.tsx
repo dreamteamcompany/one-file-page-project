@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
@@ -23,6 +23,16 @@ type BackupResult = {
   expires_in_sec?: number;
   filename?: string;
   error?: string;
+  failed_checks?: string[];
+};
+
+type JobStatus = {
+  job_id: number;
+  mode: string;
+  status: 'pending' | 'running' | 'success' | 'error';
+  duration_sec: number | null;
+  result: BackupResult | null;
+  error: string | null;
 };
 
 const MODES = [
@@ -30,6 +40,10 @@ const MODES = [
   { id: 'no_logs', label: 'Без журналов', hint: 'рабочие данные, легче объём' },
   { id: 'schema', label: 'Только структура', hint: 'пустой каркас базы' },
 ] as const;
+
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 200; // 200 * 3с = 10 минут — щедрый запас на большую базу
+const LAST_JOB_KEY = 'db_backup_last_job_id';
 
 const formatSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} Б`;
@@ -42,6 +56,92 @@ const DatabaseBackupCard = () => {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<string>('full');
   const [result, setResult] = useState<BackupResult | null>(null);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const savedJobId = localStorage.getItem(LAST_JOB_KEY);
+    if (savedJobId) {
+      setLoading(true);
+      pollStatus(Number(savedJobId), 0, true);
+    }
+    return () => {
+      if (pollTimer.current) clearTimeout(pollTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pollStatus = (jobId: number, attempt: number, silent = false) => {
+    pollTimer.current = setTimeout(async () => {
+      try {
+        const url = `${getApiUrl('db_backup')}?resource=db_backup&action=status&job_id=${jobId}`;
+        const res = await apiFetch(url);
+        const data: JobStatus = await res.json();
+
+        if (!res.ok) {
+          setLoading(false);
+          localStorage.removeItem(LAST_JOB_KEY);
+          if (!silent) {
+            toast({
+              title: 'Копия не создана',
+              description: (data as unknown as { error?: string })?.error || 'Не удалось проверить статус',
+              variant: 'destructive',
+            });
+          }
+          return;
+        }
+
+        if (data.status === 'success' && data.result) {
+          setLoading(false);
+          setResult(data.result);
+          localStorage.removeItem(LAST_JOB_KEY);
+          toast({
+            title: 'Копия создана и проверена',
+            description: `${data.result.tables} таблиц, ${data.result.rows.toLocaleString('ru-RU')} записей, ${formatSize(data.result.size_bytes)}`,
+          });
+          return;
+        }
+
+        if (data.status === 'error') {
+          setLoading(false);
+          setResult(data.result);
+          localStorage.removeItem(LAST_JOB_KEY);
+          toast({
+            title: 'Копия не создана',
+            description: data.error || 'Не удалось выполнить выгрузку',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        if (attempt >= MAX_POLL_ATTEMPTS) {
+          setLoading(false);
+          localStorage.removeItem(LAST_JOB_KEY);
+          toast({
+            title: 'Копия ещё готовится',
+            description: 'Проверка занимает необычно много времени. Загляните на страницу позже.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // status: pending | running — продолжаем опрос
+        pollStatus(jobId, attempt + 1);
+      } catch (e) {
+        console.error(e);
+        if (attempt >= MAX_POLL_ATTEMPTS) {
+          setLoading(false);
+          localStorage.removeItem(LAST_JOB_KEY);
+          toast({
+            title: 'Ошибка соединения',
+            description: 'Не удалось проверить статус выгрузки',
+            variant: 'destructive',
+          });
+          return;
+        }
+        pollStatus(jobId, attempt + 1);
+      }
+    }, POLL_INTERVAL_MS);
+  };
 
   const handleCreate = async () => {
     setLoading(true);
@@ -50,34 +150,31 @@ const DatabaseBackupCard = () => {
       const url = `${getApiUrl('db_backup')}?resource=db_backup`;
       const res = await apiFetch(url, {
         method: 'POST',
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ action: 'create', mode }),
       });
 
-      const data: BackupResult = await res.json().catch(() => ({}) as BackupResult);
+      const data = await res.json().catch(() => ({}));
 
-      if (res.ok && data.success) {
-        setResult(data);
-        toast({
-          title: 'Копия создана и проверена',
-          description: `${data.tables} таблиц, ${data.rows.toLocaleString('ru-RU')} записей, ${formatSize(data.size_bytes)}`,
-        });
-      } else {
-        setResult(data && data.checks ? data : null);
+      if (!res.ok || !data.job_id) {
+        setLoading(false);
         toast({
           title: 'Копия не создана',
-          description: data?.error || 'Не удалось выполнить выгрузку',
+          description: data?.error || 'Не удалось запустить выгрузку',
           variant: 'destructive',
         });
+        return;
       }
+
+      localStorage.setItem(LAST_JOB_KEY, String(data.job_id));
+      pollStatus(data.job_id, 0);
     } catch (e) {
       console.error(e);
+      setLoading(false);
       toast({
         title: 'Ошибка соединения',
-        description: 'Выгрузка могла прерваться по времени. Попробуйте режим «Без журналов».',
+        description: 'Не удалось запустить выгрузку',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -129,7 +226,7 @@ const DatabaseBackupCard = () => {
 
         {loading && (
           <p className="text-xs text-muted-foreground">
-            Выгрузка большой базы занимает до минуты — не закрывайте страницу.
+            Копия готовится на сервере — это может занять несколько минут. Страницу можно закрыть, зайдите позже и запустите ещё раз, чтобы увидеть готовый файл.
           </p>
         )}
 

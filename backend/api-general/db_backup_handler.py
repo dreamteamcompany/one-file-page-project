@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import boto3
 from botocore.config import Config as BotoConfig
 import psycopg2
+import requests
 from psycopg2 import sql
 from psycopg2.extensions import ISOLATION_LEVEL_REPEATABLE_READ
 from psycopg2.extras import RealDictCursor
@@ -38,6 +39,18 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Ссылка даёт доступ к персональным данным, поэтому живёт ограниченное время.
 LINK_TTL_SECONDS = 3600
+
+# Собственный публичный адрес этой же функции (см. backend/func2url.json,
+# запись "api-general"). Нужен, чтобы поставить выгрузку в фон: короткий
+# запрос создаёт задачу и тут же вызывает сам себя ещё раз с флагом
+# action=run, не дожидаясь ответа. Прокси перед функциями обрывает соединение
+# по собственному таймауту заметно раньше 150-секундного таймаута функции —
+# именно поэтому обычный «дождаться ответа» подход не работает на большой базе.
+SELF_URL = 'https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc'
+# Секрет, которым фоновый запуск (action=run) отличает вызов от самого себя
+# от случайного внешнего запроса — без него любой смог бы дёргать тяжёлую
+# выгрузку напрямую, в обход проверки прав на создание задачи.
+INTERNAL_SECRET = os.environ.get('INTERNAL_FUNCTION_SECRET')
 DUMP_PREFIX = 'db-backups'
 # Размер страницы при чтении данных. Небольшой намеренно: у функции
 # всего 256 МБ памяти, а в базе есть таблицы по сотням мегабайт.
@@ -644,37 +657,84 @@ def _verify_dump(s3, keys: List[str], sha256: str, tables: List[str],
     return checks
 
 
-def handle_db_backup(method, event, conn, payload):
-    """Создаёт резервную копию базы и проверяет её пригодность к восстановлению."""
-    if method != 'POST':
-        return response(405, {'error': 'Method not allowed'})
+def _sql_str(value: Optional[str]) -> str:
+    if value is None:
+        return 'NULL'
+    return "'" + str(value).replace("'", "''") + "'"
 
-    user_id = payload.get('user_id')
-    if not user_id:
-        return response(401, {'error': 'User ID not found in token'})
 
-    # Права проверяем на основном соединении — оно уже открыто.
-    if not _is_admin(conn, int(user_id)):
-        return response(403, {'error': 'Доступ только для администратора'})
-
-    if not DATABASE_URL:
-        return response(500, {'error': 'DATABASE_URL is not configured'})
-    if not os.environ.get('AWS_ACCESS_KEY_ID'):
-        return response(500, {'error': 'Хранилище файлов не настроено'})
-
+def _create_job(conn, user_id: int, mode: str) -> int:
+    cur = conn.cursor()
     try:
-        body = json.loads(event.get('body') or '{}')
-    except (ValueError, TypeError):
-        body = {}
+        cur.execute(
+            "INSERT INTO db_backup_jobs (mode, status, started_by_user_id) "
+            f"VALUES ({_sql_str(mode)}, 'pending', {int(user_id)}) RETURNING id"
+        )
+        job_id = cur.fetchone()['id']
+        conn.commit()
+        return job_id
+    finally:
+        cur.close()
 
-    mode = str(body.get('mode') or 'full').lower()
-    if mode not in ('full', 'no_logs', 'schema'):
-        return response(400, {'error': 'mode: full | no_logs | schema'})
 
+def _get_job(conn, job_id: int) -> Optional[Dict[str, Any]]:
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT id, mode, status, started_by_user_id, created_at, "
+            "finished_at, duration_sec, result, error "
+            f"FROM db_backup_jobs WHERE id = {int(job_id)}"
+        )
+        return cur.fetchone()
+    finally:
+        cur.close()
+
+
+def _mark_job(job_id: int, status: str,
+              result: Optional[Dict[str, Any]] = None,
+              error: Optional[str] = None,
+              duration_sec: Optional[float] = None) -> None:
+    """Отдельное короткоживущее соединение: вызывается из фонового прогона,
+    у которого нет доступа к соединению исходного (уже завершённого) запроса."""
+    own_conn = psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        options=f'-c search_path={SCHEMA},public',
+    )
+    try:
+        cur = own_conn.cursor()
+        result_sql = (
+            "'" + json.dumps(result, ensure_ascii=False, default=str).replace("'", "''") + "'::jsonb"
+            if result is not None else 'NULL'
+        )
+        is_final = status in ('success', 'error')
+        # Без параметризации: текст ошибки (в т.ч. текст исключений самой
+        # СУБД) нередко содержит символ "%", а cur.execute с параметрами
+        # прогоняет ВЕСЬ текст запроса через %-форматирование — случайный
+        # "%" внутри уже вставленной строки сломал бы запрос. Экранирование
+        # здесь только через _sql_str, как и в остальном файле.
+        cur.execute(
+            "UPDATE db_backup_jobs SET "
+            f"status = {_sql_str(status)}, "
+            f"result = {result_sql}, "
+            f"error = {_sql_str(error)}, "
+            f"duration_sec = {duration_sec if duration_sec is not None else 'NULL'}, "
+            f"finished_at = {'now()' if is_final else 'finished_at'} "
+            f"WHERE id = {int(job_id)}"
+        )
+        own_conn.commit()
+    finally:
+        own_conn.close()
+
+
+def _run_backup_job(job_id: int, mode: str) -> None:
+    """Сама выгрузка. Выполняется в вызове с action=run, отдельно от того
+    запроса, что создал задачу, — поэтому долго работать ей не мешает
+    ничей таймаут ответа: отвечать по HTTP в конце уже не нужно никому."""
+    started = datetime.now(timezone.utc)
     include_logs = mode == 'full'
     with_data = mode != 'schema'
 
-    started = datetime.now(timezone.utc)
     stats: List[Dict[str, Any]] = []
     total_rows = 0
     tables: List[str] = []
@@ -682,6 +742,8 @@ def handle_db_backup(method, event, conn, payload):
 
     stamp = started.strftime('%Y%m%d-%H%M%S')
     key = f'{DUMP_PREFIX}/dreamdesk-{mode}-{stamp}.sql.gz'
+
+    _mark_job(job_id, 'running')
 
     s3 = _s3_client()
     # Дамп уходит в хранилище томами, в памяти держится только текущий том.
@@ -752,12 +814,16 @@ def handle_db_backup(method, event, conn, payload):
             gz.write(b'\nSET session_replication_role = DEFAULT;\nCOMMIT;\n')
         finally:
             cur.close()
-    except Exception:
+    except Exception as exc:
         # Незавершённая отправка иначе осталась бы висеть в хранилище
         # и занимать место.
         stream.abort()
-        raise
-    finally:
+        dump_conn.rollback()
+        dump_conn.close()
+        duration = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
+        _mark_job(job_id, 'error', error=str(exc)[:1000], duration_sec=duration)
+        return
+    else:
         # rollback, а не commit: транзакция была только на чтение.
         dump_conn.rollback()
         dump_conn.close()
@@ -769,6 +835,7 @@ def handle_db_backup(method, event, conn, payload):
     volume_keys = stream.keys
     checks = _verify_dump(s3, volume_keys, sha256, tables, with_data)
     ok = all(c['ok'] for c in checks)
+    duration = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
 
     result = {
         'success': ok,
@@ -780,7 +847,7 @@ def handle_db_backup(method, event, conn, payload):
         'size_bytes': dump_size,
         'sha256': sha256,
         'checks': checks,
-        'duration_sec': round((datetime.now(timezone.utc) - started).total_seconds(), 1),
+        'duration_sec': duration,
         'top_tables': sorted(stats, key=lambda x: -x['rows'])[:10],
     }
 
@@ -790,7 +857,8 @@ def handle_db_backup(method, event, conn, payload):
         stream.abort()
         result['error'] = 'Дамп не прошёл проверку целостности и был удалён'
         result['failed_checks'] = [c['name'] for c in checks if not c['ok']]
-        return response(500, result)
+        _mark_job(job_id, 'error', result=result, error=result['error'], duration_sec=duration)
+        return
 
     base_name = key.split('/')[-1]
     result['parts'] = [
@@ -809,4 +877,133 @@ def handle_db_backup(method, event, conn, payload):
         result['download_url'] = result['parts'][0]['url']
     result['expires_in_sec'] = LINK_TTL_SECONDS
     result['filename'] = base_name
-    return response(200, result)
+    _mark_job(job_id, 'success', result=result, duration_sec=duration)
+
+
+def handle_db_backup(method, event, conn, payload):
+    """Резервная копия базы: создание фоновой задачи, её выполнение
+    и опрос статуса — три действия под одним ресурсом db_backup.
+
+    Раньше функция делала выгрузку прямо в теле HTTP-ответа. На большой
+    базе это упиралось в таймаут прокси перед функцией: он обрывает
+    соединение заметно раньше 150-секундного таймаута самой функции,
+    если та долго не отвечает ни байтом, и тогда браузер получал 503,
+    хотя выгрузка внутри могла бы дойти до конца.
+
+    Теперь запрос с action=create мгновенно создаёт задачу в таблице
+    db_backup_jobs и сам себя вызывает ещё раз с action=run — не дожидаясь
+    ответа (задан короткий timeout, ReadTimeout ожидаем и это не ошибка).
+    Реальная выгрузка идёт в этом отдельном вызове и ничьим таймаутом
+    ответа больше не ограничена. Страница же просто периодически спрашивает
+    action=status по id задачи.
+    """
+    if method == 'GET':
+        params = event.get('queryStringParameters') or {}
+        action = params.get('action') or 'status'
+        job_id = params.get('job_id')
+
+        if action == 'status':
+            user_id = payload.get('user_id')
+            if not user_id:
+                return response(401, {'error': 'User ID not found in token'})
+            if not _is_admin(conn, int(user_id)):
+                return response(403, {'error': 'Доступ только для администратора'})
+            if not job_id:
+                return response(400, {'error': 'job_id is required'})
+            job = _get_job(conn, int(job_id))
+            if not job:
+                return response(404, {'error': 'Задача не найдена'})
+            return response(200, {
+                'job_id': job['id'],
+                'mode': job['mode'],
+                'status': job['status'],
+                'created_at': job['created_at'],
+                'finished_at': job['finished_at'],
+                'duration_sec': job['duration_sec'],
+                'result': job['result'],
+                'error': job['error'],
+            })
+
+        return response(400, {'error': 'action: status'})
+
+    if method != 'POST':
+        return response(405, {'error': 'Method not allowed'})
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (ValueError, TypeError):
+        body = {}
+
+    action = body.get('action') or 'create'
+
+    if action == 'run':
+        # Внутренний вызов функции самой собой. Токена пользователя тут
+        # нет и быть не должно — вместо него общий секрет, известный
+        # только двум сторонам одного и того же кода.
+        # Заголовки ищем без учёта регистра: платформа не гарантирует
+        # приведение имён заголовков к одному написанию.
+        headers = event.get('headers') or {}
+        secret = None
+        for hk, hv in headers.items():
+            if hk.lower() == 'x-internal-secret':
+                secret = hv
+                break
+        if not INTERNAL_SECRET or secret != INTERNAL_SECRET:
+            return response(403, {'error': 'Forbidden'})
+        job_id = body.get('job_id')
+        mode = body.get('mode')
+        if not job_id or mode not in ('full', 'no_logs', 'schema'):
+            return response(400, {'error': 'job_id and mode are required'})
+        _run_backup_job(int(job_id), mode)
+        return response(200, {'ok': True})
+
+    if action != 'create':
+        return response(400, {'error': 'action: create'})
+
+    user_id = payload.get('user_id')
+    if not user_id:
+        return response(401, {'error': 'User ID not found in token'})
+
+    # Права проверяем на основном соединении — оно уже открыто.
+    if not _is_admin(conn, int(user_id)):
+        return response(403, {'error': 'Доступ только для администратора'})
+
+    if not DATABASE_URL:
+        return response(500, {'error': 'DATABASE_URL is not configured'})
+    if not os.environ.get('AWS_ACCESS_KEY_ID'):
+        return response(500, {'error': 'Хранилище файлов не настроено'})
+    if not INTERNAL_SECRET:
+        return response(500, {'error': 'INTERNAL_FUNCTION_SECRET is not configured'})
+
+    mode = str(body.get('mode') or 'full').lower()
+    if mode not in ('full', 'no_logs', 'schema'):
+        return response(400, {'error': 'mode: full | no_logs | schema'})
+
+    job_id = _create_job(conn, int(user_id), mode)
+
+    try:
+        requests.post(
+            SELF_URL,
+            params={'resource': 'db_backup'},
+            json={'action': 'run', 'job_id': job_id, 'mode': mode},
+            headers={
+                'Content-Type': 'application/json',
+                'X-Internal-Secret': INTERNAL_SECRET,
+            },
+            # (connect, read): на установку соединения даём запас — «холодный
+            # старт» функции может занять пару секунд, и обрывать связь до
+            # того, как запрос вообще ушёл на сервер, нельзя. А вот ответа
+            # мы сознательно не ждём: следующая же строка кода на другой
+            # стороне встанет читать тело запроса и продолжит работать
+            # независимо от того, что происходит с этим соединением.
+            timeout=(3, 0.5),
+        )
+    except requests.exceptions.ReadTimeout:
+        # Ожидаемо: сервер принял запрос и уже работает над задачей,
+        # просто мы не стали ждать окончания.
+        pass
+    except requests.exceptions.RequestException as exc:
+        _mark_job(job_id, 'error', error=f'Не удалось запустить фоновую задачу: {exc}'[:1000])
+        return response(500, {'error': 'Не удалось запустить фоновую задачу'})
+
+    return response(200, {'job_id': job_id, 'status': 'pending'})
