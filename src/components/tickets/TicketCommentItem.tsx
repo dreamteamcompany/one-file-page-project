@@ -234,6 +234,7 @@ const TicketCommentItem = ({
                     href={file.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    data-attachment-link
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-colors ${
                       isOwn ? 'bg-primary-foreground/10 hover:bg-primary-foreground/20' : 'bg-background/50 hover:bg-background'
                     }`}

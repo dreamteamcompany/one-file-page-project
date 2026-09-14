@@ -95,6 +95,7 @@ const TicketCommentsPinned = ({
                       href={file.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      data-attachment-link
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-accent text-xs"
                     >
                       <Icon name="Paperclip" size={10} />

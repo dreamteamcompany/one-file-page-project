@@ -230,14 +230,23 @@ export const useTicketDetailsPage = () => {
         return;
       }
 
+      // скачивание вложений — не навигация: заказчик остаётся на странице,
+      // а файл нужен именно для того, чтобы проверить работу перед решением.
+      if (target.closest('[data-attachment-link]')) return;
+
       // перехватываем только навигацию: ссылки, пункты меню и явную кнопку «Назад»
       const navEl = target.closest('a[href], [role="link"], [role="menuitem"], [data-back-button]') as HTMLElement | null;
       if (!navEl) return;
 
       // ссылка, ведущая на эту же страницу — пропускаем
       if (navEl.tagName === 'A') {
-        const href = (navEl as HTMLAnchorElement).getAttribute('href') || '';
+        const anchor = navEl as HTMLAnchorElement;
+        const href = anchor.getAttribute('href') || '';
         if (!href || href.startsWith('#')) return;
+        // ссылка открывается в новой вкладке — текущую страницу она не покидает,
+        // значит подтверждать решение перед этим не нужно
+        if (anchor.target === '_blank') return;
+        if (anchor.hasAttribute('download')) return;
         try {
           const url = new URL(href, window.location.origin);
           if (url.pathname + url.search === currentPath) return;

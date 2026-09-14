@@ -170,6 +170,7 @@ const CustomFileField = ({ value, onChange, accept }: CustomFileFieldProps) => {
               href={value}
               target="_blank"
               rel="noopener noreferrer"
+              data-attachment-link
               className="text-xs text-primary hover:underline"
             >
               Открыть

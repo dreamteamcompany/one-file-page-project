@@ -190,6 +190,7 @@ const TicketFiles = ({ comments }: TicketFilesProps) => {
                         href={attachment.url}
                         target="_blank"
                         rel="noopener noreferrer"
+                        data-attachment-link
                         className="group rounded-lg border bg-card hover:bg-accent transition-colors overflow-hidden flex flex-col"
                         title={attachment.filename}
                       >
