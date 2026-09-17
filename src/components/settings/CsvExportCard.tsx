@@ -23,6 +23,13 @@ type ExportResult = {
   error?: string;
 };
 
+type JobProgress = {
+  tables_done: number;
+  tables_total: number;
+  rows: number;
+  current_table: string | null;
+};
+
 type JobStatus = {
   job_id: number;
   scope: string;
@@ -31,6 +38,7 @@ type JobStatus = {
   duration_sec: number | null;
   result: ExportResult | null;
   error: string | null;
+  progress: JobProgress | null;
 };
 
 type Scope = 'all' | 'all_no_logs' | 'table';
@@ -42,7 +50,7 @@ const SCOPES: { id: Scope; label: string; hint: string }[] = [
 ];
 
 const POLL_INTERVAL_MS = 3000;
-const MAX_POLL_ATTEMPTS = 200; // 200 * 3с = 10 минут — запас на большую базу
+const MAX_POLL_ATTEMPTS = 600; // 600 * 3с = 30 минут — запас на большую базу
 const LAST_JOB_KEY = 'csv_export_last_job_id';
 
 const formatSize = (bytes: number): string => {
@@ -58,6 +66,7 @@ const CsvExportCard = () => {
   const [tables, setTables] = useState<ExportTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [result, setResult] = useState<ExportResult | null>(null);
+  const [progress, setProgress] = useState<JobProgress | null>(null);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -106,8 +115,11 @@ const CsvExportCard = () => {
           return;
         }
 
+        if (data.progress) setProgress(data.progress);
+
         if (data.status === 'success' && data.result) {
           setLoading(false);
+          setProgress(null);
           setResult(data.result);
           localStorage.removeItem(LAST_JOB_KEY);
           toast({
@@ -119,6 +131,7 @@ const CsvExportCard = () => {
 
         if (data.status === 'error') {
           setLoading(false);
+          setProgress(null);
           setResult(data.result);
           localStorage.removeItem(LAST_JOB_KEY);
           toast({
@@ -170,6 +183,7 @@ const CsvExportCard = () => {
 
     setLoading(true);
     setResult(null);
+    setProgress(null);
     try {
       const url = `${getApiUrl('csv_export')}?resource=csv_export`;
       const res = await apiFetch(url, {
@@ -268,10 +282,37 @@ const CsvExportCard = () => {
         </div>
 
         {loading && (
-          <p className="text-xs text-muted-foreground">
-            Файл готовится на сервере — это может занять несколько минут. Страницу можно закрыть
-            и вернуться позже, выгрузка продолжится.
-          </p>
+          <div className="space-y-2">
+            {progress && progress.tables_total > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    {progress.current_table
+                      ? `Выгружаю: ${progress.current_table}`
+                      : 'Собираю архив'}
+                  </span>
+                  <span className="font-medium">
+                    {progress.tables_done} из {progress.tables_total}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-sky-500 transition-all duration-500"
+                    style={{
+                      width: `${Math.round((progress.tables_done / progress.tables_total) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Записей выгружено: {progress.rows.toLocaleString('ru-RU')}
+                </p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Файл готовится на сервере — это может занять несколько минут. Страницу можно закрыть
+              и вернуться позже, выгрузка продолжится.
+            </p>
+          </div>
         )}
 
         {result?.success && (

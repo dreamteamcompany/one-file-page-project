@@ -690,11 +690,12 @@ def _trigger_run(job_id: int, mode: str) -> Optional[str]:
             requests.post(
                 SELF_URL,
                 params={'resource': 'db_backup'},
-                json={'action': 'run', 'job_id': job_id, 'mode': mode},
-                headers={
-                    'Content-Type': 'application/json',
-                    'X-Internal-Secret': INTERNAL_SECRET,
-                },
+                # Секрет идёт В ТЕЛЕ запроса: платформа не доносит до
+                # функции произвольные заголовки, из-за чего самовызов
+                # отвергался с 403 и задача навсегда зависала в pending.
+                json={'action': 'run', 'job_id': job_id, 'mode': mode,
+                      'secret': INTERNAL_SECRET},
+                headers={'Content-Type': 'application/json'},
                 # (connect, read): на установку соединения даём запас —
                 # «холодный старт» функции может занять 1-1.5 сек (видно в
                 # логах по Function Init Duration), и обрывать связь раньше
@@ -1009,12 +1010,15 @@ def handle_db_backup(method, event, conn, payload):
         # только двум сторонам одного и того же кода.
         # Заголовки ищем без учёта регистра: платформа не гарантирует
         # приведение имён заголовков к одному написанию.
+        # Секрет принимаем и из тела, и из заголовка: заголовки платформа
+        # до функции не доносит, поэтому основной путь — тело запроса.
         headers = event.get('headers') or {}
-        secret = None
-        for hk, hv in headers.items():
-            if hk.lower() == 'x-internal-secret':
-                secret = hv
-                break
+        secret = body.get('secret')
+        if not secret:
+            for hk, hv in headers.items():
+                if hk.lower() == 'x-internal-secret':
+                    secret = hv
+                    break
         if not INTERNAL_SECRET or secret != INTERNAL_SECRET:
             return response(403, {'error': 'Forbidden'})
         job_id = body.get('job_id')

@@ -22,10 +22,10 @@ import csv
 import io
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from zipfile import ZipFile, ZIP_DEFLATED
 
 import boto3
 from botocore.config import Config as BotoConfig
@@ -37,6 +37,7 @@ from psycopg2.extras import RealDictCursor
 from psycopg2.extensions import cursor as PlainCursor
 
 from shared_utils import response, SCHEMA
+import csv_export_zip as ZIPFMT
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
@@ -49,6 +50,16 @@ SELF_URL = 'https://functions.poehali.dev/adff2697-72f0-4316-9424-1f79ff8ed3cc'
 INTERNAL_SECRET = os.environ.get('INTERNAL_FUNCTION_SECRET')
 SELF_CALL_READ_TIMEOUT = 6
 STALE_PENDING_SECONDS = 15
+
+# Сколько один вызов работает, прежде чем передать эстафету следующему.
+# Замер показал: платформа обрывает функцию примерно через минуту, поэтому
+# берём заметно меньше — нужен запас на отправку последнего тома,
+# сохранение прогресса и вызов следующего отрезка.
+STEP_BUDGET_SECONDS = 25
+
+# Если задача не подавала признаков жизни дольше этого времени, считаем
+# цепочку оборванной и запускаем следующий отрезок заново.
+STALE_RUNNING_SECONDS = 120
 
 EXPORT_PREFIX = 'csv-exports'
 
@@ -78,6 +89,11 @@ LOG_TABLES = {
 }
 
 SCOPES = ('table', 'all', 'all_no_logs')
+
+
+def _log(message: str) -> None:
+    """Сообщение в журнал функции (stderr попадает в логи платформы)."""
+    print(f'[csv_export] {message}', file=sys.stderr, flush=True)
 
 
 def _connect_readonly():
@@ -205,144 +221,11 @@ def _execute_with_retry(conn, query, params=None, tuples: bool = False):
     raise last_error
 
 
-class _VolumeWriter:
-    """Файл пишется в хранилище томами по несколько мегабайт.
-
-    Прямые пути закрыты: собрать файл в памяти нельзя (данных больше, чем
-    памяти у функции), многочастная отправка хранилищем запрещена, а /tmp
-    у облачной функции — та же оперативная память. Поэтому поток режется
-    на тома, каждый уходит отдельной отправкой и освобождает память.
-    Режется именно поток байтов, поэтому склейка томов по порядку даёт
-    в точности исходный файл.
-
-    Методы flush/tell нужны модулю zipfile: он проверяет, умеет ли
-    приёмник перематываться (tell есть, seek нет — пишет в потоковом
-    режиме) и вызывает flush при закрытии архива.
-    """
-
-    def __init__(self, s3, bucket: str, key_prefix: str):
-        self._s3 = s3
-        self._bucket = bucket
-        self._prefix = key_prefix
-        self._buf = bytearray()
-        self.size = 0
-        self.keys: List[str] = []
-
-    def write(self, data: bytes) -> int:
-        data = bytes(data)
-        self.size += len(data)
-        self._buf.extend(data)
-        while len(self._buf) >= VOLUME_SIZE:
-            self._flush(VOLUME_SIZE)
-        return len(data)
-
-    def flush(self) -> None:
-        # Промежуточный сброс тут не нужен: том отправляется по мере
-        # накопления, а хвост уходит в finish().
-        pass
-
-    def tell(self) -> int:
-        return self.size
-
-    def _flush(self, length: int) -> None:
-        chunk = bytes(self._buf[:length])
-        del self._buf[:length]
-        key = f'{self._prefix}.part{len(self.keys) + 1:03d}'
-        self._s3.put_object(
-            Bucket=self._bucket,
-            Key=key,
-            Body=chunk,
-            ContentType='application/octet-stream',
-        )
-        self.keys.append(key)
-
-    def finish(self) -> None:
-        if self._buf or not self.keys:
-            self._flush(len(self._buf))
-
-    def abort(self) -> None:
-        # Отправленные тома без остальных бесполезны — убираем, чтобы они
-        # не занимали место и не выглядели готовой выгрузкой.
-        for key in self.keys:
-            try:
-                self._s3.delete_object(Bucket=self._bucket, Key=key)
-            except Exception:
-                pass
-        self.keys = []
-
-
 def _page_rows(avg_row_bytes: float) -> int:
     rows = MAX_PAGE_ROWS
     if avg_row_bytes > 0:
         rows = int(PAGE_TARGET_BYTES / avg_row_bytes)
     return max(MIN_PAGE_ROWS, min(MAX_PAGE_ROWS, rows))
-
-
-def _write_csv(conn, table: str, columns: List[str], sink,
-               avg_row_bytes: float) -> int:
-    """Выгрузка одной таблицы в CSV. sink — функция записи байтов.
-
-    Каждое поле приводится к тексту силами самой СУБД: так даты, массивы,
-    JSON и двоичные данные получают то же представление, что и в самой
-    базе. Ручное преобразование в Python легко исказило бы значения.
-    """
-    if not columns:
-        return 0
-
-    select_list = ', '.join(f'"{c}"::text' for c in columns)
-
-    buf = io.StringIO()
-    writer = csv.writer(buf, delimiter=',', quotechar='"',
-                        lineterminator='\r\n', quoting=csv.QUOTE_MINIMAL)
-
-    def emit() -> None:
-        data = buf.getvalue()
-        if data:
-            sink(data.encode('utf-8'))
-        buf.seek(0)
-        buf.truncate(0)
-
-    writer.writerow(columns)
-    emit()
-
-    # Читаем страницами через LIMIT/OFFSET: серверный курсор на этой
-    # платформе недоступен (DECLARE/FETCH отклоняются).
-    # ORDER BY по физическому адресу строки ctid: он есть у любой таблицы,
-    # не требует первичного ключа и не заставляет базу сортировать данные.
-    page = _page_rows(avg_row_bytes)
-    rows = 0
-    offset = 0
-    while True:
-        batch = _execute_with_retry(
-            conn,
-            sql.SQL('SELECT {} FROM {} ORDER BY ctid LIMIT %s OFFSET %s').format(
-                sql.SQL(select_list),
-                sql.Identifier(SCHEMA, table),
-            ),
-            (page, offset),
-            tuples=True,
-        )
-        if not batch:
-            break
-
-        got = len(batch)
-        rows += got
-
-        # Отдаём порциями, освобождая память по ходу: собирать весь блок
-        # целиком нельзя, памяти у функции немного.
-        while batch:
-            piece = batch[:500]
-            del batch[:500]
-            for row in piece:
-                writer.writerow(['' if v is None else v for v in row])
-            emit()
-            del piece
-
-        if got < page:
-            break
-        offset += page
-
-    return rows
 
 
 def _trigger_run(job_id: int) -> Optional[str]:
@@ -352,28 +235,33 @@ def _trigger_run(job_id: int) -> Optional[str]:
     сетевой сбой не должен навсегда хоронить задачу.
     """
     last_error: Optional[str] = None
-    for _ in range(2):
+    for attempt in range(2):
         try:
-            requests.post(
+            r = requests.post(
                 SELF_URL,
                 params={'resource': 'csv_export'},
-                json={'action': 'run', 'job_id': job_id},
-                headers={
-                    'Content-Type': 'application/json',
-                    'X-Internal-Secret': INTERNAL_SECRET,
-                },
+                # Секрет идёт В ТЕЛЕ запроса, а не в заголовке: платформа
+                # не пропускает произвольные заголовки к функции, и вызов
+                # самого себя отвергался с 403 (так же падали и резервные
+                # копии базы). Тело запроса доходит без изменений.
+                json={'action': 'run', 'job_id': job_id, 'secret': INTERNAL_SECRET},
+                headers={'Content-Type': 'application/json'},
                 # На установку соединения даём запас: «холодный старт»
                 # функции занимает 1-1.5 сек, обрывать связь раньше нельзя —
                 # запрос рискует не дойти до обработчика.
                 timeout=(5, SELF_CALL_READ_TIMEOUT),
             )
+            _log(f'trigger job={job_id} attempt={attempt} status={r.status_code} '
+                 f'body={r.text[:300]}')
             return None
         except requests.exceptions.ReadTimeout:
             # Ожидаемо: сервер принял запрос и уже работает, просто мы
             # не стали ждать окончания.
+            _log(f'trigger job={job_id} attempt={attempt} read-timeout (ожидаемо)')
             return None
         except requests.exceptions.RequestException as exc:
-            last_error = str(exc)[:500]
+            last_error = f'{type(exc).__name__}: {exc}'[:500]
+            _log(f'trigger job={job_id} attempt={attempt} FAILED {last_error}')
     return last_error
 
 
@@ -397,7 +285,7 @@ def _get_job(conn, job_id: int) -> Optional[Dict[str, Any]]:
     try:
         cur.execute(
             "SELECT id, scope, table_name, status, started_by_user_id, created_at, "
-            "finished_at, duration_sec, result, error "
+            "finished_at, duration_sec, result, error, progress, heartbeat_at "
             f"FROM csv_export_jobs WHERE id = {int(job_id)}"
         )
         return cur.fetchone()
@@ -440,118 +328,294 @@ def _mark_job(job_id: int, status: str,
         own_conn.close()
 
 
-def _run_export_job(job_id: int, scope: str, table: Optional[str]) -> None:
-    """Сама выгрузка. Выполняется отдельным вызовом с action=run, поэтому
-    ничей таймаут ответа ей не мешает: отвечать по HTTP уже некому."""
-    started = datetime.now(timezone.utc)
-    stamp = started.strftime('%Y%m%d-%H%M%S')
-
+def _init_progress(job_id: int, scope: str, table: Optional[str]) -> Dict[str, Any]:
+    """Подготовка плана выгрузки: какие таблицы и в какой файл писать."""
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')
     single = scope == 'table'
-    if single:
-        base_name = f'{table}-{stamp}.csv'
-    else:
-        suffix = 'all' if scope == 'all' else 'all-no-logs'
-        base_name = f'dreamdesk-{suffix}-{stamp}.zip'
-    key = f'{EXPORT_PREFIX}/{base_name}'
+    base_name = (f'{table}-{stamp}.csv' if single
+                 else f'dreamdesk-{"all" if scope == "all" else "all-no-logs"}-{stamp}.zip')
 
-    _mark_job(job_id, 'running')
-
-    s3 = _s3_client()
-    stream = _VolumeWriter(s3, 'files', key)
-    archive = None if single else ZipFile(stream, 'w', ZIP_DEFLATED, allowZip64=True)
-
-    stats: List[Dict[str, Any]] = []
-    total_rows = 0
-    snapshot_at = None
-
-    dump_conn = _connect_readonly()
+    probe = _connect_readonly()
     try:
-        cur = dump_conn.cursor()
+        cur = probe.cursor()
         try:
-            # Первый запрос в транзакции открывает снимок: в режиме
-            # REPEATABLE READ момент фиксируется здесь, и все запросы ниже
-            # видят базу одинаковой.
-            cur.execute('SELECT now() AS ts')
-            snapshot_at = cur.fetchone()['ts']
-
             all_tables, avg_row_bytes = _fetch_tables(cur, include_logs=True)
             columns_map = _load_columns(cur)
-
-            if single:
-                if table not in all_tables:
-                    raise ValueError(f'Таблица не найдена: {table}')
-                targets = [table]
-            elif scope == 'all_no_logs':
-                targets = [t for t in all_tables if t not in LOG_TABLES]
-            else:
-                targets = all_tables
-
-            for name in targets:
-                columns = columns_map.get(name, [])
-                if single:
-                    rows = _write_csv(dump_conn, name, columns, stream.write,
-                                      avg_row_bytes.get(name, 0.0))
-                else:
-                    # Поток отдельного файла внутри архива: zipfile сжимает
-                    # его на лету и отдаёт байты тому же писателю томов.
-                    with archive.open(f'{name}.csv', 'w') as entry:
-                        rows = _write_csv(dump_conn, name, columns, entry.write,
-                                          avg_row_bytes.get(name, 0.0))
-                stats.append({'table': name, 'rows': rows})
-                total_rows += rows
         finally:
             cur.close()
+    finally:
+        probe.rollback()
+        probe.close()
+
+    if single:
+        if table not in all_tables:
+            raise ValueError(f'Таблица не найдена: {table}')
+        targets = [table]
+    elif scope == 'all_no_logs':
+        targets = [t for t in all_tables if t not in LOG_TABLES]
+    else:
+        targets = all_tables
+
+    return {
+        'single': single,
+        'base_name': base_name,
+        'key': f'{EXPORT_PREFIX}/{base_name}',
+        'targets': targets,
+        'columns': {t: columns_map.get(t, []) for t in targets},
+        'page_rows': {t: _page_rows(avg_row_bytes.get(t, 0.0)) for t in targets},
+        'table_index': 0,
+        'offset': 0,
+        'header_written': False,
+        'volume_index': 0,
+        'tail': '',
+        'bytes_written': 0,
+        'total_rows': 0,
+        'stats': [],
+        'members': [],
+        'entry': None,
+        'started_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _save_progress(job_id: int, progress: Dict[str, Any], status: str = 'running') -> None:
+    own = psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor,
+        options=f'-c search_path={SCHEMA},public',
+    )
+    try:
+        cur = own.cursor()
+        payload = json.dumps(progress, ensure_ascii=False, default=str).replace("'", "''")
+        cur.execute(
+            "UPDATE csv_export_jobs SET "
+            f"status = {_sql_str(status)}, "
+            f"progress = '{payload}'::jsonb, "
+            "heartbeat_at = now() "
+            f"WHERE id = {int(job_id)}"
+        )
+        own.commit()
+    finally:
+        own.close()
+
+
+def _run_export_step(job_id: int, scope: str, table: Optional[str],
+                     progress: Optional[Dict[str, Any]]) -> None:
+    """Один ОТРЕЗОК выгрузки: работает ограниченное время и передаёт эстафету.
+
+    Облачная функция живёт около минуты, а выгрузка всей базы занимает
+    больше. Поэтому вызов работает STEP_BUDGET_SECONDS, сохраняет прогресс
+    (на какой таблице и строке остановился, сколько байт уже отправлено)
+    и вызывает сам себя ещё раз. Следующий вызов продолжает ровно оттуда.
+
+    Из-за разбиения на отрезки снимок «на один момент времени» здесь не
+    обещается: каждый отрезок читает базу заново. Для выгрузки в Excel это
+    несущественно, а кому нужен именно консистентный слепок — есть
+    резервная копия базы, она делает снимок в одной транзакции.
+    """
+    step_started = time.time()
+
+    if progress is None:
+        progress = _init_progress(job_id, scope, table)
+        _save_progress(job_id, progress)
+
+    s3 = _s3_client()
+    single = progress['single']
+    key = progress['key']
+    targets = progress['targets']
+
+    # Буфер текущего тома: том отправляется целиком, как только набирается.
+    buf = bytearray()
+
+    def flush_volume(force: bool = False) -> None:
+        """Отправить накопленные тома. force — дослать и неполный хвост."""
+        while buf and (force or len(buf) >= VOLUME_SIZE):
+            length = min(len(buf), VOLUME_SIZE)
+            chunk = bytes(buf[:length])
+            del buf[:length]
+            progress['volume_index'] += 1
+            s3.put_object(
+                Bucket='files',
+                Key=f'{key}.part{progress["volume_index"]:03d}',
+                Body=chunk,
+                ContentType='application/octet-stream',
+            )
+            progress['bytes_written'] += len(chunk)
+
+    def emit(data: bytes) -> None:
+        buf.extend(data)
+        flush_volume()
+
+    dump_conn = _connect_readonly()
+    finished = False
+    try:
+        while progress['table_index'] < len(targets):
+            name = targets[progress['table_index']]
+            columns = progress['columns'].get(name, [])
+            page = progress['page_rows'].get(name, MAX_PAGE_ROWS)
+
+            # Начало новой таблицы: в архиве — заголовок файла.
+            if not progress['header_written']:
+                progress['entry'] = {
+                    'name': f'{name}.csv',
+                    'crc': 0,
+                    'csize': 0,
+                    'usize': 0,
+                    'hoff': progress['bytes_written'] + len(buf),
+                }
+                if not single:
+                    emit(ZIPFMT.local_header(f'{name}.csv'))
+                if columns:
+                    header = _csv_line(columns)
+                    _append_entry(progress, emit, header, single)
+                progress['header_written'] = True
+
+            table_done = False
+            if columns:
+                batch = _execute_with_retry(
+                    dump_conn,
+                    sql.SQL('SELECT {} FROM {} ORDER BY ctid LIMIT %s OFFSET %s').format(
+                        sql.SQL(', '.join(f'"{c}"::text' for c in columns)),
+                        sql.Identifier(SCHEMA, name),
+                    ),
+                    (page, progress['offset']),
+                    tuples=True,
+                )
+                got = len(batch)
+                if got:
+                    text_parts: List[str] = []
+                    while batch:
+                        piece = batch[:500]
+                        del batch[:500]
+                        text_parts.append(''.join(_csv_line(row) for row in piece))
+                        del piece
+                    _append_entry(progress, emit, ''.join(text_parts), single)
+                    progress['offset'] += got
+                    progress['total_rows'] += got
+                table_done = got < page
+            else:
+                table_done = True
+
+            if table_done:
+                # Таблица закончена: закрываем её запись в архиве.
+                if not single:
+                    emit(ZIPFMT.DEFLATE_TAIL)
+                    progress['entry']['csize'] += len(ZIPFMT.DEFLATE_TAIL)
+                    emit(ZIPFMT.data_descriptor(
+                        progress['entry']['crc'],
+                        progress['entry']['csize'],
+                        progress['entry']['usize'],
+                    ))
+                    progress['members'].append(progress['entry'])
+                progress['stats'].append({'table': name, 'rows': progress['offset']})
+                progress['table_index'] += 1
+                progress['offset'] = 0
+                progress['header_written'] = False
+                progress['entry'] = None
+
+            if time.time() - step_started > STEP_BUDGET_SECONDS:
+                break
+
+        finished = progress['table_index'] >= len(targets)
+
+        if finished and not single:
+            # Оглавление архива пишется в самом конце.
+            cd_offset = progress['bytes_written'] + len(buf)
+            cd = ZIPFMT.central_directory(progress['members'])
+            emit(cd)
+            emit(ZIPFMT.end_of_central_directory(
+                len(progress['members']), len(cd), cd_offset))
+
+        if finished:
+            flush_volume(force=True)
     except Exception as exc:
-        # Незавершённая выгрузка иначе осталась бы висеть в хранилище.
-        stream.abort()
+        _log(f'job={job_id} ОШИБКА {type(exc).__name__}: {exc}')
         dump_conn.rollback()
         dump_conn.close()
-        duration = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
-        _mark_job(job_id, 'error', error=str(exc)[:1000], duration_sec=duration)
+        _cleanup_volumes(s3, key, progress['volume_index'])
+        _mark_job(job_id, 'error', error=f'{type(exc).__name__}: {exc}'[:1000])
         return
     else:
-        # rollback, а не commit: транзакция была только на чтение.
         dump_conn.rollback()
         dump_conn.close()
 
-    if archive is not None:
-        archive.close()
-    stream.finish()
+    if not finished:
+        # Хвост, не набравший полный том, остаётся в буфере — дописываем
+        # его отдельным томом, чтобы не потерять между вызовами.
+        if buf:
+            flush_volume(force=True)
+        _save_progress(job_id, progress)
+        error = _trigger_run(job_id)
+        if error:
+            _mark_job(job_id, 'error',
+                      error=f'Не удалось продолжить выгрузку: {error}'[:1000])
+        return
 
-    duration = round((datetime.now(timezone.utc) - started).total_seconds(), 1)
+    started_at = datetime.fromisoformat(progress['started_at'])
+    duration = round((datetime.now(timezone.utc) - started_at).total_seconds(), 1)
+    base_name = progress['base_name']
 
     parts = [
         {
-            'filename': f'{base_name}.part{i + 1:03d}',
+            'filename': f'{base_name}.part{i:03d}',
             'url': s3.generate_presigned_url(
                 'get_object',
-                Params={'Bucket': 'files', 'Key': vkey},
+                Params={'Bucket': 'files', 'Key': f'{key}.part{i:03d}'},
                 ExpiresIn=LINK_TTL_SECONDS,
             ),
         }
-        for i, vkey in enumerate(stream.keys)
+        for i in range(1, progress['volume_index'] + 1)
     ]
 
     result: Dict[str, Any] = {
         'success': True,
         'scope': scope,
         'table': table,
-        'created_at': started.isoformat(),
-        'snapshot_at': str(snapshot_at),
-        'tables': len(stats),
-        'rows': total_rows,
-        'size_bytes': stream.size,
+        'created_at': progress['started_at'],
+        'tables': len(progress['stats']),
+        'rows': progress['total_rows'],
+        'size_bytes': progress['bytes_written'],
         'duration_sec': duration,
         'filename': base_name,
         'parts': parts,
         'expires_in_sec': LINK_TTL_SECONDS,
-        'top_tables': sorted(stats, key=lambda x: -x['rows'])[:10],
+        'top_tables': sorted(progress['stats'], key=lambda x: -x['rows'])[:10],
     }
-    # Один том — обычный файл, ссылка ведёт прямо на него.
     if len(parts) == 1:
         result['download_url'] = parts[0]['url']
 
     _mark_job(job_id, 'success', result=result, duration_sec=duration)
+
+
+def _cleanup_volumes(s3, key: str, count: int) -> None:
+    """Удаление недоделанной выгрузки: части без остальных бесполезны."""
+    for i in range(1, count + 1):
+        try:
+            s3.delete_object(Bucket='files', Key=f'{key}.part{i:03d}')
+        except Exception:
+            pass
+
+
+def _csv_line(values) -> str:
+    """Одна строка CSV по правилам RFC 4180."""
+    buf = io.StringIO()
+    writer = csv.writer(buf, delimiter=',', quotechar='"',
+                        lineterminator='\r\n', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(['' if v is None else v for v in values])
+    return buf.getvalue()
+
+
+def _append_entry(progress: Dict[str, Any], emit, text: str, single: bool) -> None:
+    """Дописать текст в текущий файл: как есть или сжатым куском архива."""
+    raw = text.encode('utf-8')
+    if single:
+        emit(raw)
+        return
+    entry = progress['entry']
+    packed = ZIPFMT.compress_chunk(raw)
+    emit(packed)
+    entry['crc'] = ZIPFMT.crc_update(entry['crc'], raw)
+    entry['csize'] += len(packed)
+    entry['usize'] += len(raw)
 
 
 def handle_csv_export(method, event, conn, payload):
@@ -612,17 +676,30 @@ def handle_csv_export(method, event, conn, payload):
             if not job:
                 return response(404, {'error': 'Задача не найдена'})
 
-            # Самоисцеление: если самовызов при создании задачи не дошёл,
-            # задача осталась бы в pending навсегда. При проверке статуса
-            # даём ей ещё один шанс стартовать.
+            # Самоисцеление. Два случая, когда цепочку нужно подтолкнуть:
+            # задача так и не стартовала, либо очередной отрезок оборвался
+            # (функцию мог убить таймаут платформы) и эстафета встала.
+            # Прогресс сохранён, поэтому продолжение начнётся не с нуля.
+            now = datetime.now(timezone.utc)
+            stuck = False
             if job['status'] == 'pending':
-                age = (datetime.now(timezone.utc) - job['created_at']).total_seconds()
-                if age > STALE_PENDING_SECONDS:
-                    trigger_error = _trigger_run(job['id'])
-                    if trigger_error:
-                        _mark_job(job['id'], 'error',
-                                  error=f'Не удалось запустить фоновую задачу: {trigger_error}'[:1000])
-                    job = _get_job(conn, int(job_id))
+                stuck = (now - job['created_at']).total_seconds() > STALE_PENDING_SECONDS
+            elif job['status'] == 'running':
+                last_seen = job.get('heartbeat_at') or job['created_at']
+                stuck = (now - last_seen).total_seconds() > STALE_RUNNING_SECONDS
+
+            if stuck:
+                trigger_error = _trigger_run(job['id'])
+                if trigger_error:
+                    _mark_job(job['id'], 'error',
+                              error=f'Не удалось запустить фоновую задачу: {trigger_error}'[:1000])
+                job = _get_job(conn, int(job_id))
+
+            # Ход выполнения: сколько таблиц пройдено и сколько записей
+            # уже выгружено — чтобы страница не показывала «идёт» вслепую.
+            prog = job.get('progress') or {}
+            done_tables = int(prog.get('table_index') or 0)
+            all_tables = len(prog.get('targets') or [])
 
             return response(200, {
                 'job_id': job['id'],
@@ -634,6 +711,15 @@ def handle_csv_export(method, event, conn, payload):
                 'duration_sec': job['duration_sec'],
                 'result': job['result'],
                 'error': job['error'],
+                'progress': {
+                    'tables_done': done_tables,
+                    'tables_total': all_tables,
+                    'rows': int(prog.get('total_rows') or 0),
+                    'current_table': (
+                        (prog.get('targets') or [None] * (done_tables + 1))[done_tables]
+                        if done_tables < all_tables else None
+                    ),
+                } if prog else None,
             })
 
         return response(400, {'error': 'action: tables | status'})
@@ -651,12 +737,15 @@ def handle_csv_export(method, event, conn, payload):
     if action == 'run':
         # Внутренний вызов функции самой собой: токена пользователя здесь
         # нет и быть не должно, вместо него общий секрет.
+        # Секрет принимаем и из тела, и из заголовка: заголовки платформа
+        # до функции не доносит, поэтому основной путь — тело запроса.
         headers = event.get('headers') or {}
-        secret = None
-        for hk, hv in headers.items():
-            if hk.lower() == 'x-internal-secret':
-                secret = hv
-                break
+        secret = body.get('secret')
+        if not secret:
+            for hk, hv in headers.items():
+                if hk.lower() == 'x-internal-secret':
+                    secret = hv
+                    break
         if not INTERNAL_SECRET or secret != INTERNAL_SECRET:
             return response(403, {'error': 'Forbidden'})
 
@@ -672,7 +761,11 @@ def handle_csv_export(method, event, conn, payload):
         if job['status'] not in ('pending', 'running'):
             return response(200, {'ok': True, 'skipped': job['status']})
 
-        _run_export_job(int(job_id), job['scope'], job['table_name'])
+        _log(f'run job={job_id} scope={job["scope"]} progress='
+             f'{"есть" if job.get("progress") else "нет"} — отрезок начат')
+        _run_export_step(int(job_id), job['scope'], job['table_name'],
+                         job.get('progress'))
+        _log(f'run job={job_id} — отрезок завершён')
         return response(200, {'ok': True})
 
     if action != 'create':
