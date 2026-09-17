@@ -12,6 +12,7 @@ import { apiFetch, getApiUrl } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import DatabaseBackupCard from '@/components/settings/DatabaseBackupCard';
 import FilesBackupCard from '@/components/settings/FilesBackupCard';
+import CsvExportCard from '@/components/settings/CsvExportCard';
 
 const Settings = () => {
   const { hasPermission, hasSystemRole } = useAuth();
@@ -420,6 +421,7 @@ const Settings = () => {
 
       {hasSystemRole('admin') && <DatabaseBackupCard />}
       {hasSystemRole('admin') && <FilesBackupCard />}
+      {hasSystemRole('admin') && <CsvExportCard />}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {settingsSections.map((section) => {

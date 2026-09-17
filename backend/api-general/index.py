@@ -13,6 +13,7 @@ from system_settings_handler import handle_system_settings
 from notification_templates_handler import handle_notification_templates
 from db_backup_handler import handle_db_backup
 from files_backup_handler import handle_files_backup
+from csv_export_handler import handle_csv_export
 
 def log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -33,7 +34,7 @@ def handler(event, context):
     # пользователя, вместо него проверяется общий секрет внутри хендлера.
     # Проверку JWT здесь пропускаем нарочно: иначе служебный вызов не
     # дойдёт даже до этой проверки и всегда будет падать с 401.
-    if resource == 'db_backup' and method == 'POST':
+    if resource in ('db_backup', 'csv_export') and method == 'POST':
         try:
             body = json.loads(event.get('body') or '{}')
         except (ValueError, TypeError):
@@ -43,6 +44,8 @@ def handler(event, context):
             if not conn:
                 return response(500, {'error': 'Database connection failed'})
             try:
+                if resource == 'csv_export':
+                    return handle_csv_export(method, event, conn, {})
                 return handle_db_backup(method, event, conn, {})
             finally:
                 conn.close()
@@ -83,6 +86,8 @@ def handler(event, context):
             return handle_db_backup(method, event, conn, payload)
         elif resource == 'files_backup':
             return handle_files_backup(method, event, conn, payload)
+        elif resource == 'csv_export':
+            return handle_csv_export(method, event, conn, payload)
         else:
             return response(400, {'error': f'Unknown resource: {resource}'})
     

@@ -49,6 +49,32 @@
       "path": "/?resource=db_backup",
       "body": {"action": "run", "job_id": 1, "mode": "full"},
       "expectedStatus": 403
+    },
+    {
+      "name": "CSV Export Tables Unauthorized",
+      "method": "GET",
+      "path": "/?resource=csv_export&action=tables",
+      "expectedStatus": 401
+    },
+    {
+      "name": "CSV Export Status Unauthorized",
+      "method": "GET",
+      "path": "/?resource=csv_export&action=status&job_id=1",
+      "expectedStatus": 401
+    },
+    {
+      "name": "CSV Export Create Unauthorized",
+      "method": "POST",
+      "path": "/?resource=csv_export",
+      "body": {"action": "create", "scope": "all"},
+      "expectedStatus": 401
+    },
+    {
+      "name": "CSV Export Internal Run Without Secret Forbidden",
+      "method": "POST",
+      "path": "/?resource=csv_export",
+      "body": {"action": "run", "job_id": 1},
+      "expectedStatus": 403
     }
   ]
 }
